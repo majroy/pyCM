@@ -29,7 +29,7 @@ setup(name = 'pyCM',
 
 	install_requires=['vtk','numpy','scipy','Tkinter'],
 	license = 'Creative Commons Attribution-Noncommercial-Share Alike license'
-	keywords = "residual stress contour method VTK",
+	keywords = 'residual stress contour method VTK',
 	packages=['pyCM'],
 	package_data = {'pyCM' : ['meta/*',] },
 
