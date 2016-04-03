@@ -1,10 +1,9 @@
-import os
+from os import path
 from setuptools import setup, find_packages
 
-def read(fname):
-	return open(os.path.join(os.path.dirname(__file__), fname)).read()
+here = path.abspath(path.dirname(__file__))
 
-with open(path.join(here, 'README.MD'), encoding='utf-8') as f:
+with open(path.join(here, 'README.MD')) as f:
 	long_description = f.read()
 
 setup(name = 'pyCM',
@@ -27,7 +26,7 @@ setup(name = 'pyCM',
 		'Natural Language :: English',
 		],
 
-	install_requires=['vtk','numpy','scipy','Tkinter'],
+	install_requires=['vtk','numpy','scipy'],
 	license = 'Creative Commons Attribution-Noncommercial-Share Alike license',
 	keywords = 'residual stress contour method VTK',
 	packages=['pyCM'],
