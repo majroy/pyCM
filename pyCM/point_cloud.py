@@ -36,40 +36,21 @@ __status__ = "Experimental"
 #############################################
 import sys
 import os.path
+import Tkinter as tk
+from tkFileDialog import askopenfilename
+from tkFileDialog import askdirectory
+import vtk
+import vtk.util.numpy_support as VN
+import numpy as np
+import scipy.io as sio
 
-# def checkImport():
-global tk, tkFileDialog, askdirectory, vtk, VN, np, sio, nosio
-try:
-	import Tkinter as tk
-	from tkFileDialog import askopenfilename
-	from tkFileDialog import askdirectory
-except ImportError:
-	print "Error. Tkinter not found; check version of Python."
-
-try:
-	import vtk
-	import vtk.util.numpy_support as VN
-except ImportError:
-	print "Error. VTK not found."
-
-try:
-	import numpy as np
-except ImportError:
-	print "Error. Numpy not found."
-
-nosio=False
-try:
-	import scipy.io as sio
-except ImportError:
-	print "Scipy is not installed or misconfigured. Output will be in text delimited format."
-	nosio=True
-	
+global tk, tkFileDialog, askdirectory, vtk, VN, np, sio
 
 def MaskDef(*args, **kwargs):
 	global Rotating, Panning, Zooming, Selection, Selecting, rectActor
 	global iren, renWin, ren, defaultCameraFocalPoint, defaultCameraPosition
 	global xyOffClickPosition, xyOnClickPosition
-	global Zaspect, pointSize, pointsToRemove, CurrPnts
+	global Zaspect, pointSize, pointsToRemove, CurrPnts, centroid
 	global outputd
 
 	root = tk.Tk()
@@ -120,19 +101,15 @@ def MaskDef(*args, **kwargs):
 	if Extension == '.dat':
 		ReadPoints=np.genfromtxt(filec,skiprows=1)
 	elif Extension == '.mat':
-		if nosio:
-			print 'Error. Requires Scipy to read file.'
+		mat_contents = sio.loadmat(filec)
+		try:
+			ReadPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
+			#ReadPoints=np.transpose(ReadPoints)
+			ReadPerimeter=(mat_contents['x_out'])
+			Perim=True
+		except KeyError:
+			print "Couldn't read variables from file. Quitting."
 			return
-		else:
-			mat_contents = sio.loadmat(filec)
-			try:
-				ReadPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
-				#ReadPoints=np.transpose(ReadPoints)
-				ReadPerimeter=(mat_contents['x_out'])
-				Perim=True
-			except KeyError:
-				print "Couldn't read variables from file. Quitting."
-				return
 	else:
 		ReadPoints=np.genfromtxt(filec)
 	CurrPnts=ReadPoints #Periodically updated
@@ -367,22 +344,17 @@ def MaskDef(*args, **kwargs):
 			Prefix=os.path.basename(filec)
 			Prefix=Prefix.split('.')
 			print"Now writing output . . ."
-			if nosio:
-				np.savetxt(os.path.join(outputd,Prefix[0]+"_mod.csv"),
-								np.column_stack((ReadPoints,OutputMask)),
-								delimiter=',',fmt='%f %f %f %i')
+			if Perim:
+				sio.savemat(os.path.join(outputd,Prefix[0]+"_mod.mat"), 
+							dict(
+							x=np.transpose(np.asmatrix(CurrPnts[:,0])),
+							y=np.transpose(np.asmatrix(CurrPnts[:,1])),
+							z=np.transpose(np.asmatrix(CurrPnts[:,2])),
+							rawPnts=ReadPoints,mask=OutputMask,x_out=ReadPerimeter))
 			else:
-				if Perim:
-					sio.savemat(os.path.join(outputd,Prefix[0]+"_mod.mat"), 
-								dict(
-								x=np.transpose(np.asmatrix(CurrPnts[:,0])),
-								y=np.transpose(np.asmatrix(CurrPnts[:,1])),
-								z=np.transpose(np.asmatrix(CurrPnts[:,2])),
-								rawPnts=ReadPoints,mask=OutputMask,x_out=ReadPerimeter))
-				else:
-					sio.savemat(os.path.join(outputd,Prefix[0]+"_mod.mat"), 
-								dict(x=CurrPnts[:,0],y=CurrPnts[:,1],z=CurrPnts[:,2],
-								rawPnts=ReadPoints,mask=OutputMask))
+				sio.savemat(os.path.join(outputd,Prefix[0]+"_mod.mat"), 
+							dict(x=CurrPnts[:,0],y=CurrPnts[:,1],z=CurrPnts[:,2],
+							rawPnts=ReadPoints,mask=OutputMask))
 			print "Output saved to %s" %outputd
 
 
@@ -437,28 +409,24 @@ def ReadMask(*args, **kwargs):
 		print 'Arguments not specified correctly. Quitting.'
 		return
 
-	if nosio:
-		print 'Error. Requires Scipy to read file.'
-		return
-	else:
-		mat_contents = sio.loadmat(filec)
+	mat_contents = sio.loadmat(filec)
+	try:
+		ReadPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
 		try:
-			ReadPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
-			try:
-				ReadMask=(mat_contents['mask'])
-				RawPnts=(mat_contents['rawPnts'])
-				ReadMask=np.bool_(ReadMask[0])
-				maskedPnts=RawPnts[~ReadMask,:] #display points that are 'off'
-			except KeyError:
-				print "No mask found. Run MaskDef first."
-				return
-			try:
-				ReadPerimeter=(mat_contents['x_out'])
-			except KeyError:
-				Perim=false
+			ReadMask=(mat_contents['mask'])
+			RawPnts=(mat_contents['rawPnts'])
+			ReadMask=np.bool_(ReadMask[0])
+			maskedPnts=RawPnts[~ReadMask,:] #display points that are 'off'
 		except KeyError:
-			print "Couldn't read variables from file. Quitting."
+			print "No mask found. Run MaskDef first."
 			return
+		try:
+			ReadPerimeter=(mat_contents['x_out'])
+		except KeyError:
+			Perim=false
+	except KeyError:
+		print "Couldn't read variables from file. Quitting."
+		return
 
 	if Show:
 		centroid=np.mean(ReadPoints,axis=0)
