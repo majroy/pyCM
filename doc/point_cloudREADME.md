@@ -43,7 +43,7 @@ Text file (*.txt)| 	Perimeter and point cloud files which are in the form of whi
 Data file (.dat) |	Reflects the NanoFocus whitespace delimited files, one point per line. The first row of these files which contain column headers is ignored.
 MAT-files (.mat) |	MATLAB/Octave binary workspace files. These files must have at least four specific variable names: x, y, z and x_out. Variables x, y, z are 1×N arrays of equal length. The x_out variable should contain an outline in the form of an 3×N matrix, with x and y arranged in a counter-clockwise fashion about z . Alternatively, x_out can be empty, i.e. x_out=[]. If empty, then a perimeter will not be processed.
 
-The function is called from a Python script or in interactive mode, starting by importing the specific module from the pyCM package as demonstrated above and then calling the MaskDef function via: 
+The function is called from a Python script or in interactive mode, starting by importing point_cloud module from the pyCM package and then calling the MaskDef function via: 
 ~~~
 MaskDef('Perim.txt','Points.txt','Output')
 ~~~

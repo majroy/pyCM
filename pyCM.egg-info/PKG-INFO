@@ -1,0 +1,94 @@
+Metadata-Version: 1.1
+Name: pyCM
+Version: 0.1.0.dev0
+Summary: Python contour method toolkit
+Home-page: https://github.com/majroy/pyCM
+Author: M J Roy
+Author-email: matthew.roy@manchester.ac.uk
+License: Creative Commons Attribution-Noncommercial-Share Alike license
+Description: [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0) 
+        # Introduction
+        
+        ## Contour method
+        The contour method for measuring residual stress is a cost effective, robust technique which has seen much interest both by academics and industry alike. First developed by Michael Prime at Los Alamos, it has seen a great deal of development both in the US and UK.
+        
+        For more information on the contour method:
+        * Michael Prime's website containing an extensive background and literature overview: http://www.lanl.gov/contour/
+        * Hill Engineering http://hill-engineering.com/contour-method/
+        * StressMap, UK provider of contour method measurements based at the Open University http://stressmap.open.ac.uk/
+        * VEQTER, expertise in a wide range of residual stress measurement techniques http://www.veqter.co.uk/residual-stress-measurement/contour
+        
+        ## Analysis code
+        Recently it has been found that the visualization tools that are available in MATLAB are not the most robust for the purposes of the contour method. For example, large datasets developed with laser profilometers can often exceed the graphical capabilities of recent versions of MATLAB. The reasons for moving from MATLAB for contour method analysis are numerous:
+        
+        * Proprietary nature of the built-in libraries, cost and licensing issues with external ones.
+        * Difficulties in dealing with path dependencies on managed desktops.
+        * Although 'compiled' MATLAB code can be run on computers without MATLAB installed, this is reliant on the target machine having an identical MATLAB component runtime installation, which is proprietary and quite large (250 Mb+).
+        * Diminished text file parsing built into MATLAB which makes working with FE codes difficult; this is particularly true for very large input files/meshes.
+        
+        Each of these factors contribute to the overall portability of the code and present barriers to the residual stress characterisation community developing, validating and using analysis code.
+        
+        Some of these have already been addressed via projects such as [GNU Octave](https://www.gnu.org/software/octave/), a free and open source language similar to MATLAB in terms of development environment and syntax. However, this language has been shown to be quite slow in some cases, as inter-operability with MATLAB was favoured in place of speed. Inter-operability between GNU Octave and MATLAB is still relatively incomplete as MATLAB is developed independently of Octave.
+        
+        Many researchers have moved from using MATLAB to Python entirely for numerical analysis. Python is an extremely flexible language, with many packages available to perform the same work as MATLAB. Due to the open source nature of Python, there have been many contributions that allow for wrapping compiled science and engineering code written in other languages (Fortran, C, Java) to be called directly by Python. When coupled with [Numerical Python (NumPy)](http://www.numpy.org/)  and [SciPy](http://www.vtk.org/overview/), a significant amount of the same functionality is available as in MATLAB. Furthermore, there is a maintained library of Python bindings for VTK, the [Visualization Toolkit](http://www.scipy.org/), an extremely robust tool for visualising large datasets. For example, ParaView, an open source FEA post processor, makes extensive use of VTK.
+        
+        ## Moving forward
+        It is for these reasons the overall aim is to future proof the analysis code by moving towards using Python as the language of choice. To this end, a Python package called pyCM (Python Contour Method) has been developed. The idea is to fully move over from using primarily MATLAB functions/scripts to Python equivalents in a step-by-step manner. The development strategy adopted is to build new tools where required, and allow for existing MATLAB tools to be used on the input and output from these Python tools. This will be accomplished using the SciPy packages which generate binary MATLAB files to store workspace variables, so processing can be partially performed in Python, and shifted back into MATLAB to use existing scripts.
+        
+        # Requirements
+        
+        1. Python 2.7.x (last tested on 2.7.11)
+        2. Numpy
+        3. Scipy
+        4. VTK
+        
+        Once Python is installed, the setup script provided should find the remainder of the packages from PyPI repositories. However, it is recommended on Windows machines to get binaries from Christoph Gohlke’s [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/). Note that URLs on this site are blocked, you will have to manually select the distribution that you will need. Install them via:
+        
+        ~~~
+        python -m pip install <pkg_prefix>.whl
+        ~~~
+        
+        Note that you may need to use `py -2` instead of `python` if you also have Python 3.x installed.
+        
+        # Installation
+        
+        These instructions cover the steps needed to install all dependencies and then add the pyCM components to your Python PATH. This permits calling the pyCM components anywhere on a host machine.
+        
+        1. Clone this repository to a location on the host machine.
+        2. Change directory to this location and from the command line, run `python setup.py install` from where you've cloned the repository.
+        3. Check if it installed properly by trying to import the pyCM library from any working directory at the Python prompt/IDLE:
+        ~~~
+        from pyCM import *
+        ~~~
+        or a check of installed packages via the `pip freeze` command.
+        
+        Uninstalling can be accomplished via `pip`:
+        ~~~
+        pip uninstall pyCM
+        ~~~
+        
+        # Modules
+        
+        * [point_cloud](/doc/point_cloudREADME.md) - utility to read and work with raw contour data both with and without perimeter files.
+        * [align_average](/doc/align_averageREADME.md) - utility to manipulate, align and average two contour surface datasets with perimeter files.
+        
+        # Contributions and extensions
+        This project is intended to best serve the overall residual stress community, so feel free to adjust as needed and add functionality. Please contact me directly by email prior to submitting pull requests so that we can discuss overall structure further.
+        
+        Currently, this project has only been tested on Windows 7 x64, but there is nothing to suggest that it will not work across all platforms.
+        
+        # Acknowledgements
+        A number of these tools have been developed based on MATLAB code written by Greg Johnson, Chris Gill, Matt Fox, Philip Frankel and Yuan-Sheng Xiong (and probably others) at the University of Manchester between 2004-2013.
+        
+        I'd also like to acknowledge Richard Moat at the Open University for outlining the architecture of Python and MATLAB interchangeability and highlighting the performance improvements in visualization garnered by VTK.
+Keywords: residual stress contour method VTK
+Platform: UNKNOWN
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Environment :: Win32 (MS Windows)
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Classifier: License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)
+Classifier: Operating System :: Microsoft :: Windows :: Windows 7
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Framework :: Spyder
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: Natural Language :: English
