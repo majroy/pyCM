@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: pyCM
-Version: 0.1.0.dev0
+Version: 0.2.0.dev0
 Summary: Python contour method toolkit
 Home-page: https://github.com/majroy/pyCM
 Author: M J Roy
@@ -69,8 +69,8 @@ Description: [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-b
         
         # Modules
         
-        * [point_cloud](/doc/point_cloudREADME.md) - utility to read and work with raw contour data both with and without perimeter files.
-        * [align_average](/doc/align_averageREADME.md) - utility to manipulate, align and average two contour surface datasets with perimeter files.
+        * [point_cloud] (doc/point_cloudREADME.md) - utility to read and work with raw contour data both with and without perimeter files.
+        * [align_average] (doc/align_averageREADME.md) - utility to manipulate, align and average two contour surface datasets with perimeter files.
         
         # Contributions and extensions
         This project is intended to best serve the overall residual stress community, so feel free to adjust as needed and add functionality. Please contact me directly by email prior to submitting pull requests so that we can discuss overall structure further.

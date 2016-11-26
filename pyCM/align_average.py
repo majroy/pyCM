@@ -16,18 +16,18 @@ c - return to default z-aspect
 f - flip colors from white on dark to dark on white
 i - save output to .png in current working directory
 r - remove compass/axes
-e - Update output file, write output and exit
 h - flip on x plane
 k - flip on y
 d - flip visibility of reference and floating point clouds/outlines
 a - align
-A - average
+A - align using perimeters
+v - average
 e - write output and exit
 -------------------------------------------------------------------------------
-ver 0.1 16-08-29
+ver 1.1 16-11-06
 '''
 __author__ = "M.J. Roy"
-__version__ = "0.1"
+__version__ = "1.1"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 #############################################
@@ -71,7 +71,7 @@ def align_average(*args, **kwargs):
 	global Rotating, Panning, Zooming
 	global iren, renWin, ren, defaultCameraFocalPoint, defaultCameraPosition, FloatCent
 	global Zaspect, pointSize
-	global FloatOutline, FloatPoints, OutlineActor2, qpointActor, transActor
+	global FloatOutline, FloatPoints, OutlineActor2, Outline1, Outline2, qpointActor, transActor
 	global outputd, CurrPnts, AlignmentComplete, RefPoints2
 
 	root = tk.Tk()
@@ -183,14 +183,14 @@ def align_average(*args, **kwargs):
 	offset[0]=-RefCent
 	for k in RefPoints:
 		pointCloud.addPoint(np.add(k,offset[0]))
-	OutlineActor1=initializeOutline(np.add(RefOutline,offset[0]),(0.95,0.3961,0.1333))
+	OutlineActor1,Outline1=initializeOutline(np.add(RefOutline,offset[0]),(0.95,0.3961,0.1333))
 
 	# Add points to to the VtkHighlightPointCloud Instance
 	offset[1]=np.add(-FloatCent,oa);
 	FloatOutline=np.add(FloatOutline,offset[1])
 	for k in FloatPoints:
 		qpointCloud.addPoint(np.add(k,offset[1]))
-	OutlineActor2=initializeOutline(FloatOutline,(1,0.804,0.204))
+	OutlineActor2,Outline2=initializeOutline(FloatOutline,(1,0.804,0.204))
 
 	pointActor = pointCloud.vtkActor
 	pointActor.GetProperty().SetColor(0.95,0.3961,0.1333)
@@ -230,10 +230,10 @@ def align_average(*args, **kwargs):
 
 	# Finally we create the render window which will show up on the screen
 	# We put our renderer into the render window using AddRenderer. We
-	# also set the size to be 800 pixels by 640. Because it's 1995.
+	# also set the size to be 720p
 	renWin = vtk.vtkRenderWindow()
 	renWin.AddRenderer(ren)
-	renWin.SetSize(800, 640)
+	renWin.SetSize(1280, 720)
 
 	# Define custom interaction.
 	iren = vtk.vtkRenderWindowInteractor()
@@ -251,7 +251,7 @@ def align_average(*args, **kwargs):
 	Zaspect=1
 
 	def Keypress(obj, event):
-		global ren, renWin, Zaspect, pointSize, FloatOutline, FloatPoints, FloatCent, OutlineActor2, transActor, transformPointCloud, AvgActor, AvgPointCloud, AlignmentComplete, AveragingComplete, CurrPnts, inOutline, AvgPoints_grid, AvgPoints
+		global iren, ren, renWin, Zaspect, pointSize, FloatOutline, FloatPoints, FloatCent, OutlineActor2, Outline1, Outline2, transActor, transformPointCloud, AvgActor, AvgPointCloud, AlignmentComplete, AveragingComplete, CurrPnts, inOutline, AvgPoints_grid, AvgPoints
 		key = obj.GetKeySym()
 		if key == "e":
 			if AlignmentComplete and AveragingComplete:
@@ -268,7 +268,7 @@ def align_average(*args, **kwargs):
 			FloatOutline=np.add(FloatOutline,-FloatCent)
 			FloatOutline[:,0]=-FloatOutline[:,0]
 			FloatOutline=np.add(FloatOutline,FloatCent+offset[1])
-			OutlineActor2=initializeOutline(FloatOutline,(1,0.804,0.204))
+			OutlineActor2,Outline2=initializeOutline(FloatOutline,(1,0.804,0.204))
 			ren.AddActor(OutlineActor2)
 			renWin.Render()
 			#different function for the point cloud where points are moved, and not recreated
@@ -282,7 +282,7 @@ def align_average(*args, **kwargs):
 			FloatOutline=np.add(FloatOutline,-FloatCent)
 			FloatOutline[:,1]=-FloatOutline[:,1]
 			FloatOutline=np.add(FloatOutline,FloatCent+offset[1])
-			OutlineActor2=initializeOutline(FloatOutline,(1,0.804,0.204))
+			OutlineActor2,Outline2=initializeOutline(FloatOutline,(1,0.804,0.204))
 			ren.AddActor(OutlineActor2)
 			renWin.Render()
 			#different function for the point cloud where points are moved, and not recreated
@@ -291,19 +291,31 @@ def align_average(*args, **kwargs):
 			if not AlignmentComplete:
 				print "Alignment started . . ."
 				print "Removing scaling . . ."
+				oldZ=Zaspect;
 				#clear any scaling
 				updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),1,offset[1][-1])
 				Zaspect=updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),1,offset[0][-1]) #because each call will update Zaspect
+
 				#Align the floating points with the reference points using vtk's native icp filter
 				icp=vtk.vtkIterativeClosestPointTransform()
 
 				icp.SetSource(qpointCloud.geometry)
 				icp.SetTarget(pointCloud.geometry)
-				icp.GetLandmarkTransform().SetModeToRigidBody()
-				icp.SetMaximumNumberOfIterations(1000)
+				# icp.GetLandmarkTransform().SetModeToRigidBody()
+				icp.SetMaximumNumberOfIterations(200)
 				icp.StartByMatchingCentroidsOn()
 				icp.Modified()
 				icp.Update()
+				icp.Inverse()
+
+				transM=np.zeros(shape=(4,4))
+				for i in range(4):
+					for j in range(4):
+						transM[i,j]=icp.GetMatrix().GetElement(i, j)
+				transM=np.linalg.inv(transM)
+				print "Transformation matrix for the floating data onto the reference:"
+				print(transM)
+				
 				icpTransformFilter = vtk.vtkTransformPolyDataFilter()
 				if vtk.VTK_MAJOR_VERSION <= 5:
 					icpTransformFilter.SetInput(qpointCloud.geometry)
@@ -312,31 +324,103 @@ def align_average(*args, **kwargs):
 
 				icpTransformFilter.SetTransform(icp)
 				icpTransformFilter.Update()
-
 				transformedSource = icpTransformFilter.GetOutput()
 				transformPointCloud=VtkPointCloud()
 
+				#Apply transformation matrix to the floating point cloud
 				CurrPnts=np.empty(FloatPoints.shape)
-				for k in range(int(transformedSource.GetNumberOfPoints())):
-					dummy=np.asarray(transformedSource.GetPoint(k))
+				for k in range(int(qpointCloud.points.GetNumberOfPoints())):
+					dummy=np.dot(np.asarray(qpointCloud.points.GetPoint(k)),transM[0:3,0:3])+transM[0:3,-1] 
 					transformPointCloud.addPoint(dummy)
 					CurrPnts[k,:]=dummy
 
+				# Or apply points directly from the filter
+				# CurrPnts=np.empty(FloatPoints.shape)
+				# for k in range(int(transformedSource.GetNumberOfPoints())):
+					# dummy=np.asarray(transformedSource.GetPoint(k))
+					# transformPointCloud.addPoint(dummy)
+					# CurrPnts[k,:]=dummy
+
 				transActor = transformPointCloud.vtkActor
 				transActor.GetProperty().SetColor(1,0.9098,0.6863)
-				# transActor.GetProperty().SetColor(0.2784,0.6745,0.6941)
+
 
 				ren.AddActor(transActor)
 				renWin.Render()
+
+				print "Re-applying scaling . . ."
+				updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
+
+				updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),oldZ,offset[1][-1])
+			
+				Zaspect=updateZaspect(transformPointCloud,transActor,transformPointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
+				
+				
 				print "Alignment complete."
 				AlignmentComplete=True
 			else:
 				print "Restart routine to re-try alignment."
 
-		elif key =="A":
+		elif key=="A":
+			if not AlignmentComplete:
+				print "Alignment started using perimeter . . ."
+
+				#Align the floating points with the reference points using vtk's native icp filter
+				icp=vtk.vtkIterativeClosestPointTransform()
+
+				icp.SetSource(Outline2)
+				icp.SetTarget(Outline1)
+				icp.GetLandmarkTransform().SetModeToRigidBody()
+				icp.SetMaximumNumberOfIterations(20)
+				icp.StartByMatchingCentroidsOn()
+				icp.Modified()
+				icp.Update()
+				icp.Inverse()
+				
+				transM=np.zeros(shape=(4,4))
+				for i in range(4):
+					for j in range(4):
+						transM[i,j]=icp.GetMatrix().GetElement(i, j)
+				transM=np.linalg.inv(transM)
+				print "Transformation matrix for the floating data onto the reference:"
+				print(transM)
+				
+				icpTransformFilter = vtk.vtkTransformPolyDataFilter()
+				if vtk.VTK_MAJOR_VERSION <= 5:
+					icpTransformFilter.SetInput(Outline2)
+				else:
+					icpTransformFilter.SetInputData(Outline2)
+
+				icpTransformFilter.SetTransform(icp)
+				icpTransformFilter.Update()
+
+				transformedSource = icpTransformFilter.GetOutput()
+				transformPointCloud=VtkPointCloud()
+
+				#Apply transformation matrix to the floating point cloud
+				CurrPnts=np.empty(FloatPoints.shape)
+				for k in range(int(qpointCloud.points.GetNumberOfPoints())):
+					dummy=np.dot(np.asarray(qpointCloud.points.GetPoint(k)),transM[0:3,0:3])+transM[0:3,-1] 
+					transformPointCloud.addPoint(dummy)
+					CurrPnts[k,:]=dummy
+
+				transActor = transformPointCloud.vtkActor
+				transActor.GetProperty().SetColor(1,0.9098,0.6863)
+
+
+				ren.AddActor(transActor)
+				renWin.Render()
+				
+				print "Alignment using perimeter complete."
+				AlignmentComplete=True
+			else:
+				print "Restart routine to re-try alignment."
+		elif key =="v":
 			if AlignmentComplete:
 				print "Averaging started . . ."
 				#clear any scaling
+				print "Removing scaling . . ."
+				oldZ=Zaspect;
 				updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),1,offset[1][-1])
 				updateZaspect(transformPointCloud,transActor,transformPointCloud.points.GetNumberOfPoints(),1,offset[0][-1])
 				Zaspect=updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),1,offset[0][-1]) #because each call will update Zaspect
@@ -367,6 +451,15 @@ def align_average(*args, **kwargs):
 
 				ren.AddActor(AvgActor)
 				renWin.Render()
+				print "Re-applying scaling . . ."
+				updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
+
+				updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),oldZ,offset[1][-1])
+			
+				updateZaspect(transformPointCloud,transActor,transformPointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
+				
+				Zaspect=updateZaspect(AvgPointCloud,AvgActor,AvgPointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
+				
 				print "Averaging complete."
 				AveragingComplete=True
 			else:
@@ -474,7 +567,7 @@ def align_average(*args, **kwargs):
 
 	def WriteOutput():
 	
-		global outputd
+		global outputd, iren, renWin
 		
 		# dtype1={'names':['f{}'.format(i) for i in range(ReadPoints.shape[1])],
 			# 'formats':ReadPoints.shape[1] * [ReadPoints.dtype]} #make each row an entry in a set
@@ -488,6 +581,8 @@ def align_average(*args, **kwargs):
 							initialdir=currentdir)
 		if outputd is '':
 			print "No output written."
+			close_window(iren)
+			del renWin, iren
 			return
 		else:
 			Prefix=os.path.basename(filer)
@@ -503,6 +598,8 @@ def align_average(*args, **kwargs):
 							'avg' : { 'in' : inOutline, 'xi':grid_x , 'yi':grid_y  , 'zi': AvgPoints_grid, 'pts': AvgPoints}})
 			# print np.transpose(np.asmatrix(RefPoints2[:,0])), np.transpose(np.asmatrix(RefPoints2[:,1])), np.transpose(np.asmatrix(RefPoints2[:,2]))
 			print "Output saved to %s" %outputd
+			close_window(iren)
+			del renWin, iren
 
 	iren.AddObserver("LeftButtonPressEvent", ButtonEvent)
 	iren.AddObserver("LeftButtonReleaseEvent", ButtonEvent)
@@ -524,6 +621,12 @@ def align_average(*args, **kwargs):
 
 	renWin.SetWindowName("UoM Contour Method - Alignment and Averaging v%s" %__version__)
 	iren.Start()
+
+	#if the user otherwise closes the interactor window
+	if 'iren' in globals():
+		print "Interactor closed, no output written."
+		close_window(iren)
+		del renWin, iren
 
 def flipSide(flipDirection,instance,actor,Offset):
 	NumPoints=instance.points.GetNumberOfPoints()
@@ -562,7 +665,7 @@ def initializeOutline(perimeter,color):
 	perimActor=vtk.vtkActor()
 	perimActor.SetMapper(polygonMapper)
 	perimActor.GetProperty().SetColor(color)
-	return perimActor
+	return perimActor,polyData
 
 ##Common functions
 # Routines that translate the events into camera motions.
@@ -767,6 +870,11 @@ class VtkPointCloud:
 		self.vertices = vtk.vtkCellArray()
 		self.geometry.SetPoints(self.points)
 		self.geometry.SetVerts(self.vertices)
+
+def close_window(iren):
+	render_window=iren.GetRenderWindow()
+	render_window.Finalize()
+	iren.TerminateApp()
 
 if __name__ == '__main__':
 	currentdir=os.getcwd()

@@ -25,9 +25,10 @@ i - save output to .png in current working directory
 r - remove compass
 e - Update output file, write output and exit
 -------------------------------------------------------------------------------
-ver 1.1 15-11-14
+ver 1.2 16-11-06
 1.1 - Fixed array orientation, clipping issue, compass scaling and sped up writing output
       Added ReadMask
+1.2 - Fixed window handling, now exits cleanly
 '''
 __author__ = "M.J. Roy"
 __version__ = "1.1"
@@ -36,21 +37,40 @@ __status__ = "Experimental"
 #############################################
 import sys
 import os.path
-import Tkinter as tk
-from tkFileDialog import askopenfilename
-from tkFileDialog import askdirectory
-import vtk
-import vtk.util.numpy_support as VN
-import numpy as np
-import scipy.io as sio
 
-global tk, tkFileDialog, askdirectory, vtk, VN, np, sio
+# def checkImport():
+global tk, tkFileDialog, askdirectory, vtk, VN, np, sio, nosio
+try:
+	import Tkinter as tk
+	from tkFileDialog import askopenfilename
+	from tkFileDialog import askdirectory
+except ImportError:
+	print "Error. Tkinter not found; check version of Python."
+
+try:
+	import vtk
+	import vtk.util.numpy_support as VN
+except ImportError:
+	print "Error. VTK not found."
+
+try:
+	import numpy as np
+except ImportError:
+	print "Error. Numpy not found."
+
+nosio=False
+try:
+	import scipy.io as sio
+except ImportError:
+	print "Scipy is not installed or misconfigured. Output will be in text delimited format."
+	nosio=True
+	
 
 def MaskDef(*args, **kwargs):
 	global Rotating, Panning, Zooming, Selection, Selecting, rectActor
-	global iren, renWin, ren, defaultCameraFocalPoint, defaultCameraPosition
+	global iren, renWin, ren, defaultCameraFocalPoint, defaultCameraPosition, centroid
 	global xyOffClickPosition, xyOnClickPosition
-	global Zaspect, pointSize, pointsToRemove, CurrPnts, centroid
+	global Zaspect, pointSize, pointsToRemove, CurrPnts
 	global outputd
 
 	root = tk.Tk()
@@ -101,15 +121,19 @@ def MaskDef(*args, **kwargs):
 	if Extension == '.dat':
 		ReadPoints=np.genfromtxt(filec,skiprows=1)
 	elif Extension == '.mat':
-		mat_contents = sio.loadmat(filec)
-		try:
-			ReadPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
-			#ReadPoints=np.transpose(ReadPoints)
-			ReadPerimeter=(mat_contents['x_out'])
-			Perim=True
-		except KeyError:
-			print "Couldn't read variables from file. Quitting."
+		if nosio:
+			print 'Error. Requires Scipy to read file.'
 			return
+		else:
+			mat_contents = sio.loadmat(filec)
+			try:
+				ReadPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
+				#ReadPoints=np.transpose(ReadPoints)
+				ReadPerimeter=(mat_contents['x_out'])
+				Perim=True
+			except KeyError:
+				print "Couldn't read variables from file. Quitting."
+				return
 	else:
 		ReadPoints=np.genfromtxt(filec)
 	CurrPnts=ReadPoints #Periodically updated
@@ -156,14 +180,17 @@ def MaskDef(*args, **kwargs):
 	axes.SetTotalLength(axScale,axScale,axScale)
 
 
+
 	# Create the Renderer and assign actors to it. A renderer is like a
 	# viewport. It is part or all of a window on the screen and it is
 	# responsible for drawing the actors it has.  We also set the
 	# background color here.
 	ren = vtk.vtkRenderer()
+	
 	ren.AddActor(pointActor)
 	ren.AddActor(qPointActor)
 	ren.AddActor(axes)
+
 	if Perim:
 		ren.AddActor(perimActor)
 	ren.SetBackground(0.1, 0.2, 0.4)
@@ -180,6 +207,8 @@ def MaskDef(*args, **kwargs):
 	iren = vtk.vtkRenderWindowInteractor()
 	iren.SetInteractorStyle(None)
 	iren.SetRenderWindow(renWin)
+
+
 
 	# Add the observers to watch for particular events. These invoke
 	# Python functions.
@@ -215,11 +244,10 @@ def MaskDef(*args, **kwargs):
 		renWin.Render()
 
 	def Keypress(obj, event):
-		global Selection, ren, renWin, rectActor, Zaspect, pointSize, pointsToRemove, CurrPnts
+		global Selection, iren, ren, renWin, rectActor, Zaspect, pointSize, pointsToRemove, CurrPnts
 		key = obj.GetKeySym()
 		if key == "e":
 			WriteOutput()
-			return
 		elif key =="1":
 			XYView(ren, ren.GetActiveCamera())
 		elif key =="2":
@@ -325,7 +353,7 @@ def MaskDef(*args, **kwargs):
 	#Find the difference between CurrPnts and ReadPoints, store as mask. Write output depending on what's available.
 	#Follow the same syntax as used previously: separate variables for x, y and z, outline as x_out
 	def WriteOutput():
-		global outputd, OutputMask
+		global outputd, OutputMask, iren, renWin
 		ncols=ReadPoints.shape[1] #number of columns
 		dtype={'names':['f{}'.format(i) for i in range(ncols)],
 			'formats':ncols * [ReadPoints.dtype]} #make each row an entry in a set
@@ -339,23 +367,32 @@ def MaskDef(*args, **kwargs):
 							initialdir=currentdir)
 		if outputd is '':
 			print "No output written."
+			close_window(iren)
+			del renWin, iren
 			return
 		else:
 			Prefix=os.path.basename(filec)
 			Prefix=Prefix.split('.')
 			print"Now writing output . . ."
-			if Perim:
-				sio.savemat(os.path.join(outputd,Prefix[0]+"_mod.mat"), 
-							dict(
-							x=np.transpose(np.asmatrix(CurrPnts[:,0])),
-							y=np.transpose(np.asmatrix(CurrPnts[:,1])),
-							z=np.transpose(np.asmatrix(CurrPnts[:,2])),
-							rawPnts=ReadPoints,mask=OutputMask,x_out=ReadPerimeter))
+			if nosio:
+				np.savetxt(os.path.join(outputd,Prefix[0]+"_mod.csv"),
+								np.column_stack((ReadPoints,OutputMask)),
+								delimiter=',',fmt='%f %f %f %i')
 			else:
-				sio.savemat(os.path.join(outputd,Prefix[0]+"_mod.mat"), 
-							dict(x=CurrPnts[:,0],y=CurrPnts[:,1],z=CurrPnts[:,2],
-							rawPnts=ReadPoints,mask=OutputMask))
+				if Perim:
+					sio.savemat(os.path.join(outputd,Prefix[0]+"_mod.mat"), 
+								dict(
+								x=np.transpose(np.asmatrix(CurrPnts[:,0])),
+								y=np.transpose(np.asmatrix(CurrPnts[:,1])),
+								z=np.transpose(np.asmatrix(CurrPnts[:,2])),
+								rawPnts=ReadPoints,mask=OutputMask,x_out=ReadPerimeter))
+				else:
+					sio.savemat(os.path.join(outputd,Prefix[0]+"_mod.mat"), 
+								dict(x=CurrPnts[:,0],y=CurrPnts[:,1],z=CurrPnts[:,2],
+								rawPnts=ReadPoints,mask=OutputMask))
 			print "Output saved to %s" %outputd
+			close_window(iren)
+			del renWin, iren
 
 
 
@@ -378,6 +415,11 @@ def MaskDef(*args, **kwargs):
 	renWin.SetWindowName("UoM Contour Method - Point Cloud Mask Definition v%s" %__version__)
 	iren.Start()
 
+	#if the user otherwise closes the interactor window
+	if 'iren' in globals():
+		print "Interactor closed, no output written."
+		close_window(iren)
+		del renWin, iren
 
 def ReadMask(*args, **kwargs):
 	global Rotating, Panning, Zooming, Selecting, Selection, defaultCameraPosition, defaultCameraFocalPoint
@@ -409,24 +451,28 @@ def ReadMask(*args, **kwargs):
 		print 'Arguments not specified correctly. Quitting.'
 		return
 
-	mat_contents = sio.loadmat(filec)
-	try:
-		ReadPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
-		try:
-			ReadMask=(mat_contents['mask'])
-			RawPnts=(mat_contents['rawPnts'])
-			ReadMask=np.bool_(ReadMask[0])
-			maskedPnts=RawPnts[~ReadMask,:] #display points that are 'off'
-		except KeyError:
-			print "No mask found. Run MaskDef first."
-			return
-		try:
-			ReadPerimeter=(mat_contents['x_out'])
-		except KeyError:
-			Perim=false
-	except KeyError:
-		print "Couldn't read variables from file. Quitting."
+	if nosio:
+		print 'Error. Requires Scipy to read file.'
 		return
+	else:
+		mat_contents = sio.loadmat(filec)
+		try:
+			ReadPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
+			try:
+				ReadMask=(mat_contents['mask'])
+				RawPnts=(mat_contents['rawPnts'])
+				ReadMask=np.bool_(ReadMask[0])
+				maskedPnts=RawPnts[~ReadMask,:] #display points that are 'off'
+			except KeyError:
+				print "No mask found. Run MaskDef first."
+				return
+			try:
+				ReadPerimeter=(mat_contents['x_out'])
+			except KeyError:
+				Perim=false
+		except KeyError:
+			print "Couldn't read variables from file. Quitting."
+			return
 
 	if Show:
 		centroid=np.mean(ReadPoints,axis=0)
@@ -482,10 +528,10 @@ def ReadMask(*args, **kwargs):
 
 		# Finally we create the render window which will show up on the screen
 		# We put our renderer into the render window using AddRenderer. We
-		# also set the size to be 800 pixels by 640. Because it's 1995.
+		# also set the size to be 1280 pixels by 720 (720p).
 		renWin = vtk.vtkRenderWindow()
 		renWin.AddRenderer(ren)
-		renWin.SetSize(800, 640)
+		renWin.SetSize(1280, 720)
 		# renWin.SetWindowName("UoM Contour Method - Point Editor")
 
 		# Define custom interaction.
@@ -515,9 +561,7 @@ def ReadMask(*args, **kwargs):
 		def Keypress(obj, event):
 			global Selection, ren, renWin, Zaspect, pointSize
 			key = obj.GetKeySym()
-			if key == "e":
-				return
-			elif key =="1":
+			if key =="1":
 				XYView(ren, ren.GetActiveCamera())
 			elif key =="2":
 				YZView(ren, ren.GetActiveCamera())
@@ -902,6 +946,11 @@ def updatePointSize(actor,NewPointSize):
 	renWin.Render()
 	return NewPointSize
 
+def close_window(iren):
+	render_window=iren.GetRenderWindow()
+	render_window.Finalize()
+	iren.TerminateApp()
+
 if __name__ == '__main__':
 	currentdir=os.getcwd()
 	# checkImport()
@@ -919,7 +968,5 @@ if __name__ == '__main__':
 		MaskDef(pcloudFile)
 	else:
 		MaskDef()
-
-
 
 

@@ -7,7 +7,7 @@ with open(path.join(here, 'README.MD')) as f:
 	long_description = f.read()
 
 setup(name = 'pyCM',
-	version = '0.1.0.dev0',
+	version = '0.2.0.dev0',
 	description = 'Python contour method toolkit',
 	long_description = long_description,
 	url = 'https://github.com/majroy/pyCM',
