@@ -47,7 +47,7 @@ from tkFileDialog import askopenfilename
 from tkFileDialog import askdirectory
 
 
-def fit_surface(*args, **kwargs):
+def Interactor(*args, **kwargs):
 	app = QApplication(sys.argv)
 	
 	splash_pix = QtGui.QPixmap('meta/pyCM_logo.png')
@@ -729,11 +729,11 @@ if __name__ == "__main__":
 	if len(sys.argv)>2:
 		RefFile=os.path.join(currentdir,sys.argv[1])
 		outDir=os.path.join(currentdir,sys.argv[2])
-		fit_surface(RefFile,outDir)
+		Interactor(RefFile,outDir)
 	elif len(sys.argv)>1:
 		RefFile=os.path.join(currentdir,sys.argv[1])
-		fit_surface(RefFile)
+		Interactor(RefFile)
 	else:
-		fit_surface()
+		Interactor()
 
 
