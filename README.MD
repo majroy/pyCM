@@ -69,7 +69,7 @@ pip uninstall pyCM
 * [point_cloud](doc/point_cloudREADME.md) - utility to read and work with raw contour data both with and without perimeter files.
 * [align_average](doc/align_averageREADME.md) - utility to manipulate, align and average two contour surface datasets with perimeter files.
 * [fit_surface](doc/fit_surfaceREADME.md) - utility to fit averaged point clouds
-* [preprocess](doc/preprocess.md) - meshing/boundary condition building tool which works with Abaqus and OS FEA toolchains (Gmsh & Calculix).
+* [preprocess](doc/preprocessREADME.md) - meshing/boundary condition building tool which works with Abaqus and OS FEA toolchains (Gmsh & Calculix).
 
 # Contributions and extensions
 This project is intended to best serve the overall residual stress community, so feel free to adjust as needed and add functionality. Please contact me directly by email prior to submitting pull requests so that we can discuss overall structure further.
