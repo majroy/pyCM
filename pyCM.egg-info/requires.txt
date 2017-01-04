@@ -1,4 +1,5 @@
-vtk
+vtk>=6.0
 numpy
 scipy
-pyQt4
+pyyaml
+matplotlib

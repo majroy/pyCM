@@ -47,7 +47,7 @@ from tkFileDialog import askopenfilename
 from tkFileDialog import askdirectory
 
 
-def Interactor(*args, **kwargs):
+def fit_surface(*args, **kwargs):
 	app = QApplication(sys.argv)
 	
 	splash_pix = QtGui.QPixmap('meta/pyCM_logo.png')
@@ -368,6 +368,7 @@ class sf_Interactor(QtGui.QMainWindow):
 			triangle=vtk.vtkTriangle()
 			for j in range(0,3):
 				triangle.GetPointIds().SetId(j,i[j])
+				print j,i[j]
 			triangles.InsertNextCell(triangle)
 
 		trianglePolyData = vtk.vtkPolyData()
@@ -729,11 +730,11 @@ if __name__ == "__main__":
 	if len(sys.argv)>2:
 		RefFile=os.path.join(currentdir,sys.argv[1])
 		outDir=os.path.join(currentdir,sys.argv[2])
-		Interactor(RefFile,outDir)
+		fit_surface(RefFile,outDir)
 	elif len(sys.argv)>1:
 		RefFile=os.path.join(currentdir,sys.argv[1])
-		Interactor(RefFile)
+		fit_surface(RefFile)
 	else:
-		Interactor()
+		fit_surface()
 
 
