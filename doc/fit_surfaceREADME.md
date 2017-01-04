@@ -1,4 +1,4 @@
-# preprocess
+# fit_surface
 
 ## Background
 Currently in beta - reads data from align_average and provides a GUI which is essentially a wrapper for scipy's FITPACK bivariate spline fitting function. Writes a .mat file containing the spline fit both from FITPACK as well as attempting to match Matlab's spline objects. Requires PyQt4.
