@@ -187,7 +187,7 @@ class sf_MainWindow(object):
 		self.poissonInput = QtGui.QLineEdit()
 		self.poissonInput.setText("%.3f"%(0.3))
 		self.modulusInput = QtGui.QLineEdit()
-		self.modulusInput.setText("%7.0f"%(205000))
+		self.modulusInput.setText("%7.0f"%(200000))
 
 		horizLine4=QtGui.QFrame()
 		horizLine4.setFrameStyle(QtGui.QFrame.HLine)
@@ -283,9 +283,9 @@ class msh_Interactor(QtGui.QMainWindow):
 				self.cfg = yaml.load(ymlfile)	
 		except:
 			try:
-				GetFEAconfig(['','',''],self.filec)
-				with open(self.filec,'r') as ymlfile:
-					self.cfg = yaml.load(ymlfile)
+				self.cfg= GetFEAconfig(['','',''],self.filec)
+				# with open(self.filec,'r') as ymlfile:
+					# self.cfg = yaml.load(ymlfile)
 			except:
 				sys.exit("Failed to set config file. Quitting.")
 	
@@ -388,14 +388,16 @@ class msh_Interactor(QtGui.QMainWindow):
 			return
 				
 		directions=np.array([[0,-1,0],[0,-1,0],[1,0,0],[1,0,0],
+                                [0,1,0],[0,1,0],[-1,0,0],[-1,0,0],
+					  [0,-1,0],[0,-1,0],[1,0,0],[1,0,0],
                                 [0,1,0],[0,1,0],[-1,0,0],[-1,0,0]]) #corresponds to ccw
 		if not self.OutlineIsCCW: directions=np.flipud(directions)
 		
 		#arrow size is 5% max size of domain
 		self.asize=np.maximum(self.limits[1]-self.limits[0],self.limits[3]-self.limits[2])*0.05
 		
-		self.a=[] #arrow actors
-		self.aInd=np.empty([4,2]) #index of corners and their 
+		self.a=[] #arrow actors on 'front' face
+		self.aInd=np.empty([8,2]) #index of corners and their 
 		for c in range(len(self.corners)):
 			if c==0:
 				self.a.append(DrawArrow(self.corners[c,:],self.asize,directions[c,:],self.ren))
@@ -405,7 +407,8 @@ class msh_Interactor(QtGui.QMainWindow):
 				self.a.append(DrawArrow(self.corners[c,:],self.asize,directions[c*2-1,:],self.ren))
 				self.a.append(DrawArrow(self.corners[c,:],self.asize,directions[c*2,:],self.ren))
 				self.aInd[c,:]=[c*2,c*2+1]
-			 
+				
+		
 		
 		#bump out axis limits
 		l=self.limits
@@ -471,7 +474,7 @@ class msh_Interactor(QtGui.QMainWindow):
 			# print self.corners[self.pickedCornerInd,:]
 			#node numbers of the picked corners are stored in
 			# print self.cornerInd[self.pickedCornerInd]
-		self.ui.statLabel.setText("Rigid body BCs selected . . . Idle")
+			self.ui.statLabel.setText("Rigid body BCs selected . . . Idle")
 
 	def ModOutline(self):
 		"""
@@ -900,7 +903,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				self.UndoRigidBody()
 				
 			# if hasattr(self,"labelActor"):
-				# self.ren.RemoveActor(self.labelActor)
+				# self.ren.RemoveActor(self.labelActor) #debug
 			
 		self.vtkfile, startdir = GetFile('*.vtk')
 		self.ui.statLabel.setText("Reading . . .")
@@ -908,11 +911,41 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.meshSource=vtk.vtkUnstructuredGridReader()
 		self.meshSource.SetFileName(self.vtkfile)
 		self.meshSource.Update()
+		self.ui.statLabel.setText("Filtering out non volumetric elements . . .")
+		QtGui.qApp.processEvents()
+		#mesh as-read
+		om = self.meshSource.GetOutput()
+		#get cell types
+		tcs=vtk.vtkCellTypes()
+		om.GetCellTypes(tcs)
+		#if it's not a 1st order quad or 2nd order tet, gmsh will return non uniform element types.
+		if tcs.IsType(12)==1:
+			self.mainCellType=12 #1st order quad
+		elif tcs.IsType(24)==1:
+			self.mainCellType=24 #2nd order tet
+		# print "Cells before thresholding:",om.GetNumberOfCells() #debug
+		#build int array of types
+		cellTypeArray=vtk.vtkIntArray()
+		cellTypeArray.SetName("Type")
+		cellTypeArray.SetNumberOfComponents(1)
+		cellTypeArray.SetNumberOfTuples(om.GetNumberOfCells())
+		om.GetCellData().AddArray(cellTypeArray)
+		for ind in xrange(om.GetNumberOfCells()):
+			cellTypeArray.SetValue(ind,om.GetCell(ind).GetCellType())
+		#generate threshold filter
+		t=vtk.vtkThreshold()
+		t.SetInputData(om)
+		t.ThresholdByUpper(self.mainCellType)
+		t.SetInputArrayToProcess(0,0,0,1,"Type")
+		t.Update()
+		
+		self.mesh=t.GetOutput()
+		# print "Cells after thresholding:",self.mesh.GetNumberOfCells() #debug
+
 		self.ui.statLabel.setText("Rendering . . .")
 		QtGui.qApp.processEvents()
-		self.mesh=self.meshSource.GetOutput()
 		
-		# print "Read VTK mesh file:"
+		# print "Read VTK mesh file:" #debug
 		# print "No. points:",self.mesh.GetNumberOfPoints()
 		# print "No. elements:",self.mesh.GetNumberOfCells()
 		bounds=self.mesh.GetBounds()
@@ -960,16 +993,10 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		locator.BuildLocator()
 		locator.FindCellsWithinBounds(self.mesh.GetBounds()[0:4]+(-0.1,self.Dist),vil)
 		
-		tcs=vtk.vtkCellTypes()
-		self.mesh.GetCellTypes(tcs)
-		#if it's not a 1st order quad or 2nd order tet, gmsh will return non uniform element types.
-		if tcs.IsType(12)==1:
-			mainCellType=12 #1st order quad
-		elif tcs.IsType(24)==1:
-			mainCellType=24 #2nd order tet
 		
 		#vtk datatypes to hold info from locator filter
 		nfaces=vtk.vtkCellArray()
+		rptIds=vtk.vtkIdList()
 		ptIds=vtk.vtkIdList()
 		self.BCelements=np.array([])
 		
@@ -978,19 +1005,22 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		for i in xrange(vil.GetNumberOfIds()):
 			self.mesh.GetFaceStream(vil.GetId(i),ptIds)
 			cellType=self.mesh.GetCellType(vil.GetId(i))
-			if cellType == mainCellType:
+			if cellType == self.mainCellType:
 				count+=1
 				nfaces.InsertNextCell(ptIds)
 				self.BCelements=np.append(self.BCelements,vil.GetId(i))
-
+				
+		# for i in xrange(vilrf.GetNumberOfIds()):
+			# print self.mesh.GetCellPoints(vil.GetId(i))
+		
 		#convert the vtklist to numpy array, resize accordingly; 1D array consists of number of nodes/element, followed by node/point number
 		rawPIds=vtk_to_numpy(nfaces.GetData()) 
 		
 		#make new matrix to hold node/point number connectivity
-		if mainCellType == 12: #quads
+		if self.mainCellType == 12: #quads
 			SurfPoints=np.resize(rawPIds,(int(len(rawPIds)/float(9)),9))
 			BCunit=4
-		elif mainCellType == 24: #2nd order tets
+		elif self.mainCellType == 24: #2nd order tets
 			SurfPoints=np.resize(rawPIds,(int(len(rawPIds)/float(11)),11))
 			BCunit=6
 		#remove point count column
@@ -1096,9 +1126,9 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 
 		self.ui.statLabel.setText("Finding corners . . .")
 		QtGui.qApp.processEvents()
-		
 		#create np matrix to store surface points (and find corners)
-		self.BCpnts=vtk_to_numpy(BCpnts.GetData())
+		self.BCpnts=vtk_to_numpy(BCpnts.GetData()) #BCsearch will be fast
+		allNodes=vtk_to_numpy(self.mesh.GetPoints().GetData())
 
 		c_target=np.array([
 		[self.limits[0],self.limits[2]], #xmin,ymin
@@ -1119,6 +1149,29 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		
 		self.cornerInd=self.BCindex[ind.astype(int)]
 		self.corners=self.BCpnts[ind.astype(int),:]
+		
+		print self.corners,self.cornerInd
+		
+		#back face
+		bfc_target=np.array([
+		[self.limits[0],self.limits[2],self.limits[5]], #xmin,ymin,zmax
+		[self.limits[0],self.limits[3],self.limits[5]], #xmin,ymax,zmax
+		[self.limits[1],self.limits[3],self.limits[5]], #xmax,ymax,zmax
+		[self.limits[1],self.limits[2],self.limits[5]] #xmax,ymin,zmax
+		])
+		
+		
+		#create point locator for nodes on back face
+		backCornerLocator=vtk.vtkPointLocator()
+		backCornerLocator.SetDataSet(self.mesh)
+		backCornerLocator.AutomaticOn()
+		backCornerLocator.BuildLocator()
+		
+		for i in bfc_target:
+			target=backCornerLocator.FindClosestPoint(i)
+			self.cornerInd=np.append(self.cornerInd,target)
+			self.corners=np.vstack((self.corners,self.mesh.GetPoint(target)))
+						
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
 		
@@ -1180,24 +1233,14 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			FlipVisible(self.outlineActor)
 
 		elif key == "e":
-			# filec = resource_filename("pyCM","pyCMconfig.yml")#needs to be pyCM
 			try:
 				with open(self.filec,'r') as ymlfile:
 					readcfg = yaml.load(ymlfile)
 				l=[readcfg['FEA']['abaqusExec'],readcfg['FEA']['gmshExec'],readcfg['FEA']['ccxExec']]
-				GetFEAconfig(l,self.filec)
+				self.cfg=GetFEAconfig(l,self.filec)
 			except:
 				"Couldn't find config file where it normally is." 
-			# try:
-				# with open(filec,'r') as ymlfile:
-					# readcfg = yaml.load(ymlfile)
-				# print [readcfg['FEA']['abaqusExec'],readcfg['FEA']['gmshExec'],readcfg['FEA']['ccxExec']]
-				# # GetFEAconfig([readcfg['FEA']['abaqusExec'],readcfg['FEA']['gmshExec'],readcfg['FEA']['ccxExec']],filec)
-			# except:
-				# print 'something went wrong'
-				# GetFEAconfig(['','',''],filec)
-				# with open(filec,'r') as ymlfile:
-					# self.cfg = yaml.load(ymlfile)
+
 		
 		elif key == "q":
 			if sys.stdin.isatty():
@@ -1259,8 +1302,10 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		
 		if not nR==0:
 			BCelemsq=np.reshape(self.BCelements[0:-nR],(int(len(self.BCelements[0:-nR])/float(16)),16))
+			
 		else: #well, the remainder is 0
 			BCelemsq=np.reshape(self.BCelements,(int(len(self.BCelements)/float(16)),16))
+		BCelemsq=BCelemsq+1 #because elements start numbering at 1
 		
 		fid.write('*HEADING\n')
 		fid.write('**pyCM input deck, converted from VTK format\n')
@@ -1291,13 +1336,14 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		fid.write('%7.0f,%.3f\n'%(float(self.ui.modulusInput.text()),float(self.ui.poissonInput.text())))
 		fid.write('*STEP, NAME=CONFORM\n')
 		fid.write('*STATIC\n')
-		fid.write('*BOUNDARY\n')
+		fid.write('*BOUNDARY, OP=NEW\n')
 		fid.write('%i, 1,2, 0\n'%(self.cornerInd[self.pickedCornerInd[0]]+1))
-		fid.write('%i, 2,, 0\n'%(self.cornerInd[self.pickedCornerInd[1]]+1))
+		fid.write('%i, 2, 0\n'%(self.cornerInd[self.pickedCornerInd[1]]+1))
+		fid.write('*BOUNDARY, OP=NEW\n')
 		for ind in range(len(self.BCindex)):
 			fid.write('%i, 3,, %6.6f\n'%(self.BCindex[ind]+1,self.BCpnts[ind,2]))
 		fid.write('*EL FILE\n')
-		fid.write('S\n')#get all stresses just to be safe.
+		fid.write('S,E\n')#get all stresses and strains just to be safe.
 		fid.write('*EL PRINT, ELSET=BC\n')
 		if self.ui.CalculixButton.isChecked():
 			fid.write('S\n')#Coords by default
@@ -1416,6 +1462,8 @@ def GetOpenFile(ext,outputd):
 
 	if filer:
 		filer=str(filer)
+		if filer.endswith(ext[-4:]) and not filer.endswith(ext[-7:]):
+			filer=filer[:-4]+ext.split('*')[-1]
 		# if not filer.endswith(ext[-3:]) and len(ext)<8:
 			# filer+='.'+ext.split('.')[-1]
 		# elif not filer.endswith(ext[-8:]) and len(ext)>8:
@@ -1711,7 +1759,7 @@ class Ui_getFEAconfigDialog(object):
 	
 def GetFEAconfig(inputlist,filec):
 	'''
-	Creates a GUI window to let the user specify FEA executable paths and writes them to a config file.
+	Creates a GUI window to let the user specify FEA executable paths and writes them to a config file. Reads configs.
 	'''
 	getFEAconfigDialog = QtGui.QDialog()
 	dui = Ui_getFEAconfigDialog()
@@ -1722,6 +1770,12 @@ def GetFEAconfig(inputlist,filec):
 	dui.ConfigFileLoc.setText(filec)
 	getFEAconfigDialog.exec_()
 	del getFEAconfigDialog
+	try:
+		with open(filec,'r') as ymlfile:
+			return yaml.load(ymlfile)
+	except:
+		print "Couldn't read config file for some reason."
+
 	
 if __name__ == "__main__":
 	# currentdir=os.getcwd()
