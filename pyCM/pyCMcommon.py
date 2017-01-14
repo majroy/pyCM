@@ -13,6 +13,7 @@ from PyQt4.QtGui import QApplication, QFileDialog
 import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 import numpy as np
+import scipy.io as sio
 
 
 def get_file(*args):
@@ -72,10 +73,8 @@ def get_open_file(ext,outputd):
 	filer = QFileDialog.getSaveFileName(None, 'Select the save location:', id,(ftypeName[ext]+' ('+ext+')'))
 	
 	if filer == '':
-		if sys.stdin.isatty() and not hasattr(sys,'ps1'):
-			sys.exit("No file selected; exiting.")
-		else:
-			print 'No file selected.'
+		filer = None
+		startdir = None
 		
 
 	if filer:
@@ -231,3 +230,15 @@ def update_point_size(actor,NewPointSize):
 	renWin.Render()
 	return NewPointSize
 	
+def read_uom_mat(file):
+	'''
+	Reads a .mat file from UoM's MATLAB routine outliner.m which preprocesses NanoFocus .dat file (Origin format). Returns points and an outline in numpy arrays.
+	'''
+	try:
+		mat_contents = sio.loadmat(file)
+		rawPnts=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
+		outline=(mat_contents['x_out'])
+		return rawPnts, outline
+	except:
+		print("Couldn't data from %s."%file)
+		return

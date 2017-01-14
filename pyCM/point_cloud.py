@@ -12,9 +12,9 @@ RMB - zoom/refresh window extents
 3 - view 3, looks down y axis onto zx plane
 r - enter/exit picking mode, LMB is used to generate a selection window. Exiting 
 	picking mode will highlight selected points.
-z - increase z-aspect ratio
-x - decrease z-aspect ratio
-c - return to default z-aspect
+z - increase aspect ratio
+x - decrease aspect ratio
+c - return to default aspect
 f - flip colors from white on dark to dark on white
 i - save output to .png in current working directory
 a - toggles axes
@@ -116,6 +116,31 @@ class pt_main_window(object):
 		
 		#define buttons/widgets
 		self.reloadButton = QtGui.QPushButton('Load')
+		scalingLabel=QtGui.QLabel("Active axis for scaling")
+		scalingLabel.setFont(headFont)
+		self.xsButton=QtGui.QRadioButton("x")
+		self.ysButton=QtGui.QRadioButton("y")
+		self.zsButton=QtGui.QRadioButton("z")
+		self.zsButton.setChecked(True)
+		self.scalingButtonGroup = QtGui.QButtonGroup()
+		self.scalingButtonGroup.addButton(self.xsButton)
+		self.scalingButtonGroup.addButton(self.ysButton)
+		self.scalingButtonGroup.addButton(self.zsButton)
+		self.scalingButtonGroup.setExclusive(True)
+		scaleBoxlayout = QtGui.QGridLayout()
+		scaleBoxlayout.addWidget(self.xsButton,1,1)
+		scaleBoxlayout.addWidget(self.ysButton,1,2)
+		scaleBoxlayout.addWidget(self.zsButton,1,3)
+		self.reduce = QtGui.QSpinBox()
+		self.reduce.setValue(0)
+		self.reduceButton = QtGui.QPushButton('Reduce')
+		self.revertButton = QtGui.QPushButton('Reload source')
+
+		reduceBoxlayout= QtGui.QGridLayout()
+		reduceBoxlayout.addWidget(self.reduce,1,1)
+		reduceBoxlayout.addWidget(self.reduceButton,1,2)
+		
+		
 		# self.reloadButton.setMaximumWidth(50)
 		horizLine1=QtGui.QFrame()
 		horizLine1.setFrameStyle(QtGui.QFrame.HLine)
@@ -139,23 +164,29 @@ class pt_main_window(object):
 		self.writeButtonGroup.addButton(self.refButton)
 		self.writeButtonGroup.setExclusive(True)
 		self.writeButton=QtGui.QPushButton('Write')
+		self.releaseButton=QtGui.QPushButton('Release')
+		self.releaseButton.setEnabled(False)
 		horizLine3=QtGui.QFrame()
 		horizLine3.setFrameStyle(QtGui.QFrame.HLine)
 		self.loadMatButton=QtGui.QPushButton('Load *.mat')
 
-		
 		#add to formlayout
 		mainUiBox.addRow(self.reloadButton)
+		mainUiBox.addRow(scalingLabel)
+		mainUiBox.addRow(scaleBoxlayout)
 		mainUiBox.addRow(horizLine1)
 		mainUiBox.addRow(pickLabel)
+		mainUiBox.addRow(reduceBoxlayout)
 		mainUiBox.addRow(self.pickerButton,self.pickActiveLabel)
 		mainUiBox.addRow(self.undoLastPickButton)
+		
+		mainUiBox.addRow(self.revertButton)
 		#add formlayout to main ui
 		
 		mainUiBox.addRow(horizLine2)
 		mainUiBox.addRow(outputLabel)
 		mainUiBox.addRow(self.refButton,self.floatButton)
-		mainUiBox.addRow(self.writeButton)
+		mainUiBox.addRow(self.writeButton,self.releaseButton)
 		mainUiBox.addRow(horizLine3)
 		mainUiBox.addRow(self.loadMatButton)
 
@@ -195,7 +226,51 @@ class pnt_interactor(QtGui.QMainWindow):
 		self.ui.pickerButton.clicked.connect(lambda: self.start_pick())
 		self.ui.undoLastPickButton.clicked.connect(lambda: self.undo_pick())
 		self.ui.writeButton.clicked.connect(lambda: self.write_new())
+		self.ui.releaseButton.clicked.connect(lambda: self.release_mat())
 		self.ui.loadMatButton.clicked.connect(lambda: self.load_mat())
+		self.ui.revertButton.clicked.connect(lambda: self.undo_revert())
+		self.ui.reduceButton.clicked.connect(lambda: self.reduce_pnts())
+	
+	def undo_revert(self):
+		'''
+		Reloads all data based on filec & filep (if it exists)
+		'''
+		if hasattr(self,'filep'):
+			self.get_input_data(self.filep,self.filec)
+		else:
+			self.get_input_data(None,self.filec)
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+			
+	def reduce_pnts(self):
+		'''
+		Reduces the number of points according to the percentage of what's in the spinbox
+		0 -> means nothing, 10 means leave 90 percent of the points
+		'''
+		color=(70, 171, 176)
+		red=(100-float(self.ui.reduce.value()))/100
+		ind=np.linspace(0, len(self.rawPnts)-1, num=int(red*len(self.rawPnts)))
+		self.rawPnts=self.rawPnts[tuple(ind.astype(int)),:]
+		# print red,int(red*len(self.rawPnts)),np.shape(self.rawPnts)
+
+		self.ren.RemoveActor(self.pointActor)
+		self.vtkPntsPolyData, \
+		self.pointActor, self.colors = \
+		gen_point_cloud(self.rawPnts,color,self.PointSize)
+		self.bool_pnt=np.ones(len(self.rawPnts), dtype=bool)
+		self.ren.AddActor(self.pointActor)
+				
+		s,nl,axs=self.get_scale()
+
+		self.pointActor.SetScale(s)
+		self.pointActor.Modified()
+
+		self.add_axis(nl,axs)
+		
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
 	
 	def load_mat(self):
 		"""
@@ -211,47 +286,47 @@ class pnt_interactor(QtGui.QMainWindow):
 		
 		if filem: #check variables
 			mat_contents = sio.loadmat(filem)
-		try:
-			rp=mat_contents['ref']['rawPnts'][0][0]
-			ind=mat_contents['ref']['mask'][0][0][0]
-			
-			rp=rp[np.where(ind)]
-			
-			color=(242, 101, 34)
-			_, self.rActor, _, = gen_point_cloud(rp,color,self.PointSize)
-			self.ren.AddActor(self.rActor)
-			
-			#do other one
-			fp=mat_contents['float']['rawPnts'][0][0]
-			ind=mat_contents['float']['mask'][0][0][0]
-			
-			fp=fp[np.where(ind)]
+			try:
+				rp=mat_contents['ref']['rawPnts'][0][0]
+				ind=mat_contents['ref']['mask'][0][0][0]
+				
+				rp=rp[np.where(ind)]
+				
+				color=(242, 101, 34)
+				_, self.rActor, _, = gen_point_cloud(rp,color,self.PointSize)
+				self.ren.AddActor(self.rActor)
+				
+				#do other one
+				fp=mat_contents['float']['rawPnts'][0][0]
+				ind=mat_contents['float']['mask'][0][0][0]
+				
+				fp=fp[np.where(ind)]
 
+				
+				color=(255, 205, 52)
+				_, self.fActor, _, = gen_point_cloud(fp,color,self.PointSize)
+				self.ren.AddActor(self.fActor)
 			
-			color=(255, 205, 52)
-			_, self.fActor, _, = gen_point_cloud(fp,color,self.PointSize)
-			self.ren.AddActor(self.fActor)
-		
-			# update status
-			self.ui.statLabel.setText("Current point file:%s"%filem)
-			
-			RefMin=np.amin(np.vstack((fp,rp)),axis=0)
-			RefMax=np.amax(np.vstack((fp,rp)),axis=0)
+				# update status
+				self.ui.statLabel.setText("Current point file:%s"%filem)
+				
+				RefMin=np.amin(np.vstack((fp,rp)),axis=0)
+				RefMax=np.amax(np.vstack((fp,rp)),axis=0)
 
-			extents=RefMax-RefMin #extents
-			rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
-			self.limits=[RefMin[0]-rl, \
-			RefMax[0]+rl, \
-			RefMin[1]-rl, \
-			RefMax[1]+rl, \
-			RefMin[2],RefMax[2]]
+				extents=RefMax-RefMin #extents
+				rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
+				self.limits=[RefMin[0]-rl, \
+				RefMax[0]+rl, \
+				RefMin[1]-rl, \
+				RefMax[1]+rl, \
+				RefMin[2],RefMax[2]]
 
-			#add axes
-			self.AddAxis(self.limits,1)
+				#add axes
+				self.add_axis(self.limits,[1,1,1])
+				
+			except:
+				print "Couldn't read in both sets of data."
 			
-		except:
-			print "Couldn't read in both sets of data."
-		
 		else:
 			print 'Invalid *.mat file'
 			return
@@ -272,7 +347,7 @@ class pnt_interactor(QtGui.QMainWindow):
 		
 		if not hasattr(self,'fileo'):
 			self.fileo, _, = get_open_file('*.mat',os.getcwd())
-			
+			self.ui.releaseButton.setEnabled(True)
 			if self.fileo:
 				x_o=self.rawPnts[self.bool_pnt,0]
 				y_o=self.rawPnts[self.bool_pnt,1]
@@ -287,7 +362,7 @@ class pnt_interactor(QtGui.QMainWindow):
 				QtGui.QMessageBox.No,QtGui.QMessageBox.Yes,QtGui.QMessageBox.NoButton)
 				if ret == QtGui.QMessageBox.No: #don't overwrite
 					return
-			print self.fileo
+			
 			mat_contents=sio.loadmat(self.fileo)
 			
 			x_o=self.rawPnts[self.bool_pnt,0]
@@ -384,12 +459,10 @@ class pnt_interactor(QtGui.QMainWindow):
 		if hasattr(self,'fActor'):
 			self.ren.RemoveActor(self.fActor)
 		
-		Perim=False #unless otherwise spec'ed
 		
 		if filep is None:
 			filep,startdir=get_file('*.txt','Select the *.txt perimeter file (optional):')
-			if filep != None:
-				Perim=True
+
 		elif not(os.path.isfile(filep)):
 			print 'Perimeter file invalid.'
 
@@ -410,22 +483,20 @@ class pnt_interactor(QtGui.QMainWindow):
 			self.Outline=np.genfromtxt(filep)
 			self.outlineActor=gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
 			self.ren.AddActor(self.outlineActor)			
-		
+			self.filep=filep
+			
 		_, ext = os.path.splitext(filec)
 		
 		if ext == '.dat':
 			self.rawPnts=np.genfromtxt(filec,skiprows=1)
+			QtGui.QMessageBox.warning(self, "pyCM warning", "No outline can be processed at this time; this is a visualisation only.",QtGui.QMessageBox.Close, QtGui.QMessageBox.NoButton,QtGui.QMessageBox.NoButton)
 		elif ext == '.txt':
 			self.rawPnts=np.genfromtxt(filec)
 		elif ext == '.mat':
-			mc= sio.loadmat(filec) #mat contents
 			try:
-				self.rawPnts=np.hstack((mc['x'],mc['y'],mc['z']))
-				self.Outline=mc['x_out']
-				Perim=True
-			except KeyError:
-				print "Couldn't read variables from file."
-				return
+				self.rawPnts, self.Outline = read_uom_mat(filec)
+			except:
+				exit()
 		
 		
 		self.vtkPntsPolyData, \
@@ -433,6 +504,8 @@ class pnt_interactor(QtGui.QMainWindow):
 		gen_point_cloud(self.rawPnts,color,self.PointSize)
 		self.bool_pnt=np.ones(len(self.rawPnts), dtype=bool)
 		self.ren.AddActor(self.pointActor)
+
+
 		self.filec=filec
 		
 		#get limits
@@ -452,7 +525,7 @@ class pnt_interactor(QtGui.QMainWindow):
 		  RefMin[2],RefMax[2]]
 
 		#add axes
-		self.AddAxis(self.limits,1)
+		self.add_axis(self.limits,[1,1,1])
 		
 		#update status
 		self.ui.statLabel.setText("Current point file:%s"%filec)
@@ -462,6 +535,24 @@ class pnt_interactor(QtGui.QMainWindow):
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
 
+	def get_scale(self):
+		'''
+		Returns array for the keypress function based on what radio button is selected.
+		'''
+		if self.ui.xsButton.isChecked():
+			s=np.array([self.Zaspect,1,1])
+			nl=np.append([self.limits[0]*self.Zaspect,self.limits[1]*self.Zaspect],self.limits[2:])
+			axs=np.array([1/self.Zaspect,1,1])
+			
+		elif self.ui.ysButton.isChecked():
+			s=np.array([1,self.Zaspect,1])
+			nl=np.append(self.limits[0:2],([self.limits[2]*self.Zaspect,self.limits[3]*self.Zaspect],self.limits[4:]))
+			axs=np.array([1,1/self.Zaspect,1])
+		else:
+			s=np.array([1,1,self.Zaspect])
+			nl=np.append(self.limits[0:4],([self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect]))
+			axs=np.array([1,1,1/self.Zaspect])
+		return s,nl,axs
 		
 	def keypress(self,obj,event):
 		key = obj.GetKeyCode()
@@ -474,46 +565,51 @@ class pnt_interactor(QtGui.QMainWindow):
 			xzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
 		elif key=="z":
 			self.Zaspect=self.Zaspect*2
+			s,nl,axs=self.get_scale()
 			if hasattr(self,'pointActor'):
-				self.pointActor.SetScale(1,1,self.Zaspect)
+				self.pointActor.SetScale(s)
 				self.pointActor.Modified()
 			if hasattr(self,'rActor'):
-				self.rActor.SetScale(1,1,self.Zaspect)
+				# self.rActor.SetScale(1,1,self.Zaspect)
+				self.rActor.SetScale(s)
 				self.rActor.Modified()
 			if hasattr(self,'fActor'):
-				self.fActor.SetScale(1,1,self.Zaspect)
+				# self.fActor.SetScale(1,1,self.Zaspect)
+				self.fActor.SetScale(s)
 				self.fActor.Modified()
-			nl=np.append(self.limits[0:4],[self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect])
-			self.AddAxis(nl,1/self.Zaspect)
+			
+			self.add_axis(nl,axs)
 
 
 
 		elif key=="x":
 			self.Zaspect=self.Zaspect*0.5
+			s,nl,axs=self.get_scale()
 			if hasattr(self,'pointActor'):
-				self.pointActor.SetScale(1,1,self.Zaspect)
+				self.pointActor.SetScale(s)
 			if hasattr(self,'rActor'):
-				self.rActor.SetScale(1,1,self.Zaspect)
+				self.rActor.SetScale(s)
 				self.rActor.Modified()
 			if hasattr(self,'fActor'):
-				self.fActor.SetScale(1,1,self.Zaspect)
+				self.fActor.SetScale(s)
 				self.fActor.Modified()
-			nl=np.append(self.limits[0:4],[self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect])
-			self.AddAxis(nl,1/self.Zaspect)
+			# nl=np.append(self.limits[0:4],[self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect])
+			self.add_axis(nl,axs)
 
 
 		elif key=="c":
 			self.Zaspect=1.0
+			s,_,_,=self.get_scale()
 			if hasattr(self,'pointActor'):
-				self.pointActor.SetScale(1,1,self.Zaspect)
+				self.pointActor.SetScale(s)
 			if hasattr(self,'rActor'):
-				self.rActor.SetScale(1,1,self.Zaspect)
+				self.rActor.SetScale(s)
 				self.rActor.Modified()
 			if hasattr(self,'fActor'):
-				self.fActor.SetScale(1,1,self.Zaspect)
+				self.fActor.SetScale(s)
 				self.fActor.Modified()
-			self.AddAxis(self.limits,1)
-
+			self.add_axis(self.limits,[1,1,1])
+			self.ren.ResetCamera()
 
 		elif key=="i":
 			im = vtk.vtkWindowToImageFilter()
@@ -546,8 +642,14 @@ class pnt_interactor(QtGui.QMainWindow):
 				self.show_picking()
 		
 		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
 	
-	def AddAxis(self,limits,scale):
+	def release_mat(self):
+		if hasattr(self,'fileo'):
+			print('Releasing focus on %s . . .'%self.fileo)
+			del self.fileo
+	
+	def add_axis(self,limits,scale):
 		if hasattr(self,"ax3D"):
 			self.ren.RemoveActor(self.ax3D)
 		self.ax3D = vtk.vtkCubeAxesActor()
@@ -559,7 +661,9 @@ class pnt_interactor(QtGui.QMainWindow):
 		self.ax3D.SetZTitle('Z')
 		self.ax3D.SetZUnits('mm')
 		self.ax3D.SetBounds(limits)
-		self.ax3D.SetZAxisRange(limits[-2]*scale,limits[-1]*scale)
+		self.ax3D.SetZAxisRange(limits[-2]*scale[2],limits[-1]*scale[2])
+		self.ax3D.SetXAxisRange(limits[0]*scale[0],limits[1]*scale[0])
+		self.ax3D.SetYAxisRange(limits[2]*scale[1],limits[3]*scale[1])
 		self.ax3D.SetCamera(self.ren.GetActiveCamera())
 		self.ren.AddActor(self.ax3D)
 		if not(self.ren.GetBackground()==(0.1, 0.2, 0.4)):
