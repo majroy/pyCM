@@ -38,10 +38,11 @@ import scipy.io as sio
 from scipy.interpolate import bisplev,interp1d
 from scipy.spatial.distance import pdist, squareform
 import vtk
-from vtk.util.numpy_support import vtk_to_numpy
+from vtk.util.numpy_support import vtk_to_numpy as v2n
 from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtGui import QApplication, QFileDialog
+from pyCMcommon import *
 
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
@@ -74,11 +75,11 @@ def FEAtool(*args, **kwargs):
 	splash.show()
 	app.processEvents()
 	
-	window = msh_Interactor()
-	if len(args)==2: msh_Interactor.getInputData(window,args[0],args[1])
-	elif len(args)==1: msh_Interactor.getInputData(window,None,args[0])
-	else: msh_Interactor.getInputData(window,None,None)
-	# msh_Interactor.setConnections(window)
+	window = msh_interactor()
+	if len(args)==2: msh_interactor.getInputData(window,args[0],args[1])
+	elif len(args)==1: msh_interactor.getInputData(window,None,args[0])
+	else: msh_interactor.getInputData(window,None,None)
+
 
 	window.show()
 	splash.finish(window)
@@ -91,7 +92,7 @@ def FEAtool(*args, **kwargs):
 	else:
 		# print window.ren.GetActiveCamera().GetPosition(),window.ren.GetActiveCamera().GetFocalPoint()
 		return window
-# http://stackoverflow.com/questions/3394835/args-and-kwargs
+		# http://stackoverflow.com/questions/3394835/args-and-kwargs
 class sf_MainWindow(object):
 	"""
 	Class to build qt interaction, including VTK widget
@@ -250,7 +251,7 @@ class sf_MainWindow(object):
 	def initialize(self):
 		self.vtkWidget.start()
 
-class msh_Interactor(QtGui.QMainWindow):
+class msh_interactor(QtGui.QMainWindow):
 	"""
 	Sets up the main VTK window, reads file and sets connections between UI and interactor
 	"""
@@ -286,8 +287,6 @@ class msh_Interactor(QtGui.QMainWindow):
 		except:
 			try:
 				self.cfg= GetFEAconfig(['','',''],self.filec)
-				# with open(self.filec,'r') as ymlfile:
-					# self.cfg = yaml.load(ymlfile)
 			except:
 				sys.exit("Failed to set config file. Quitting.")
 	
@@ -307,7 +306,7 @@ class msh_Interactor(QtGui.QMainWindow):
 	def getInputData(self,filer,outputd):
 		if outputd==None or (not os.path.isfile(filer)):
 			self.outputd=None
-			self.filer,startdir=GetFile("*.mat")
+			self.filer,startdir=get_file("*.mat")
 			if self.filer == None:
 				#if its called from the commandline
 				if sys.stdin.isatty() and not hasattr(sys,'ps1'):
@@ -356,9 +355,17 @@ class msh_Interactor(QtGui.QMainWindow):
 		except KeyError:
 			print "Error reading reference data"
 			return
-			
-		self.outlineActor=self.DisplayOutline(self.Outline,(0.2784,0.6745,0.6941),self.PointSize)
-		#http://stackoverflow.com/questions/11421659/passing-variables-creating-instances-self-the-mechanics-and-usage-of-classes
+		color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
+		self.outlineActor, _, = gen_outline(self.Outline,color,self.PointSize)
+		self.ren.AddActor(self.outlineActor)
+		
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+		
+		# self.outlineActor=self.DisplayOutline(self.Outline,(0.2784,0.6745,0.6941),self.PointSize)
+
 		
 	def UndoRigidBody(self):
 
@@ -486,6 +493,7 @@ class msh_Interactor(QtGui.QMainWindow):
 		#if there is already a respaced outline, then remove it from the display
 		if hasattr(self,"respacedOutlineActor"):
 			self.ren.RemoveActor(self.respacedOutlineActor)
+			self.rsOutline=[]
 		
 		#if it doesn't have corners, then calculate them
 		if not hasattr(self,"corners"):
@@ -519,77 +527,109 @@ class msh_Interactor(QtGui.QMainWindow):
 		
 		#write routine for either 'spacing' based approach or total number of seeds
 		#create empty array to receive respaced points
-		respacedOutline=np.array([]).reshape(0,2)
-		if self.ui.quantityButton.isChecked():
-			#find the perimeter first
-			P=respace_equally(self.Outline,1)[1]
-			
-			#calculate mean distance between points
-			dist=P/(float(self.ui.numSeed.value())) #minus 3 corners
-
-			#now move through the corners to ID
-			for j in range(3):
-				nPts=respace_equally(self.Outline[outlineCornerInd[j]:outlineCornerInd[j+1]+1,0:2],dist)[-1]
-				X=respace_equally(self.Outline[outlineCornerInd[j]:outlineCornerInd[j+1]+1,0:2],int(nPts+1))[0] #handles the lack of the last point for connectivity
-				respacedOutline=np.vstack((respacedOutline,X[0:-1,:]))
-			nPts=respace_equally(self.Outline[outlineCornerInd[3]::,0:2],dist)[-1]
-			X=respace_equally(self.Outline[outlineCornerInd[3]::,0:2],int(nPts+1))[0]
-			respacedOutline=np.vstack((respacedOutline,X[0:-1,:])) #last addition closes profile
-
-			
-		if self.ui.spacingButton.isChecked():
-			dist=float(self.ui.seedLengthInput.text())
-			respacedOutline=np.array([]).reshape(0,2)
-			for j in range(3):
-				X=respace_equally(self.Outline[outlineCornerInd[j]:outlineCornerInd[j+1]+1,0:2],dist)[0]
-				respacedOutline=np.vstack((respacedOutline,X[0:-1,:]))
-				
-			X=respace_equally(self.Outline[outlineCornerInd[3]::,0:2],dist)[0]
-			respacedOutline=np.vstack((respacedOutline,X[0:-1,:])) #do not close profile
 		
-		#write warning to the status line if 
-		if not np.fmod(len(respacedOutline),2)==0:
-			self.ui.statLabel.setText("WARNING - odd number of outline seeds . . . Idle")
-		else:
-			self.ui.statLabel.setText("Idle") #clears error on recalculation
-		
+		conv=True
+		count=0
+		while conv:
+			if self.ui.quantityButton.isChecked():
+				if 'dist' not in vars():
+					#find the perimeter first
+					P=respace_equally(self.Outline,1)[1]
+
+					#calculate mean distance between points
+					numSeed=float(self.ui.numSeed.value())
+					dist=P/float(numSeed) #minus 3 corners
+					respacedOutline=np.array([]).reshape(0,2)
+				else:
+					dist=P/float(numSeed)
+					respacedOutline=np.array([]).reshape(0,2)
+
+				#now move through the corners to ID
+				for j in range(3):
+					nPts=respace_equally(self.Outline[outlineCornerInd[j]:outlineCornerInd[j+1]+1,0:2],dist)[-1]
+					X=respace_equally(self.Outline[outlineCornerInd[j]:outlineCornerInd[j+1]+1,0:2],int(nPts+1))[0] #handles the lack of the last point for connectivity
+					respacedOutline=np.vstack((respacedOutline,X[0:-1,:]))
+				nPts=respace_equally(self.Outline[outlineCornerInd[3]::,0:2],dist)[-1]
+				X=respace_equally(self.Outline[outlineCornerInd[3]::,0:2],int(nPts+1))[0]
+				respacedOutline=np.vstack((respacedOutline,X[0:-1,:])) #last addition closes profile
+
+			if self.ui.spacingButton.isChecked():
+				if 'dist' not in vars():
+					dist=float(self.ui.seedLengthInput.text())
+				else:
+					dist=dist+0.01*dist #increase by 1%
+
+				respacedOutline=np.array([]).reshape(0,2)
+				for j in range(3):
+					X=respace_equally(self.Outline[outlineCornerInd[j]:outlineCornerInd[j+1]+1,0:2],dist)[0]
+					respacedOutline=np.vstack((respacedOutline,X[0:-1,:]))
+
+				X=respace_equally(self.Outline[outlineCornerInd[3]::,0:2],dist)[0]
+				respacedOutline=np.vstack((respacedOutline,X[0:-1,:])) #do not close profile
+
+			
+			#write warning to the status line if 
+			if not np.fmod(len(respacedOutline),2)==0:
+				if self.ui.spacingButton.isChecked():
+					dist+=0.25
+				if self.ui.quantityButton.isChecked():
+					self.ui.statLabel.setText("Odd number of outline seeds, retrying . . .")
+					self.ui.vtkWidget.update()
+					numSeed+=1
+			else:
+				conv=False
+				self.ui.statLabel.setText("Idle") #clears error on recalculation
+			count+=1
+			
 		#Write zeros to the z coordinate of the outline
 		respacedOutline=np.hstack((respacedOutline,np.zeros([len(respacedOutline[:,0]),1])))
 
 		#display and get respaced outline actor
-		self.respacedOutlineActor=self.DisplayOutline(respacedOutline,(1,0,0),self.PointSize+3)
+		self.respacedOutlineActor, _ =gen_outline(respacedOutline,(1,0,0),self.PointSize+3)
+		
+		self.ren.AddActor(self.respacedOutlineActor)
+		# self.respacedOutlineActor.GetProperty().SetPointSize(12)
+		self.ui.vtkWidget.update()
+		
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+		self.AddAxis(self.limits,1)
+		
+		# self.respacedOutlineActor=self.DisplayOutline(respacedOutline,(1,0,0),self.PointSize+3)
 		self.rsOutline=respacedOutline
 		self.Dist=dist
 		#update GUI to report back the number of points
 		self.ui.seedLengthInput.setText("%4.4f"%dist)
 		self.ui.numSeed.setValue(len(respacedOutline))
 
-	def DisplayOutline(self,pts,color,size):
-		points=vtk.vtkPoints()
-		for i in pts:
-			points.InsertNextPoint(i)
-		lineseg=vtk.vtkPolygon()
-		lineseg.GetPointIds().SetNumberOfIds(len(pts))
-		for i in range(len(pts)):
-			lineseg.GetPointIds().SetId(i,i)
-		linesegcells=vtk.vtkCellArray()
-		linesegcells.InsertNextCell(lineseg)
-		outline=vtk.vtkPolyData()
-		outline.SetPoints(points)
-		outline.SetVerts(linesegcells)
-		outline.SetLines(linesegcells)
-		self.Omapper=vtk.vtkPolyDataMapper()
-		self.Omapper.SetInputData(outline)
-		outlineActor=vtk.vtkActor()
-		outlineActor.SetMapper(self.Omapper)
-		outlineActor.GetProperty().SetColor(color)
-		outlineActor.GetProperty().SetPointSize(size)
-		self.ren.AddActor(outlineActor)
-		self.AddAxis(self.limits,1)
-		self.ren.ResetCamera()
-		self.ui.vtkWidget.update()
-		self.ren.ResetCamera()
-		return outlineActor
+	# def DisplayOutline(self,pts,color,size):
+		# points=vtk.vtkPoints()
+		# for i in pts:
+			# points.InsertNextPoint(i)
+		# lineseg=vtk.vtkPolygon()
+		# lineseg.GetPointIds().SetNumberOfIds(len(pts))
+		# for i in range(len(pts)):
+			# lineseg.GetPointIds().SetId(i,i)
+		# linesegcells=vtk.vtkCellArray()
+		# linesegcells.InsertNextCell(lineseg)
+		# outline=vtk.vtkPolyData()
+		# outline.SetPoints(points)
+		# outline.SetVerts(linesegcells)
+		# outline.SetLines(linesegcells)
+		# self.Omapper=vtk.vtkPolyDataMapper()
+		# self.Omapper.SetInputData(outline)
+		# outlineActor=vtk.vtkActor()
+		# outlineActor.SetMapper(self.Omapper)
+		# outlineActor.GetProperty().SetColor(color)
+		# outlineActor.GetProperty().SetPointSize(size)
+		# self.ren.AddActor(outlineActor)
+		# self.AddAxis(self.limits,1)
+		# self.ren.ResetCamera()
+		# self.ui.vtkWidget.update()
+		# self.ren.ResetCamera()
+		# return outlineActor
 
 	def WriteOut(self):
 
@@ -907,7 +947,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			# if hasattr(self,"labelActor"):
 				# self.ren.RemoveActor(self.labelActor) #debug
 			
-		self.vtkfile, startdir = GetFile('*.vtk')
+		self.vtkfile, startdir = get_file('*.vtk')
 		self.ui.statLabel.setText("Reading . . .")
 		QtGui.qApp.processEvents()
 		self.meshSource=vtk.vtkUnstructuredGridReader()
@@ -1014,9 +1054,9 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				
 		# for i in xrange(vilrf.GetNumberOfIds()):
 			# print self.mesh.GetCellPoints(vil.GetId(i))
-		
+		print v2n(nfaces.GetData())
 		#convert the vtklist to numpy array, resize accordingly; 1D array consists of number of nodes/element, followed by node/point number
-		rawPIds=vtk_to_numpy(nfaces.GetData()) 
+		rawPIds=v2n(nfaces.GetData()) 
 		
 		#make new matrix to hold node/point number connectivity
 		if self.mainCellType == 12: #quads
@@ -1129,8 +1169,8 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.ui.statLabel.setText("Finding corners . . .")
 		QtGui.qApp.processEvents()
 		#create np matrix to store surface points (and find corners)
-		self.BCpnts=vtk_to_numpy(BCpnts.GetData()) #BCsearch will be fast
-		allNodes=vtk_to_numpy(self.mesh.GetPoints().GetData())
+		self.BCpnts=v2n(BCpnts.GetData()) #BCsearch will be fast
+		allNodes=v2n(self.mesh.GetPoints().GetData())
 
 		c_target=np.array([
 		[self.limits[0],self.limits[2]], #xmin,ymin
@@ -1290,10 +1330,10 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			except:
 				return
 		
-		nodes=vtk_to_numpy(self.mesh.GetPoints().GetData())
+		nodes=v2n(self.mesh.GetPoints().GetData())
 		nodes=np.column_stack((np.arange(1,len(nodes)+1),nodes+1))
 		
-		cells=vtk_to_numpy(self.mesh.GetCells().GetData())
+		cells=v2n(self.mesh.GetCells().GetData())
 		#determine element type based on first entry in cells, 8-C3D8, 10-C3D10
 		elType=cells[0]
 		cells=np.resize(cells+1,(int(len(cells)/float(elType+1)),elType+1))
@@ -1402,35 +1442,35 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				print e
 				self.ui.statLabel.setText("Abaqus call failed . . . Idle")
 
-def GetFile(ext):
-	'''
-	Returns absolute path to filename and just the path from a PyQt4 filedialog.
-	'''
+# def GetFile(ext):
+	# '''
+	# Returns absolute path to filename and just the path from a PyQt4 filedialog.
+	# '''
 
-	ftypeName={}
-	ftypeName['*.mat']=["Select the SURFACE data file:", "*_sur.mat", "MAT File"]
-	ftypeName['*.vtk']=["Select the legacy VTK file:", "*.vtk", "VTK File"]
+	# ftypeName={}
+	# ftypeName['*.mat']=["Select the SURFACE data file:", "*.mat", "MAT File"]
+	# ftypeName['*.vtk']=["Select the legacy VTK file:", "*.vtk", "VTK File"]
 
-	lapp = QApplication.instance()
-	if lapp is None:
-		lapp = QApplication([])
-	filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
-         os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;All Files ("*.*"))'))
+	# lapp = QApplication.instance()
+	# if lapp is None:
+		# lapp = QApplication([])
+	# filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
+         # os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;All Files ("*.*"))'))
 
 	
-	if filer == '':
-		if sys.stdin.isatty() and not hasattr(sys,'ps1'):
-			sys.exit("No file selected; exiting.")
-		else:
-			filer = None
-			startdir = None
+	# if filer == '':
+		# if sys.stdin.isatty() and not hasattr(sys,'ps1'):
+			# sys.exit("No file selected; exiting.")
+		# else:
+			# filer = None
+			# startdir = None
 		
-	else:
+	# else:
 		
-		startdir=os.path.dirname(str(filer))
+		# startdir=os.path.dirname(str(filer))
 		# filer = os.path.basename(str(filer)) #just the filename
-		filer=str(filer)
-	return filer, startdir
+		# filer=str(filer)
+	# return filer, startdir
 				
 	
 def GetOpenFile(ext,outputd):
@@ -1550,6 +1590,64 @@ def FlipColors(ren,actor):
 			actor.GetZAxesLinesProperty().SetColor(1,1,1)
 			ren.SetBackground(0.1, 0.2, 0.4)
 
+def ConvertInptoVTK(infile,outfile):
+	"""
+	Converts abaqus inp file into a legacy ASCII vtk file. First order quads (C3D8) and third order tets (C3D10) are supported.
+	"""
+	fid = open(infile)
+	
+	#flags for identifying sections of the inp file
+	inpKeywords=["*Node", "*Element", "*Nset", "*Elset"]
+	
+	#map abaqus mesh types to vtk objects
+	vtkType={}
+	vtkType['C3D8']=12
+	vtkType['C3D10']=24
+
+	#create counter for all lines in the inp file, and array to store their location
+	i=0
+	lineFlag=[];
+	#read file and find both where keywords occur as well as the element type used
+	while 1:
+		lines = fid.readlines(100000)
+		if not lines:
+			break
+		for line in lines:
+			i+=1
+			for keyword in inpKeywords:
+				if line[0:len(keyword)]==keyword:
+					lineFlag.append(i)
+					if keyword=="*Element":
+						line = line.replace("\n", "")
+						CellNum=vtkType[line.split("=")[-1]]
+
+	fid.close()
+	#use genfromtxt to read between lines id'ed by lineFlag to pull in nodes and elements
+	Nodes=np.genfromtxt(infile,skip_header=lineFlag[0],skip_footer=i-lineFlag[1]+1,delimiter=",")
+	Elements=np.genfromtxt(infile,skip_header=lineFlag[1],skip_footer=i-lineFlag[2]+1,delimiter=",")
+	#Now write it in VTK format to a new file starting with header
+	fid=open(outfile,'w+')
+	fid.write('# vtk DataFile Version 2.0\n')
+	fid.write('%s,created by pyCM\n'%outfile[:-4])
+	fid.write('ASCII\n')
+	fid.write('DATASET UNSTRUCTURED_GRID\n')
+	fid.write('POINTS %i double\n'%len(Nodes))
+
+	#dump nodes
+	np.savetxt(fid,Nodes[:,1::],fmt='%.6f')
+	fid.write('\n')
+	fid.write('CELLS %i %i\n'%(len(Elements),len(Elements)*len(Elements[0,:])))
+	#Now elements, stack the number of nodes in the element instead of the element number
+	Cells=np.hstack((np.ones([len(Elements[:,0]),1])*len(Elements[0,1::]),Elements[:,1::]-1))
+	np.savetxt(fid,Cells,fmt='%i')
+	fid.write('\n')
+
+	#Write cell types
+	fid.write('CELL_TYPES %i\n'%len(Elements))
+	CellType=np.ones([len(Elements[:,0]),1])*CellNum
+	np.savetxt(fid,CellType,fmt='%i')
+
+	fid.close()
 
 def respace_equally(X,input):
 	distance=np.sqrt(np.sum(np.diff(X,axis=0)**2,axis=1))
@@ -1615,64 +1713,7 @@ def DrawArrow(startPoint,length,direction,renderer):
 	renderer.AddActor(actor)
 	return actor
 	
-def ConvertInptoVTK(infile,outfile):
-	"""
-	Converts abaqus inp file into a legacy ASCII vtk file. First order quads (C3D8) and third order tets (C3D10) are supported.
-	"""
-	fid = open(infile)
-	
-	#flags for identifying sections of the inp file
-	inpKeywords=["*Node", "*Element", "*Nset", "*Elset"]
-	
-	#map abaqus mesh types to vtk objects
-	vtkType={}
-	vtkType['C3D8']=12
-	vtkType['C3D10']=24
 
-	#create counter for all lines in the inp file, and array to store their location
-	i=0
-	lineFlag=[];
-	#read file and find both where keywords occur as well as the element type used
-	while 1:
-		lines = fid.readlines(100000)
-		if not lines:
-			break
-		for line in lines:
-			i+=1
-			for keyword in inpKeywords:
-				if line[0:len(keyword)]==keyword:
-					lineFlag.append(i)
-					if keyword=="*Element":
-						line = line.replace("\n", "")
-						CellNum=vtkType[line.split("=")[-1]]
-
-	fid.close()
-	#use genfromtxt to read between lines id'ed by lineFlag to pull in nodes and elements
-	Nodes=np.genfromtxt(infile,skip_header=lineFlag[0],skip_footer=i-lineFlag[1]+1,delimiter=",")
-	Elements=np.genfromtxt(infile,skip_header=lineFlag[1],skip_footer=i-lineFlag[2]+1,delimiter=",")
-	#Now write it in VTK format to a new file starting with header
-	fid=open(outfile,'w+')
-	fid.write('# vtk DataFile Version 2.0\n')
-	fid.write('%s,created by pyCM\n'%outfile[:-4])
-	fid.write('ASCII\n')
-	fid.write('DATASET UNSTRUCTURED_GRID\n')
-	fid.write('POINTS %i double\n'%len(Nodes))
-
-	#dump nodes
-	np.savetxt(fid,Nodes[:,1::],fmt='%.6f')
-	fid.write('\n')
-	fid.write('CELLS %i %i\n'%(len(Elements),len(Elements)*len(Elements[0,:])))
-	#Now elements, stack the number of nodes in the element instead of the element number
-	Cells=np.hstack((np.ones([len(Elements[:,0]),1])*len(Elements[0,1::]),Elements[:,1::]-1))
-	np.savetxt(fid,Cells,fmt='%i')
-	fid.write('\n')
-
-	#Write cell types
-	fid.write('CELL_TYPES %i\n'%len(Elements))
-	CellType=np.ones([len(Elements[:,0]),1])*CellNum
-	np.savetxt(fid,CellType,fmt='%i')
-
-	fid.close()
 
 class Ui_getFEAconfigDialog(object):
 	def setupUi(self, getFEAconfigDialog):

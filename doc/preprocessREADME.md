@@ -3,11 +3,6 @@
 ## Background
 Currently in beta.  Note that PyQt4 is required for this module, but it has been tested to work with the Spyder IDE. Intended to work with Abaqus, Gmsh and Calculix to provide completely open source analysis and commercial benchmarking.
 
-## Hierarchy
-
-* Module `preprocess`
- - Function `FEAtool`
-
 Import via `from pyCM import preprocess`
 
 ## Initializing

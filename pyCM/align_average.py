@@ -25,870 +25,716 @@ v - average
 e - write output and exit
 -------------------------------------------------------------------------------
 ver 1.1 16-11-06
+1.1 - Initial release
+1.2 - Refactored to use pyQt interface and eliminated global variables
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.1"
+__version__ = "1.2"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-#############################################
+__copyright__ = "(c) M. J. Roy, 2014-2017"
+
 import sys
 import os.path
-
-global tk, tkFileDialog, askdirectory, vtk, VN, np, sio, nosio
-try:
-	import Tkinter as tk
-	from tkFileDialog import askopenfilename
-	from tkFileDialog import askdirectory
-except ImportError:
-	print "Error. Tkinter not found; check version of Python."
-
-try:
-	import vtk
-	import vtk.util.numpy_support as VN
-except ImportError:
-	print "Error. VTK not found."
-
-try:
-	import numpy as np
-	import numpy.matlib
-except ImportError:
-	print "Error. Numpy not found."
-
-nosio=False
-try:
-	import scipy.io as sio
-	from scipy.interpolate import griddata
-	from scipy.spatial.distance import pdist, squareform
-	from matplotlib import path
+import vtk
+import vtk.util.numpy_support as VN
+import numpy as np
+import numpy.matlib
+import scipy.io as sio
+from scipy.interpolate import griddata
+from scipy.spatial.distance import pdist, squareform
+from matplotlib import path
+from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from PyQt4 import QtCore, QtGui
+from pkg_resources import Requirement, resource_filename
+from pyCMcommon import *
 
 
-except ImportError:
-	print "Scipy is not installed or misconfigured. Output will be in text delimited format."
-	nosio=True
+def ali_avg_interactor(*args,**kwargs):
+	"""
+	Main function, builds qt interaction
+	"""	
+	app = QtGui.QApplication.instance()
+	if app is None:
+		app = QApplication(sys.argv)
 	
+	spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
+	splash_pix = QtGui.QPixmap(spl_fname,'PNG')
+	splash = QtGui.QSplashScreen(splash_pix)
+	splash.setMask(splash_pix.mask())
 
-def align_average(*args, **kwargs):
-	global Rotating, Panning, Zooming
-	global iren, renWin, ren, defaultCameraFocalPoint, defaultCameraPosition, FloatCent
-	global Zaspect, pointSize
-	global FloatOutline, FloatPoints, OutlineActor2, Outline1, Outline2, qpointActor, transActor
-	global outputd, CurrPnts, AlignmentComplete, RefPoints2
+	splash.show()
+	app.processEvents()
+	
+	window = aa_interactor()
 
-	root = tk.Tk()
-	root.withdraw()
+	if len(args)==1: 
+		aa_interactor.get_input_data(window,args[0])
+	else: 
+		aa_interactor.get_input_data(window,None)
+
+	window.show()
+	splash.finish(window)
+	window.iren.Initialize() # Need this line to actually show the render inside Qt
+
+	ret = app.exec_()
 	
-	currentdir=os.getcwd()
-	outputd=None
-	Perim=True
-	
-	if len(args)==0:
-		filer = askopenfilename(title='Select the REFERENCE data file:',
-			initialdir=currentdir,
-			filetypes =(("MAT File", "*.mat"),("All Files","*.*")))
-		startdir = os.path.dirname(filer)
-		if filer == '':
-			print 'No file selected; exiting.'
-			return
-			
-		filef = askopenfilename(title='Select the FLOATING data file:',
-			initialdir=startdir,
-			filetypes =(("MAT File", "*.mat"),("All Files","*.*")))
-		startdir = os.path.dirname(filer)
-		if filef == '':
-			print 'No file selected; exiting.'
-			return
-	#various argument collections
-	elif len(args)==2:
-		filer=args[0]
-		filef=args[1]
-	elif len(args)==3:
-		filer=args[0]
-		filef=args[1]
-		outputd=args[2]
-		if not os.path.exists(outputd): #make the directory if it doesn't exist
-			os.makedirs(outputd)
+	if sys.stdin.isatty() and not hasattr(sys,'ps1'):
+		sys.exit(ret)
 	else:
-		print 'Arguments not specified correctly. Quitting.'
-		return
+		return window
+
+class ali_avg(object):
+	"""
+	Class to build qt interaction, including VTK widget
+	setupUi builds, initialize starts VTK widget
+	"""
 	
+	def setupUi(self, MainWindow):
+		MainWindow.setObjectName("MainWindow")
+		MainWindow.setWindowTitle("pyCM - Alignment and averaging tool v%s" %__version__)
+		MainWindow.resize(1280, 720)
+		self.centralWidget = QtGui.QWidget(MainWindow)
+		self.Boxlayout = QtGui.QHBoxLayout(self.centralWidget)
+		self.Subtendlayout=QtGui.QVBoxLayout()
+		mainUiBox = QtGui.QFormLayout()
 
-#Read in reference data, calculate relevant details
-	try:
-		mat_contents = sio.loadmat(filer)
-		try:
-			RefPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
-			RefOutline=(mat_contents['x_out'])
-		except KeyError:
-			print "Couldn't read variables from file. Quitting."
-			return
-	except KeyError:
-		print "Error reading reference data"
-		return
+		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
+		self.vtkWidget.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+		self.vtkWidget.setMinimumSize(1150, 700); #leave 100 px on the size for i/o
 
-	RefCent=np.mean(RefPoints,axis=0)
-	#get extents of dataset
-	RefMin=np.amin(RefOutline,axis=0)
-	RefMax=np.amax(RefOutline,axis=0)
+		self.Subtendlayout.addWidget(self.vtkWidget)
+		self.activeFileLabel=QtGui.QLabel("Idle")
+		self.activeFileLabel.setWordWrap(True)
+		self.activeFileLabel.setFont(QtGui.QFont("Helvetica",italic=True))
+		self.activeFileLabel.setMinimumWidth(100)
+		self.Subtendlayout.addWidget(self.activeFileLabel)
+		self.Subtendlayout.addStretch(1)
+		self.Boxlayout.addLayout(self.Subtendlayout)
+		self.Boxlayout.addStretch(1)
+		
+		MainWindow.setCentralWidget(self.centralWidget)
+		headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
+		
+		# #define buttons/widgets
+		self.reloadButton = QtGui.QPushButton('Load')
+		scalingLabel=QtGui.QLabel("Active axis for scaling")
+		scalingLabel.setFont(headFont)
+		self.xsButton=QtGui.QRadioButton("x")
+		self.ysButton=QtGui.QRadioButton("y")
+		self.zsButton=QtGui.QRadioButton("z")
+		self.zsButton.setChecked(True)
+		self.scalingButtonGroup = QtGui.QButtonGroup()
+		self.scalingButtonGroup.addButton(self.xsButton)
+		self.scalingButtonGroup.addButton(self.ysButton)
+		self.scalingButtonGroup.addButton(self.zsButton)
+		self.scalingButtonGroup.setExclusive(True)
+		scaleBoxlayout = QtGui.QGridLayout()
+		scaleBoxlayout.addWidget(self.xsButton,1,1)
+		scaleBoxlayout.addWidget(self.ysButton,1,2)
+		scaleBoxlayout.addWidget(self.zsButton,1,3)
+		
+		horizLine1=QtGui.QFrame()
+		horizLine1.setFrameStyle(QtGui.QFrame.HLine)
+		mirrorLabel=QtGui.QLabel("Mirroring")
+		mirrorLabel.setFont(headFont)
+		self.mirrorXbutton = QtGui.QPushButton('ZY')
+		self.mirrorYbutton = QtGui.QPushButton('ZX')
+
+		horizLine2=QtGui.QFrame()
+		horizLine2.setFrameStyle(QtGui.QFrame.HLine)
+		alignLabel=QtGui.QLabel("Alignment")
+		alignLabel.setFont(headFont)
+		self.transXlabel=QtGui.QLabel("Translate x:")
+		self.transX = QtGui.QLineEdit()
+		self.transX.setText('0')
+		self.transX.setMinimumWidth(50)
+		self.transYlabel=QtGui.QLabel("Translate y:")
+		self.transY = QtGui.QLineEdit()
+		self.transY.setText('0')
+		self.transY.setMinimumWidth(50)
+		self.transButton=QtGui.QPushButton('Translate floating')
+		
+		self.alignButtonGroup = QtGui.QButtonGroup()
+		self.alignOutlineButton=QtGui.QRadioButton("Outline")
+		self.alignPointCloudButton = QtGui.QRadioButton("Point cloud")
+		self.alignOutlineButton.setChecked(True)
+		self.alignButtonGroup.addButton(self.alignOutlineButton)
+		self.alignButtonGroup.addButton(self.alignPointCloudButton)
+		self.alignButtonGroup.setExclusive(True)
+		self.alignButton = QtGui.QPushButton('Align')
+		
+		horizLine3=QtGui.QFrame()
+		horizLine3.setFrameStyle(QtGui.QFrame.HLine)
+		averageLabel=QtGui.QLabel("Averaging")
+		averageLabel.setFont(headFont)
+		self.averageButton = QtGui.QPushButton('Average')
+		
+		horizLine4=QtGui.QFrame()
+		horizLine4.setFrameStyle(QtGui.QFrame.HLine)
+		self.writeButton=QtGui.QPushButton('Write')
+		
+		horizLine5=QtGui.QFrame()
+		horizLine5.setFrameStyle(QtGui.QFrame.HLine)
+		self.statusLabel=QtGui.QLabel("Idle")
+		self.statusLabel.setWordWrap(True)
+		self.statusLabel.setFont(QtGui.QFont("Helvetica",italic=True))
+		self.statusLabel.setMinimumWidth(50)
+
+		# #add to formlayout
+		mainUiBox.addRow(self.reloadButton)
+		mainUiBox.addRow(scalingLabel)
+		mainUiBox.addRow(scaleBoxlayout)
+		mainUiBox.addRow(horizLine1)
+		mainUiBox.addRow(mirrorLabel)
+		mainUiBox.addRow(self.mirrorXbutton,self.mirrorYbutton)
+		mainUiBox.addRow(horizLine2)
+		mainUiBox.addRow(alignLabel)
+		mainUiBox.addRow(self.transXlabel,self.transX)
+		mainUiBox.addRow(self.transYlabel,self.transY)
+		mainUiBox.addRow(self.transButton)
+		mainUiBox.addRow(self.alignOutlineButton,self.alignPointCloudButton)
+		mainUiBox.addRow(self.alignButton)
+		mainUiBox.addRow(horizLine3)
+		mainUiBox.addRow(averageLabel)
+		mainUiBox.addRow(self.averageButton)
+		mainUiBox.addRow(horizLine4)
+		mainUiBox.addRow(self.writeButton)
+		mainUiBox.addRow(horizLine5)
+		mainUiBox.addRow(self.statusLabel)
+		
+		self.Boxlayout.addLayout(mainUiBox)
+		
+	def initialize(self):
+		self.vtkWidget.start()
+
+class aa_interactor(QtGui.QMainWindow):
+	"""
+	Sets up the main VTK window, reads file and sets connections between UI and interactor
+	"""
+	def __init__(self, parent = None):
+		QtGui.QMainWindow.__init__(self, parent)
+		self.ui = ali_avg()
+		self.ui.setupUi(self)
+		self.ren = vtk.vtkRenderer()
+		self.ren.SetBackground(0.1, 0.2, 0.4)
+		self.ui.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
+		self.iren = self.ui.vtkWidget.GetRenderWindow().GetInteractor()
+		style=vtk.vtkInteractorStyleTrackballCamera()
+		style.AutoAdjustCameraClippingRangeOn()
+		self.iren.SetInteractorStyle(style)
+		self.ren.GetActiveCamera().ParallelProjectionOn()
+		self.cp=self.ren.GetActiveCamera().GetPosition()
+		self.fp=self.ren.GetActiveCamera().GetFocalPoint()
+		self.iren.AddObserver("KeyPressEvent", self.keypress)
+		
+		self.PointSize=2
+		self.LineWidth=1
+		self.Zaspect=1.0
+		self.limits=np.empty(6)
+		self.picking=False
+		self.Offset=0
+		self.mirrored=False
+		self.aligned=False
+		
+		self.ui.reloadButton.clicked.connect(lambda: self.get_input_data(None))
+		self.ui.mirrorXbutton.clicked.connect(lambda: self.flipside('x'))
+		self.ui.mirrorYbutton.clicked.connect(lambda: self.flipside('y'))
+		self.ui.transButton.clicked.connect(lambda: self.shift())
+		self.ui.alignButton.clicked.connect(lambda: self.align())
+		self.ui.averageButton.clicked.connect(lambda: self.average())
+		self.ui.writeButton.clicked.connect(lambda: self.write())
 	
-	#define the grid spacing for averaging, has to be in 1st quadrant
-	windowVerts=np.matrix([[0, 0],
-	[0, 0.1*(RefMax[1]-RefMin[1])],
-	[0.1*(RefMax[0]-RefMin[0]), 0.1*(RefMax[1]-RefMin[1])],
-	[0.1*(RefMax[0]-RefMin[0]), 0]]);
+	def shift(self):
+		if hasattr(self,'fActor'): #then remove this actor and the associated outline actor
+			self.ren.RemoveActor(self.fActor)
+			self.ren.RemoveActor(self.fOutlineActor)
 
+		#get x and y tranformations
+		gx=float(self.ui.transX.text())
+		gy=float(self.ui.transY.text())
+		transl=np.array([gx, gy, 0]);
+		
+		#apply operation
+		self.flp=self.flp+transl
+		self.fO=self.fO+transl
+		
+		color=(255, 205, 52)
+		self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
+		self.ren.AddActor(self.fActor)
+		self.fOutlineActor, self.fOPC = gen_outline(self.fO,color,self.PointSize)
+		self.ren.AddActor(self.fOutlineActor)
+		
+		#recalculate extents of interactor
+		RefMin=np.amin(np.vstack((self.flp,self.rp)),axis=0)
+		RefMax=np.amax(np.vstack((self.flp,self.rp)),axis=0)
 
-	p=path.Path(windowVerts)
-	inWindow=p.contains_points(RefPoints[:,:2]) #first 2 columns of RefPoints is x and y
+		extents=RefMax-RefMin #extents
+		rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
+		self.limits=[RefMin[0]-rl, \
+		RefMax[0]+rl, \
+		RefMin[1]-rl, \
+		RefMax[1]+rl, \
+		RefMin[2],RefMax[2]]
 
-	windowed=RefPoints[inWindow,:2]
-	gs=squareform(pdist(windowed,'euclidean')) #does the same thing as pdist2
-	gsize=np.mean(np.sort(gs)[:,1]) #sort the distances, find the closest, non self-referencing points
+		#add axes
+		self.add_axis(self.limits,[1,1,1])
+		
+		s,nl,axs=self.get_scale()
 
-	grid_x, grid_y = np.meshgrid(np.linspace(RefMin[0],RefMax[0],int((RefMax[0]-RefMin[0])/gsize)),
+		self.fActor.SetScale(s)
+		self.fActor.Modified()
+
+		self.add_axis(nl,axs)
+		
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()	
+	
+	def write(self):
+		mat_contents=sio.loadmat(self.fileo)
+		
+		new={'transM':self.transM,'aa':self.ap}
+		
+		mat_contents.update(new) #update the dictionary
+			
+		sio.savemat(self.fileo,mat_contents)	
+		self.ui.statusLabel.setText("Wrote data. Idle.")
+	
+	def average(self):
+		# if not self.aligned:
+			# self.ui.statusLabel.setText("Align prior to averaging. Idle.")
+			# return
+		
+		self.ui.statusLabel.setText("Averaging, applying grid . . .")
+		QtGui.qApp.processEvents()
+		
+		#temporarily shift all data such that it appears in the first cartesian quadrant
+		tT=np.amin(self.rO,axis=0)
+		self.rO, self.fO, self.rp, self.flp=self.rO-tT, self.fO-tT, self.rp-tT, self.flp-tT
+		
+		#use max to get a 'window' for assessing grid spacing
+		RefMax=np.amax(self.rO,axis=0)
+		RefMin=np.amin(self.rO,axis=0)
+		windowVerts=np.matrix([[0.25*RefMin[0], 0.25*RefMin[1]],
+		[0.25*RefMin[0], 0.25*(RefMax[1])],
+		[0.25*(RefMax[1]), 0.25*(RefMax[1])],
+		[0.25*(RefMax[0]), 0.25*(RefMin[1])]]);
+		
+		p=path.Path(windowVerts)
+		inWindow=p.contains_points(self.rp[:,:2]) #first 2 columns of RefPoints is x and y
+		
+		windowed=self.rp[inWindow,:2]
+		
+		gs=squareform(pdist(windowed,'euclidean')) #does the same thing as pdist2
+		
+		gsize=np.mean(np.sort(gs)[:,1]) #sort the distances, find the mean distance between non self-referencing points
+		
+		#grid the reference based on gsize, bumping out the grid by 10% in either direction
+		grid_x, grid_y = np.meshgrid(
+		np.linspace(1.1*RefMin[0],1.1*RefMax[0],int((1.1*RefMax[0]-1.1*RefMin[0])/gsize)),
+		np.linspace(1.1*RefMin[1],1.1*RefMax[1],int((1.1*RefMax[1]-1.1*RefMin[1])/gsize)), 
+		indexing='xy')
+		
+		#apply the grid to the reference data
+		grid_Ref=griddata(self.rp[:,:2],self.rp[:,-1],(grid_x,grid_y),method='linear')
+		
+		#apply the grid to the aligned data
+		grid_Align=griddata(self.flp[:,:2],self.flp[:,-1],(grid_x,grid_y),method='linear')
+		
+		self.ui.statusLabel.setText("Averaging using grid . . .")
+		QtGui.qApp.processEvents()
+		
+		#average z values
+		grid_Avg=(grid_Ref+grid_Align)/2
+		
+		#make sure that there isn't anything averaged outside the floating outline
+		p=path.Path(self.rO[:,:2])
+		inTest=np.hstack((np.ravel(grid_x.T)[np.newaxis].T,np.ravel(grid_y.T)[np.newaxis].T))
+		inOutline=p.contains_points(inTest)
+		
+		#averaged points
+		self.ap = np.hstack((inTest[inOutline,:], \
+					np.ravel(grid_Avg.T)[np.newaxis].T[inOutline]))
+					
+		#move everything back to original location
+		self.rO, self.fO, self.rp, self.flp, self.ap = \
+		self.rO+tT, self.fO+tT, self.rp+tT, self.flp+tT, self.ap+tT
+		
+		self.ui.statusLabel.setText("Rendering . . .")
+		QtGui.qApp.processEvents()
+		
+		#show it
+		color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
+		_, self.aActor, _, = gen_point_cloud(self.ap,color,self.PointSize)
+		self.ren.AddActor(self.aActor)
+		
+		s,nl,axs=self.get_scale()
+
+		self.aActor.SetScale(s)
+		self.aActor.Modified()
+		
+		#update
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+		self.ui.statusLabel.setText("Averaging complete. Idle.")
+		self.averaged=True
+	
+	def flipside(self,flipDirection):
+		self.ui.statusLabel.setText("Starting mirroring . . .")
+		self.ui.vtkWidget.update()
+		#delete the floating actor
+		if hasattr(self,'fActor'): #then remove this actor and the associated outline actor
+			self.ren.RemoveActor(self.fActor)
+			self.ren.RemoveActor(self.fOutlineActor)
+		else:
+			print "Need to have data loaded before manipulating . . .\n"
+
+		if flipDirection == "x":
+			self.flp[:,0]=-self.flp[:,0]
+			self.fO[:,0]=-self.fO[:,0]
+		elif flipDirection == "y":
+			self.flp[:,1]=-self.flp[:,1]
+			self.fO[:,1]=-self.fO[:,1]
+		
+		color=(255, 205, 52)
+		self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
+		self.ren.AddActor(self.fActor)
+		self.fOutlineActor, self.fOPC = gen_outline(self.fO,color,self.PointSize)
+		self.ren.AddActor(self.fOutlineActor)
+		
+		#recalculate extents of interactor
+		RefMin=np.amin(np.vstack((self.flp,self.rp)),axis=0)
+		RefMax=np.amax(np.vstack((self.flp,self.rp)),axis=0)
+
+		extents=RefMax-RefMin #extents
+		rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
+		self.limits=[RefMin[0]-rl, \
+		RefMax[0]+rl, \
+		RefMin[1]-rl, \
+		RefMax[1]+rl, \
+		RefMin[2],RefMax[2]]
+
+		#add axes
+		self.add_axis(self.limits,[1,1,1])
+		
+		s,nl,axs=self.get_scale()
+
+		self.fActor.SetScale(s)
+		self.fActor.Modified()
+
+		self.add_axis(nl,axs)
+		
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+		self.ui.statusLabel.setText("Mirror operation complete. Idle.")
+		self.mirrored=True
+		
+	def align(self):
+		self.ui.statusLabel.setText("Starting alignment . . .")
+		QtGui.qApp.processEvents()
+		
+		icp=vtk.vtkIterativeClosestPointTransform()
+		if self.ui.alignPointCloudButton.isChecked():
+			icp.SetSource(self.fPC)
+			icp.SetTarget(self.rPC)
+		elif self.ui.alignOutlineButton.isChecked():
+			icp.SetSource(self.fOPC)
+			icp.SetTarget(self.rOPC)
+		
+		if hasattr(self,'fActor'): #then remove this actor and the associated outline actor
+			self.ren.RemoveActor(self.fActor)
+			self.ren.RemoveActor(self.fOutlineActor)
+			
+
+		
+		icp.SetMaximumNumberOfIterations(200)
+		icp.StartByMatchingCentroidsOn()
+		icp.Modified()
+		icp.Update()
+		icp.Inverse()
+		
+		self.transM=np.zeros(shape=(4,4))
+		for i in range(4):
+			for j in range(4):
+				self.transM[i,j]=icp.GetMatrix().GetElement(i, j)
+		self.transM=np.linalg.inv(self.transM)
+
+		#apply operation
+		self.flp=np.dot(self.flp,self.transM[0:3,0:3])+self.transM[0:3,-1]
+		self.fO=np.dot(self.fO,self.transM[0:3,0:3])+self.transM[0:3,-1]
+		
+		color=(255, 205, 52)
+		self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
+		self.ren.AddActor(self.fActor)
+		self.fOutlineActor, self.fOPC = gen_outline(self.fO,color,self.PointSize)
+		self.ren.AddActor(self.fOutlineActor)
+		
+		#recalculate extents of interactor
+		RefMin=np.amin(np.vstack((self.flp,self.rp)),axis=0)
+		RefMax=np.amax(np.vstack((self.flp,self.rp)),axis=0)
+
+		extents=RefMax-RefMin #extents
+		rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
+		self.limits=[RefMin[0]-rl, \
+		RefMax[0]+rl, \
+		RefMin[1]-rl, \
+		RefMax[1]+rl, \
+		RefMin[2],RefMax[2]]
+
+		#add axes
+		self.add_axis(self.limits,[1,1,1])
+		
+		s,nl,axs=self.get_scale()
+
+		self.fActor.SetScale(s)
+		self.fActor.Modified()
+
+		self.add_axis(nl,axs)
+		
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+		if self.mirrored==False:
+			self.ui.statusLabel.setText("WARNING alignment proceeding without a mirror operation. Alignment complete. Idle.")
+		else:
+			self.ui.statusLabel.setText("Alignment complete. Idle.")
+		
+		self.aligned = True
+		
+	def get_grid(RefPoints):
+	
+		p=path.Path(windowVerts)
+		inWindow=p.contains_points(RefPoints[:,:2]) #first 2 columns of RefPoints is x and y
+
+		windowed=RefPoints[inWindow,:2]
+		gs=squareform(pdist(windowed,'euclidean')) #does the same thing as pdist2
+		gsize=np.mean(np.sort(gs)[:,1]) #sort the distances, find the closest, non self-referencing points
+
+		grid_x, grid_y = np.meshgrid(np.linspace(RefMin[0],RefMax[0],int((RefMax[0]-RefMin[0])/gsize)),
 	    np.linspace(RefMin[1],RefMax[1],int((RefMax[1]-RefMin[1])/gsize)),indexing='xy')
-	points=RefPoints[:,:2]
+		points=RefPoints[:,:2]
 
-	grid_RefVal=griddata(points,RefPoints[:,-1], (grid_x, grid_y), method='linear')
-
-
-#Read in reference data, calculate relevant details
-	try:
-		mat_contents = sio.loadmat(filef)
-		try:
-			FloatPoints=np.hstack((mat_contents['x'],mat_contents['y'],mat_contents['z']))
-			FloatOutline=(mat_contents['x_out'])
-		except KeyError:
-			print "Couldn't read variables from file. Quitting."
-			return
-	except KeyError:
-		print "Error reading reference data"
-		return
-
-	FloatCent=np.mean(FloatPoints,axis=0)
-	#get extents of dataset
-
-	pointSize=2
-
-	# Create instances
-	pointCloud = VtkPointCloud()
-	qpointCloud = VtkPointCloud()
-
-	#calculate the offset between the floating and reference dataset.
-
-	oa=np.array([0,0,40]); #offset of floating data from reference
-	
-	offset=np.zeros(shape=(2,3))
-	
-	# offset[0]=np.add(-RefCent);
-	offset[0]=-RefCent
-	for k in RefPoints:
-		pointCloud.addPoint(np.add(k,offset[0]))
-	OutlineActor1,Outline1=initializeOutline(np.add(RefOutline,offset[0]),(0.95,0.3961,0.1333))
-
-	# Add points to to the VtkHighlightPointCloud Instance
-	offset[1]=np.add(-FloatCent,oa);
-	FloatOutline=np.add(FloatOutline,offset[1])
-	for k in FloatPoints:
-		qpointCloud.addPoint(np.add(k,offset[1]))
-	OutlineActor2,Outline2=initializeOutline(FloatOutline,(1,0.804,0.204))
-
-	pointActor = pointCloud.vtkActor
-	pointActor.GetProperty().SetColor(0.95,0.3961,0.1333)
-	qpointActor = qpointCloud.vtkActor
-	qpointActor.GetProperty().SetColor(1,0.804,0.204)
-
-	# Add axes and fix automatic scaling issue
-	
-	
-	axes3D = vtk.vtkCubeAxesActor() #try 2D
-	axes3D.ZAxisLabelVisibilityOff()
-	axes3D.ZAxisTickVisibilityOff()
-	axes3D.SetXTitle('X')
-	axes3D.SetYTitle('Y')
-	
-
-
-
-	# Create the Renderer and assign actors to it. A renderer is like a
-	# viewport. It is part or all of a window on the screen and it is
-	# responsible for drawing the actors it has.  We also set the
-	# background color here.
-	ren = vtk.vtkRenderer()
-	
-	ren.AddActor(pointActor)
-	ren.AddActor(qpointActor)
-
-	axes3D.SetBounds(RefMin[0]-RefCent[0],RefMax[0]-RefCent[0],
-	RefMin[1]-RefCent[1],RefMax[1]-RefCent[1],
-	RefMin[2]-RefCent[2],RefMax[2]-RefCent[2])
-
-
-
-	ren.AddActor(OutlineActor1)
-	ren.AddActor(OutlineActor2)
-	ren.SetBackground(0.1, 0.2, 0.4)
-
-	# Finally we create the render window which will show up on the screen
-	# We put our renderer into the render window using AddRenderer. We
-	# also set the size to be 720p
-	renWin = vtk.vtkRenderWindow()
-	renWin.AddRenderer(ren)
-	renWin.SetSize(1280, 720)
-
-	# Define custom interaction.
-	iren = vtk.vtkRenderWindowInteractor()
-	iren.SetInteractorStyle(None)
-	iren.SetRenderWindow(renWin)
-	AlignmentComplete=False
-	AveragingComplete=False
-
-
-	# Add the observers to watch for particular events. These invoke
-	# Python functions.
-	Rotating = 0
-	Panning = 0
-	Zooming = 0
-	Zaspect=1
-
-	def Keypress(obj, event):
-		global iren, ren, renWin, Zaspect, pointSize, FloatOutline, FloatPoints, FloatCent, OutlineActor2, Outline1, Outline2, transActor, transformPointCloud, AvgActor, AvgPointCloud, AlignmentComplete, AveragingComplete, CurrPnts, inOutline, AvgPoints_grid, AvgPoints
-		key = obj.GetKeySym()
-		if key == "e":
-			if AlignmentComplete and AveragingComplete:
-				WriteOutput()
-				sys.exit("align_average completed.")
-			else:
-				sys.exit("Alignment/averaging not performed, not writing any output.")
-			return
-		elif key =="h":
-			#handle outline
-			DeleteActor(OutlineActor2)
-			FloatOutline=np.add(FloatOutline,-offset[1])
-			FloatCent=np.mean(FloatOutline,axis=0)
-			FloatOutline=np.add(FloatOutline,-FloatCent)
-			FloatOutline[:,0]=-FloatOutline[:,0]
-			FloatOutline=np.add(FloatOutline,FloatCent+offset[1])
-			OutlineActor2,Outline2=initializeOutline(FloatOutline,(1,0.804,0.204))
-			ren.AddActor(OutlineActor2)
-			renWin.Render()
-			#different function for the point cloud where points are moved, and not recreated
-			flipSide('x',qpointCloud,qpointActor,offset[1,-1])
-
-		elif key =="k":
-			#handle outline
-			DeleteActor(OutlineActor2)
-			FloatOutline=np.add(FloatOutline,-offset[1])
-			FloatCent=np.mean(FloatOutline,axis=0)
-			FloatOutline=np.add(FloatOutline,-FloatCent)
-			FloatOutline[:,1]=-FloatOutline[:,1]
-			FloatOutline=np.add(FloatOutline,FloatCent+offset[1])
-			OutlineActor2,Outline2=initializeOutline(FloatOutline,(1,0.804,0.204))
-			ren.AddActor(OutlineActor2)
-			renWin.Render()
-			#different function for the point cloud where points are moved, and not recreated
-			flipSide('y',qpointCloud,qpointActor,offset[1,-1])
-		elif key=="a":
-			if not AlignmentComplete:
-				print "Alignment started . . ."
-				print "Removing scaling . . ."
-				oldZ=Zaspect;
-				#clear any scaling
-				updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),1,offset[1][-1])
-				Zaspect=updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),1,offset[0][-1]) #because each call will update Zaspect
-
-				#Align the floating points with the reference points using vtk's native icp filter
-				icp=vtk.vtkIterativeClosestPointTransform()
-
-				icp.SetSource(qpointCloud.geometry)
-				icp.SetTarget(pointCloud.geometry)
-				# icp.GetLandmarkTransform().SetModeToRigidBody()
-				icp.SetMaximumNumberOfIterations(200)
-				icp.StartByMatchingCentroidsOn()
-				icp.Modified()
-				icp.Update()
-				icp.Inverse()
-
-				transM=np.zeros(shape=(4,4))
-				for i in range(4):
-					for j in range(4):
-						transM[i,j]=icp.GetMatrix().GetElement(i, j)
-				transM=np.linalg.inv(transM)
-				print "Transformation matrix for the floating data onto the reference:"
-				print(transM)
-				
-				icpTransformFilter = vtk.vtkTransformPolyDataFilter()
-				if vtk.VTK_MAJOR_VERSION <= 5:
-					icpTransformFilter.SetInput(qpointCloud.geometry)
-				else:
-					icpTransformFilter.SetInputData(qpointCloud.geometry)
-
-				icpTransformFilter.SetTransform(icp)
-				icpTransformFilter.Update()
-				transformedSource = icpTransformFilter.GetOutput()
-				transformPointCloud=VtkPointCloud()
-
-				#Apply transformation matrix to the floating point cloud
-				CurrPnts=np.empty(FloatPoints.shape)
-				for k in range(int(qpointCloud.points.GetNumberOfPoints())):
-					dummy=np.dot(np.asarray(qpointCloud.points.GetPoint(k)),transM[0:3,0:3])+transM[0:3,-1] 
-					transformPointCloud.addPoint(dummy)
-					CurrPnts[k,:]=dummy
-
-				# Or apply points directly from the filter
-				# CurrPnts=np.empty(FloatPoints.shape)
-				# for k in range(int(transformedSource.GetNumberOfPoints())):
-					# dummy=np.asarray(transformedSource.GetPoint(k))
-					# transformPointCloud.addPoint(dummy)
-					# CurrPnts[k,:]=dummy
-
-				transActor = transformPointCloud.vtkActor
-				transActor.GetProperty().SetColor(1,0.9098,0.6863)
-
-
-				ren.AddActor(transActor)
-				renWin.Render()
-
-				print "Re-applying scaling . . ."
-				updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
-
-				updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),oldZ,offset[1][-1])
+		grid_RefVal=griddata(points,RefPoints[:,-1], (grid_x, grid_y), method='linear')
+		
+	def get_input_data(self,filem):
+		"""
+		Loads the content of a *.mat file pertaining to this particular step
+		"""
+		
+		if hasattr(self,'rActor'): #then remove everything
+			self.ren.RemoveActor(self.rActor)
+			self.ren.RemoveActor(self.fActor)
+			self.ren.RemoveActor(self.rOutlineActor)
+			self.ren.RemoveActor(self.fOutlineActor)
 			
-				Zaspect=updateZaspect(transformPointCloud,transActor,transformPointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
+		if hasattr(self,'aActor'):
+			self.ren.RemoveActor(self.aActor)
+		
+		if filem == None:
+			filem, _, =get_file('*.mat')
+		
+		if filem: #check variables
+			mat_contents = sio.loadmat(filem)
+			self.fileo=filem
+			try:
+				self.rp=mat_contents['ref']['rawPnts'][0][0]
+				ind=mat_contents['ref']['mask'][0][0][0]
+				self.rO=mat_contents['ref']['x_out'][0][0]
 				
+				self.rp=self.rp[np.where(ind)]
 				
-				print "Alignment complete."
-				AlignmentComplete=True
-			else:
-				print "Restart routine to re-try alignment."
-
-		elif key=="A":
-			if not AlignmentComplete:
-				print "Alignment started using perimeter . . ."
-
-				#Align the floating points with the reference points using vtk's native icp filter
-				icp=vtk.vtkIterativeClosestPointTransform()
-
-				icp.SetSource(Outline2)
-				icp.SetTarget(Outline1)
-				icp.GetLandmarkTransform().SetModeToRigidBody()
-				icp.SetMaximumNumberOfIterations(20)
-				icp.StartByMatchingCentroidsOn()
-				icp.Modified()
-				icp.Update()
-				icp.Inverse()
+				color=(242, 101, 34)
+				self.rPC, self.rActor, _, = gen_point_cloud(self.rp,color,self.PointSize)
+				self.ren.AddActor(self.rActor)
+				self.rOutlineActor, self.rOPC = gen_outline(self.rO,color,self.PointSize)
+				self.ren.AddActor(self.rOutlineActor)
 				
-				transM=np.zeros(shape=(4,4))
-				for i in range(4):
-					for j in range(4):
-						transM[i,j]=icp.GetMatrix().GetElement(i, j)
-				transM=np.linalg.inv(transM)
-				print "Transformation matrix for the floating data onto the reference:"
-				print(transM)
+				#do other one
+				self.flp=mat_contents['float']['rawPnts'][0][0]
+				ind=mat_contents['float']['mask'][0][0][0]
+				self.fO=mat_contents['float']['x_out'][0][0]
 				
-				icpTransformFilter = vtk.vtkTransformPolyDataFilter()
-				if vtk.VTK_MAJOR_VERSION <= 5:
-					icpTransformFilter.SetInput(Outline2)
-				else:
-					icpTransformFilter.SetInputData(Outline2)
+				self.flp=self.flp[np.where(ind)]
 
-				icpTransformFilter.SetTransform(icp)
-				icpTransformFilter.Update()
-
-				transformedSource = icpTransformFilter.GetOutput()
-				transformPointCloud=VtkPointCloud()
-
-				#Apply transformation matrix to the floating point cloud
-				CurrPnts=np.empty(FloatPoints.shape)
-				for k in range(int(qpointCloud.points.GetNumberOfPoints())):
-					dummy=np.dot(np.asarray(qpointCloud.points.GetPoint(k)),transM[0:3,0:3])+transM[0:3,-1] 
-					transformPointCloud.addPoint(dummy)
-					CurrPnts[k,:]=dummy
-
-				transActor = transformPointCloud.vtkActor
-				transActor.GetProperty().SetColor(1,0.9098,0.6863)
-
-
-				ren.AddActor(transActor)
-				renWin.Render()
+				color=(255, 205, 52)
+				self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
+				self.ren.AddActor(self.fActor)
+				self.fOutlineActor, self.fOPC = gen_outline(self.fO,color,self.PointSize)
+				self.ren.AddActor(self.fOutlineActor)
 				
-				print "Alignment using perimeter complete."
-				AlignmentComplete=True
-			else:
-				print "Restart routine to re-try alignment."
-		elif key =="v":
-			if AlignmentComplete:
-				print "Averaging started . . ."
-				#clear any scaling
-				print "Removing scaling . . ."
-				oldZ=Zaspect;
-				updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),1,offset[1][-1])
-				updateZaspect(transformPointCloud,transActor,transformPointCloud.points.GetNumberOfPoints(),1,offset[0][-1])
-				Zaspect=updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),1,offset[0][-1]) #because each call will update Zaspect
-				#grid CurrPoints using grid_x and grid_y, clear scaling as CurrPnts is coming from a filter
-				points=np.add(CurrPnts,-offset[0])
+				# update status
+				self.ui.activeFileLabel.setText("Current analysis file:%s"%filem)
+				
+				RefMin=np.amin(np.vstack((self.flp,self.rp)),axis=0)
+				RefMax=np.amax(np.vstack((self.flp,self.rp)),axis=0)
 
-				grid_AlignVal=griddata(points[:,:2],points[:,-1], (grid_x, grid_y), method='linear')
-				#average them
-				AvgPoints_grid=(grid_AlignVal+grid_RefVal)/2
-				#find points in the outline
-				test_outline=RefOutline[:,:2]
-				#do column-wise raveling, replicate Matlab handling
-				p=path.Path(test_outline)
-				inTest=np.hstack((np.ravel(grid_x.T)[np.newaxis].T,np.ravel(grid_y.T)[np.newaxis].T))
+				extents=RefMax-RefMin #extents
+				rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
+				self.limits=[RefMin[0]-rl, \
+				RefMax[0]+rl, \
+				RefMin[1]-rl, \
+				RefMax[1]+rl, \
+				RefMin[2],RefMax[2]]
 
-				inOutline=p.contains_points(inTest) 
-				#build a 3D list of points containing those points 'inside' the outline
-				AvgPoints=np.hstack((inTest[inOutline,:],
-					np.ravel(AvgPoints_grid.T)[np.newaxis].T[inOutline]))
+				#add axes
+				self.add_axis(self.limits,[1,1,1])
 
-				#create new actor, etc
-				AvgPointCloud=VtkPointCloud()
-				for k in AvgPoints:
-					AvgPointCloud.addPoint(np.add(k,offset[0]))
-				AvgActor = AvgPointCloud.vtkActor
-
-				AvgActor.GetProperty().SetColor(0.2784,0.6745,0.6941)
-
-				ren.AddActor(AvgActor)
-				renWin.Render()
-				print "Re-applying scaling . . ."
-				updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
-
-				updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),oldZ,offset[1][-1])
+			except:
+				print "Couldn't read in both sets of data."
 			
-				updateZaspect(transformPointCloud,transActor,transformPointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
-				
-				Zaspect=updateZaspect(AvgPointCloud,AvgActor,AvgPointCloud.points.GetNumberOfPoints(),oldZ,offset[0][-1])
-				
-				print "Averaging complete."
-				AveragingComplete=True
-			else:
-				print "Align before averaging . . ."
-		elif key =="d":
-			FlipVisible(qpointActor)
-			FlipVisible(OutlineActor2)
-			FlipVisible(pointActor)
-			FlipVisible(OutlineActor1)
-		elif key =="1":
-			XYView(ren, ren.GetActiveCamera())
+		else:
+			print 'Invalid *.mat file'
+			return
+		
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+
+	def keypress(self,obj,event):
+		key = obj.GetKeyCode()
+
+		if key =="1":
+			xyview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
 		elif key =="2":
-			YZView(ren, ren.GetActiveCamera())
+			yzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
 		elif key =="3":
-			XZView(ren, ren.GetActiveCamera())
-		#change z aspect ratio
+			xzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
 		elif key=="z":
-			Zaspect=updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),Zaspect*2,offset[0][-1])
+			self.Zaspect=self.Zaspect*2
+			s,nl,axs=self.get_scale()
+			if hasattr(self,'pointActor'):
+				self.pointActor.SetScale(s)
+				self.pointActor.Modified()
+			if hasattr(self,'rActor'):
+				self.rActor.SetScale(s)
+				self.rActor.Modified()
+			if hasattr(self,'fActor'):
+				self.fActor.SetScale(s)
+				self.fActor.Modified()
+			if hasattr(self,'aActor')
+				self.aActor.SetScale(s)
+				self.aActor.Modified()
+			
+			self.add_axis(nl,axs)
 
-			updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),Zaspect*2,offset[1][-1])
-			try:
-				updateZaspect(transformPointCloud,transActor,transformPointCloud.points.GetNumberOfPoints(),Zaspect*2,offset[0][-1])
-			except: #the alignment might not have taken place.
-				pass
-			try:
-				updateZaspect(AvgPointCloud,AvgActor,AvgPointCloud.points.GetNumberOfPoints(),Zaspect*2,offset[0][-1])
-			except: #averaging might not have taken place.
-				pass
 
 
 		elif key=="x":
-			Zaspect=updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),Zaspect*0.5,offset[0][-1])
-			updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),Zaspect*0.5,offset[1][-1])
-			try:
-				updateZaspect(transformPointCloud,transActor,transformPointCloud.points.GetNumberOfPoints(),Zaspect*0.5,offset[0][-1])
-			except: #the alignment might not have taken place.
-				pass
-			try:
-				updateZaspect(AvgPointCloud,AvgActor,AvgPointCloud.points.GetNumberOfPoints(),Zaspect*0.5,offset[0][-1])
-			except: #averaging might not have taken place.
-				pass
+			self.Zaspect=self.Zaspect*0.5
+			s,nl,axs=self.get_scale()
+			if hasattr(self,'pointActor'):
+				self.pointActor.SetScale(s)
+			if hasattr(self,'rActor'):
+				self.rActor.SetScale(s)
+				self.rActor.Modified()
+			if hasattr(self,'fActor'):
+				self.fActor.SetScale(s)
+				self.fActor.Modified()
+			if hasattr(self,'aActor'):
+				self.aActor.SetScale(s)
+				self.aActor.Modified()
+
+			self.add_axis(nl,axs)
+
 
 		elif key=="c":
-			#make sure the old scaling factor is used, not the updated one.
-			updateZaspect(qpointCloud,qpointActor,qpointCloud.points.GetNumberOfPoints(),1,offset[1][-1])
-			try:
-				updateZaspect(transformPointCloud,transActor,transformPointCloud.points.GetNumberOfPoints(),1,offset[0][-1])
-			except: #the alignment might not have taken place.
-				pass
-			try:
-				updateZaspect(AvgPointCloud,AvgActor,AvgPointCloud.points.GetNumberOfPoints(),1,offset[0][-1])
-			except: #averaging might not have taken place.
-				pass
-			Zaspect=updateZaspect(pointCloud,pointActor,pointCloud.points.GetNumberOfPoints(),1,offset[0][-1]) #because each call will update Zaspect, so do this one last
-			renWin.Render()
+			self.Zaspect=1.0
+			s,_,_,=self.get_scale()
+			if hasattr(self,'pointActor'):
+				self.pointActor.SetScale(s)
+			if hasattr(self,'rActor'):
+				self.rActor.SetScale(s)
+				self.rActor.Modified()
+			if hasattr(self,'fActor'):
+				self.fActor.SetScale(s)
+				self.fActor.Modified()
+			if hasattr(self,'aActor'):
+				# self.fActor.SetScale(1,1,self.Zaspect)
+				self.aActor.SetScale(s)
+				self.aActor.Modified()
+			self.add_axis(self.limits,[1,1,1])
+			self.ren.ResetCamera()
 
-		elif key =="i":
+		elif key=="i":
 			im = vtk.vtkWindowToImageFilter()
 			writer = vtk.vtkPNGWriter()
-			im.SetInput(renWin)
+			im.SetInput(self.ui.vtkWidget._RenderWindow)
 			im.Update()
 			writer.SetInputConnection(im.GetOutputPort())
-			writer.SetFileName("Avg.png")
+			writer.SetFileName("Avg_aligned.png")
 			writer.Write()
-			print 'Screen output saved to %s' %os.path.join(currentdir,'Avg.png')
-		elif key =="r":
-			FlipVisible(axes3D)
+			print 'Screen output saved to %s' %os.path.join(os.getcwd(),'Avg_aligned.png')
 
-
-
-		elif key =="f": #flip color scheme for printing
-			if ren.GetBackground()==(0.1, 0.2, 0.4):
-				axes3D.GetTitleTextProperty(0).SetColor(0,0,0)
-				axes3D.GetLabelTextProperty(0).SetColor(0,0,0)
-				axes3D.GetXAxesLinesProperty().SetColor(0,0,0)
-				axes3D.SetXTitle('x') #there's a vtk bug here . . .
+		elif key=="a":
+			if hasattr(self,'ax3D'):
+				flip_visible(self.ax3D)
+			
+		elif key == "o":
+			if hasattr(self,'outlineActor'):
+				flip_visible(self.outlineActor)
+		
+		elif key == "f":
+			if hasattr(self,'ax3D'):
+				flip_colors(self.ren,self.ax3D)
 				
-				axes3D.GetTitleTextProperty(1).SetColor(0,0,0)
-				axes3D.GetLabelTextProperty(1).SetColor(0,0,0)
-				axes3D.GetYAxesLinesProperty().SetColor(0,0,0)
-
-				axes3D.GetTitleTextProperty(2).SetColor(0,0,0)
-				axes3D.GetLabelTextProperty(2).SetColor(0,0,0)
-
-				ren.SetBackground(1, 1, 1)
+		elif key == "r":
+			if self.picking == True:
+				self.picking =False
+				self.show_picking()
 			else:
-				axes3D.GetTitleTextProperty(0).SetColor(1,1,1)
-				axes3D.GetLabelTextProperty(0).SetColor(1,1,1)
-				axes3D.GetXAxesLinesProperty().SetColor(1,1,1)
-				axes3D.SetXTitle('X')
-				
-				axes3D.GetTitleTextProperty(1).SetColor(1,1,1)
-				axes3D.GetLabelTextProperty(1).SetColor(1,1,1)
-				axes3D.GetYAxesLinesProperty().SetColor(1,1,1)
-				axes3D.SetYTitle('Y')
-				
-				axes3D.GetTitleTextProperty(2).SetColor(1,1,1)
-				axes3D.GetLabelTextProperty(2).SetColor(1,1,1)
-
-				ren.SetBackground(0.1, 0.2, 0.4)
-
-			renWin.Render()
-
-
-
-	def WriteOutput():
-	
-		global outputd, iren, renWin
+				self.picking =True
+				self.show_picking()
 		
-		# dtype1={'names':['f{}'.format(i) for i in range(ReadPoints.shape[1])],
-			# 'formats':ReadPoints.shape[1] * [ReadPoints.dtype]} #make each row an entry in a set
-		# dtype2={'names':['f{}'.format(i) for i in range(CurrPnts.shape[1])],
-			# 'formats':CurrPnts.shape[1] * [CurrPoints.dtype]} #make each row an entry in a set
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
 
-		##################################
-		currentdir=os.getcwd()
-		if outputd is None:
-			outputd = askdirectory(title="Choose output directory.",
-							initialdir=currentdir)
-		if outputd is '':
-			print "No output written."
-			close_window(iren)
-			del renWin, iren
-			return
+	def get_scale(self):
+		'''
+		Returns array for the keypress function based on what radio button is selected.
+		'''
+		if self.ui.xsButton.isChecked():
+			s=np.array([self.Zaspect,1,1])
+			nl=np.append([self.limits[0]*self.Zaspect,self.limits[1]*self.Zaspect],self.limits[2:])
+			axs=np.array([1/self.Zaspect,1,1])
+			
+		elif self.ui.ysButton.isChecked():
+			s=np.array([1,self.Zaspect,1])
+			nl=np.append(self.limits[0:2],([self.limits[2]*self.Zaspect,self.limits[3]*self.Zaspect],self.limits[4:]))
+			axs=np.array([1,1/self.Zaspect,1])
 		else:
-			Prefix=os.path.basename(filer)
-			Prefix=Prefix.split('.')
-			print"Now writing output . . ."
+			s=np.array([1,1,self.Zaspect])
+			nl=np.append(self.limits[0:4],([self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect]))
+			axs=np.array([1,1,1/self.Zaspect])
+		return s,nl,axs
 
-			sio.savemat(os.path.join(outputd,Prefix[0]+"_avg.mat"),
-							{'ali': {'xf':CurrPnts[:,0]-offset[0][0],
-							'yf':CurrPnts[:,1]-offset[0][1],
-							'zf':CurrPnts[:,2]-offset[0][2],
-							'xr':RefPoints[:,0],'yr':RefPoints[:,1],'zr':RefPoints[:,2],
-							'x_out':RefOutline},
-							'avg' : { 'in' : inOutline, 'xi':grid_x , 'yi':grid_y  , 'zi': AvgPoints_grid, 'pts': AvgPoints}})
-			# print np.transpose(np.asmatrix(RefPoints2[:,0])), np.transpose(np.asmatrix(RefPoints2[:,1])), np.transpose(np.asmatrix(RefPoints2[:,2]))
-			print "Output saved to %s" %outputd
-			close_window(iren)
-			del renWin, iren
-
-	iren.AddObserver("LeftButtonPressEvent", ButtonEvent)
-	iren.AddObserver("LeftButtonReleaseEvent", ButtonEvent)
-	iren.AddObserver("MiddleButtonPressEvent", ButtonEvent)
-	iren.AddObserver("MiddleButtonReleaseEvent", ButtonEvent)
-	iren.AddObserver("RightButtonPressEvent", ButtonEvent)
-	iren.AddObserver("RightButtonReleaseEvent", ButtonEvent)
-	iren.AddObserver("MouseMoveEvent", MouseMove)
-	iren.AddObserver("KeyPressEvent", Keypress)
-
-	iren.Initialize()
-	renWin.Render()
-	#get default camera position as inputs for 'views'
-	defaultCameraPosition=ren.GetActiveCamera().GetPosition()
-	defaultCameraFocalPoint=ren.GetActiveCamera().GetFocalPoint()
-	
-	axes3D.SetCamera(ren.GetActiveCamera())
-	ren.AddActor(axes3D)
-
-	renWin.SetWindowName("UoM Contour Method - Alignment and Averaging v%s" %__version__)
-	iren.Start()
-
-	#if the user otherwise closes the interactor window
-	if 'iren' in globals():
-		print "Interactor closed, no output written."
-		close_window(iren)
-		del renWin, iren
-
-def flipSide(flipDirection,instance,actor,Offset):
-	NumPoints=instance.points.GetNumberOfPoints()
-	for i in range(NumPoints):
-		xyz=instance.points.GetPoint(i)
-		lp=(xyz[0], xyz[1], xyz[2]-Offset)
-		if flipDirection == "x": #then mirror in XZ plane
-			mlp=((-lp[0], lp[1], lp[2]+Offset))
-		else: #mirror in ZY
-			mlp=(lp[0], -lp[1], lp[2]+Offset)
-		instance.points.SetPoint(i,mlp[0],mlp[1],mlp[2])
-	instance.geometry.Modified()
-	actor.Modified()
-	renWin.Render()
-
-def initializeOutline(perimeter,color):
-	points = vtk.vtkPoints()
-	for j in perimeter:
-		points.InsertNextPoint(j)
-
-	polygon=vtk.vtkPolygon()
-	polygon.GetPointIds().SetNumberOfIds(len(perimeter))
-	for i in range(len(perimeter)):
-		polygon.GetPointIds().SetId(i,i)
-	
-	polygons=vtk.vtkCellArray()
-	polygons.InsertNextCell(polygon)
-	polyData=vtk.vtkPolyData()
-	polyData.SetPoints(points)
-	polyData.SetLines(polygons) #change to SetPoly for filled polygon
-	polygonMapper=vtk.vtkPolyDataMapper()
-	if vtk.VTK_MAJOR_VERSION<= 5:
-		polygonMapper.SetInput(polyData)
-	else:
-		polygonMapper.SetInputData(polyData)
-	perimActor=vtk.vtkActor()
-	perimActor.SetMapper(polygonMapper)
-	perimActor.GetProperty().SetColor(color)
-	return perimActor,polyData
-
-##Common functions
-# Routines that translate the events into camera motions.
-# Handle the mouse button events.
-def ButtonEvent(obj, event):
-	global Rotating, Panning, Zooming
-	global iren, renWin, ren
-	if event == "LeftButtonPressEvent":
-		Rotating = 1
-	elif event == "LeftButtonReleaseEvent":
-		Rotating = 0
-	elif event == "MiddleButtonPressEvent":
-		Panning = 1
-	elif event == "MiddleButtonReleaseEvent":
-		Panning = 0
-	elif event == "RightButtonPressEvent":
-		Zooming = 1
-	elif event == "RightButtonReleaseEvent":
-		Zooming = 0
-# This one is associated with the left mouse button. It translates x
-# and y relative motions into camera azimuth and elevation commands.
-def Rotate(renderer, camera, x, y, lastX, lastY, centerX, centerY):
-	camera.Azimuth(lastX-x)
-	camera.Elevation(lastY-y)
-	camera.OrthogonalizeViewUp()
-	camera.ParallelProjectionOn()
-	renderer.ResetCameraClippingRange() #needed to remove clipping artefact
-	renWin.Render()
-
-def XYView(renderer, camera):
-	camera.SetPosition(0,0,defaultCameraPosition[2]+0)
-	camera.SetFocalPoint(defaultCameraFocalPoint)
-	camera.SetViewUp(0,1,0)
-	camera.OrthogonalizeViewUp()
-	camera.ParallelProjectionOn()
-	renWin.Render()
-
-def YZView(renderer, camera):
-	camera.SetPosition(defaultCameraPosition[2]+0,0,0)
-	camera.SetFocalPoint(defaultCameraFocalPoint)
-	camera.SetViewUp(0,0,1)
-	camera.OrthogonalizeViewUp()
-	camera.ParallelProjectionOn()
-	renWin.Render()
-
-def XZView(renderer, camera):
-	camera.SetPosition(0,defaultCameraPosition[2]+0,0)
-	camera.SetFocalPoint(defaultCameraFocalPoint)
-	camera.SetViewUp(0,0,1)
-	camera.OrthogonalizeViewUp()
-	camera.ParallelProjectionOn()
-	renWin.Render()
-
-# Pan translates x-y motion into translation of the focal point and
-# position.
-def Pan(renderer, camera, x, y, lastX, lastY, centerX, centerY):
-	FPoint = camera.GetFocalPoint()
-	FPoint0 = FPoint[0]
-	FPoint1 = FPoint[1]
-	FPoint2 = FPoint[2]
-
-	PPoint = camera.GetPosition()
-	PPoint0 = PPoint[0]
-	PPoint1 = PPoint[1]
-	PPoint2 = PPoint[2]
-
-	renderer.SetWorldPoint(FPoint0, FPoint1, FPoint2, 1.0)
-	renderer.WorldToDisplay()
-	DPoint = renderer.GetDisplayPoint()
-	focalDepth = DPoint[2]
-
-	APoint0 = centerX+(x-lastX)
-	APoint1 = centerY+(y-lastY)
-
-	renderer.SetDisplayPoint(APoint0, APoint1, focalDepth)
-	renderer.DisplayToWorld()
-	RPoint = renderer.GetWorldPoint()
-	RPoint0 = RPoint[0]
-	RPoint1 = RPoint[1]
-	RPoint2 = RPoint[2]
-	RPoint3 = RPoint[3]
-
-	if RPoint3 != 0.0:
-		RPoint0 = RPoint0/RPoint3
-		RPoint1 = RPoint1/RPoint3
-		RPoint2 = RPoint2/RPoint3
-
-	camera.SetFocalPoint( (FPoint0-RPoint0)/2.0 + FPoint0,
-						  (FPoint1-RPoint1)/2.0 + FPoint1,
-						  (FPoint2-RPoint2)/2.0 + FPoint2)
-	camera.SetPosition( (FPoint0-RPoint0)/2.0 + PPoint0,
-						(FPoint1-RPoint1)/2.0 + PPoint1,
-						(FPoint2-RPoint2)/2.0 + PPoint2)
-	camera.ParallelProjectionOn()
-	renWin.Render()
-
-# Dolly converts y-motion into a camera dolly commands.
-def Dolly(renderer, camera, x, y, lastX, lastY, centerX, centerY):
-	dollyFactor = pow(1.02,(0.5*(y-lastY)))
-	if camera.GetParallelProjection():
-		parallelScale = camera.GetParallelScale()*dollyFactor
-		camera.SetParallelScale(parallelScale)
-	else:
-		camera.Dolly(dollyFactor)
-		renderer.ResetCameraClippingRange()
-	camera.ParallelProjectionOn()
-	renWin.Render()
-
-def DeleteActor(actor):
-	global ren, renWin, iren
-	ren.RemoveActor(actor)
-	renWin.Render()
-	
-
-def FlipVisible(actor):
-	global ren, renWin, iren
-	if actor.GetVisibility():
-		actor.VisibilityOff()
-	else:
-		actor.VisibilityOn()
-	renWin.Render()
-	
-# General high-level logic
-def MouseMove(obj, event):
-	global Rotating, Panning, Zooming
-	global iren, renWin, ren
-	lastXYpos = iren.GetLastEventPosition()
-	lastX = lastXYpos[0]
-	lastY = lastXYpos[1]
-	
-	xypos = iren.GetEventPosition()
-	x = xypos[0]
-	y = xypos[1]
-	
-	center = renWin.GetSize()
-	centerX = center[0]/2.0
-	centerY = center[1]/2.0
-
-	if Rotating:
-		Rotate(ren, ren.GetActiveCamera(), x, y, lastX, lastY,
-			   centerX, centerY)
-	elif Panning:
-		Pan(ren, ren.GetActiveCamera(), x, y, lastX, lastY, centerX,
-			centerY)
-	elif Zooming:
-		Dolly(ren, ren.GetActiveCamera(), x, y, lastX, lastY,
-			  centerX, centerY)
-
-def updateZaspect(instance,actor,NumPoints,NewZaspect,Offset):
-	if NewZaspect==1:
-		scale=1.0/Zaspect
-	else:
-		scale=NewZaspect/Zaspect
-	for i in range(NumPoints):
-		xyz=instance.points.GetPoint(i)
-
-		#because tuples are immutable
-		lp=(xyz[0], xyz[1], xyz[2]-Offset)
+	def add_axis(self,limits,scale):
+		if hasattr(self,"ax3D"):
+			self.ren.RemoveActor(self.ax3D)
+		self.ax3D = vtk.vtkCubeAxesActor()
+		self.ax3D.ZAxisTickVisibilityOn()
+		self.ax3D.SetXTitle('X')
+		self.ax3D.SetXUnits('mm')
+		self.ax3D.SetYTitle('Y')
+		self.ax3D.SetYUnits('mm')
+		self.ax3D.SetZTitle('Z')
+		self.ax3D.SetZUnits('mm')
+		self.ax3D.SetBounds(limits)
+		self.ax3D.SetZAxisRange(limits[-2]*scale[2],limits[-1]*scale[2])
+		self.ax3D.SetXAxisRange(limits[0]*scale[0],limits[1]*scale[0])
+		self.ax3D.SetYAxisRange(limits[2]*scale[1],limits[3]*scale[1])
+		self.ax3D.SetCamera(self.ren.GetActiveCamera())
+		self.ren.AddActor(self.ax3D)
+		if not(self.ren.GetBackground()==(0.1, 0.2, 0.4)):
+			flip_colors(self.ren,self.ax3D)
 		
-		mlp=(lp[0], lp[1], lp[2]*scale)
-		instance.points.SetPoint(i,mlp[0],mlp[1],mlp[2]+Offset)
-
-	instance.geometry.Modified()
-	actor.Modified()
-	renWin.Render()
-	
-	return NewZaspect
-
-
-#Create a class to generate a point cloud
-class VtkPointCloud:
-
-	def __init__(self, zMin=0, zMax=1, maxNumPoints=1e3):
-		self.maxNumPoints = maxNumPoints
-		self.points = vtk.vtkPoints()
-		self.vertices = vtk.vtkCellArray()
-		self.geometry=vtk.vtkPolyData()
-		self.geometry.SetPoints(self.points)
-		self.geometry.SetVerts(self.vertices)
-		mapper = vtk.vtkPolyDataMapper()
-		if vtk.VTK_MAJOR_VERSION<= 5:
-			mapper.SetInput(self.geometry)
-		else:
-			mapper.SetInputData(self.geometry)
-		mapper.SetColorModeToDefault()
-		mapper.SetScalarRange(zMin, zMax)
-		mapper.SetScalarVisibility(1)
-		self.vtkActor = vtk.vtkActor()
-		self.vtkActor.SetMapper(mapper)
-		self.vtkActor.GetProperty().SetPointSize(pointSize)
-		
-
-	def addPoint(self, point):
-		pointId = self.points.InsertNextPoint(point[:])
-		self.vertices.InsertNextCell(1)
-		self.vertices.InsertCellPoint(pointId)
-		self.vertices.Modified()
-		self.points.Modified()
-		
-	def clearPoints(self):
-		self.points = vtk.vtkPoints()
-		self.vertices = vtk.vtkCellArray()
-		self.geometry.SetPoints(self.points)
-		self.geometry.SetVerts(self.vertices)
-
-def close_window(iren):
-	render_window=iren.GetRenderWindow()
-	render_window.Finalize()
-	iren.TerminateApp()
-
 if __name__ == '__main__':
-	currentdir=os.getcwd()
-	# checkImport()
-	if len(sys.argv)>3:
-		RefFile=os.path.join(currentdir,sys.argv[1])
-		FloatFile=os.path.join(currentdir,sys.argv[2])
-		outDir=os.path.join(currentdir,sys.argv[3])
-		align_average(RefFile,FloatFile,outDir)
-	elif len(sys.argv)>2:
-		RefFile=os.path.join(currentdir,sys.argv[1])
-		FloatFile=os.path.join(currentdir,sys.argv[2])
-		align_average(RefFile,FloatFile)
+	if len(sys.argv)>2:
+		ali_avg_interactor(sys.argv[1])
 	else:
-		align_average()
-
-
+		ali_avg_interactor()

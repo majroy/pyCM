@@ -20,57 +20,58 @@ f - flip colors from white on dark to dark on white
 i - save output to .png in current working directory
 r - remove/reinstate compass/axes
 o - remove/reinstate outline
-e - write output and exit
+e - write output
 -------------------------------------------------------------------------------
-ver 0.1 16-11-26
+ver 1.1 17-17-03
 '''
 __author__ = "M.J. Roy"
-__version__ = "0.1"
+__version__ = "1.1"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 
-
-from PyQt4 import QtCore, QtGui
-# from PyQt4 import *
-from PyQt4.QtGui import QApplication
+import os,sys,time
 import vtk
 from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-import os,sys,time
+from PyQt4 import QtCore, QtGui
+from PyQt4.QtGui import QApplication
 import numpy as np
 import scipy.io as sio
 from scipy.interpolate import griddata,bisplrep,bisplev
 from scipy.spatial.distance import pdist, squareform
 from scipy.spatial import Delaunay
 from matplotlib import path
-import Tkinter as tk
-from tkFileDialog import askopenfilename
-from tkFileDialog import askdirectory
+from pkg_resources import Requirement, resource_filename
+from pyCMcommon import *
 
 
 def fit_surface(*args, **kwargs):
 	app = QApplication(sys.argv)
 	
-	splash_pix = QtGui.QPixmap('meta/pyCM_logo.png')
-	splash = QtGui.QSplashScreen(splash_pix,QtCore.Qt.WindowStaysOnTopHint)
+	spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
+	splash_pix = QtGui.QPixmap(spl_fname,'PNG')
+	splash = QtGui.QSplashScreen(splash_pix)
 	splash.setMask(splash_pix.mask())
-
-	#future placeholder for version control
-	# font=QtGui.QFont("Helvetica [Cronyx]",12,weight=QtGui.QFont.Bold)
-	# splash.setFont(font)
-	# splash.showMessage("Established connections",QtCore.Qt.AlignBottom | QtCore.Qt.AlignVCenter);
 
 	splash.show()
 	app.processEvents()
 	
 	window = sf_Interactor()
 
+	if len(args)==1:
+		sf_Interactor.get_input_data(window,args[0])
+	else:
+		sf_Interactor.get_input_data(window,None)
+	
 	window.show()
 	splash.finish(window)
 	window.iren.Initialize() # Need this line to actually show the render inside Qt
+	
+	ret = app.exec_()
+	
 	if sys.stdin.isatty() and not hasattr(sys,'ps1'):
-		sys.exit(app.exec_())
+		sys.exit(ret)
 	else:
-		return app.exec_()
+		return window
 
 class sf_MainWindow(object):
 
@@ -80,18 +81,32 @@ class sf_MainWindow(object):
 		MainWindow.resize(1280, 720)
 		self.centralWidget = QtGui.QWidget(MainWindow)
 		self.Boxlayout = QtGui.QHBoxLayout(self.centralWidget)
+		self.Subtendlayout=QtGui.QVBoxLayout()
 		splineBox = QtGui.QFormLayout()
 		sectionBox = QtGui.QGridLayout()
 
 
 		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
 		self.vtkWidget.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
-		self.vtkWidget.setMinimumSize(1100, 640); #leave 100 px on the size for i/o
+		self.vtkWidget.setMinimumSize(1150, 700); #leave 100 px on the size for i/o
 
-		self.Boxlayout.addWidget(self.vtkWidget)
-		self.Boxlayout.addStretch()
+		self.Subtendlayout.addWidget(self.vtkWidget)
+		self.activeFileLabel=QtGui.QLabel("Idle")
+		self.activeFileLabel.setWordWrap(True)
+		self.activeFileLabel.setFont(QtGui.QFont("Helvetica",italic=True))
+		self.activeFileLabel.setMinimumWidth(100)
+		self.Subtendlayout.addWidget(self.activeFileLabel)
+		self.Subtendlayout.addStretch(1)
+		self.Boxlayout.addLayout(self.Subtendlayout)
+		self.Boxlayout.addStretch(1)
+		
 		MainWindow.setCentralWidget(self.centralWidget)
-
+		headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
+		
+		# self.Boxlayout.addWidget(self.vtkWidget)
+		# self.Boxlayout.addStretch()
+		# MainWindow.setCentralWidget(self.centralWidget)
+		self.reloadButton = QtGui.QPushButton('Load')
 		splineLabel=QtGui.QLabel("Bivariate spline fitting")
 		splineLabel.setFont(QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold))
 		self.numLabel1=QtGui.QLabel("Knot spacing (x)")
@@ -123,18 +138,30 @@ class sf_MainWindow(object):
 		self.numEdit5.setText('0')
 		self.numEdit5.setMinimumWidth(50)
 		
+		self.numLabel6=QtGui.QLabel("Display resolution:")
+		self.drx=QtGui.QLineEdit()
+		drx_label=QtGui.QLabel("x")
+
+		self.yMin=QtGui.QLineEdit()
+		self.dry=QtGui.QLineEdit()
+		dry_label=QtGui.QLabel("y")
+		
+		
 		self.updateButton = QtGui.QPushButton('Update')
 		self.updateButton.setMinimumWidth(50)
 		
-		self.statLabel=QtGui.QLabel("Idle")
-		self.statLabel.setFont(QtGui.QFont("Helvetica",italic=True))
-		self.statLabel.setMinimumWidth(50)
+		self.statusLabel=QtGui.QLabel("Idle")
+		self.statusLabel.setWordWrap(True)
+		self.statusLabel.setFont(QtGui.QFont("Helvetica",italic=True))
+		self.statusLabel.setMinimumWidth(50)
 		horizLine1=QtGui.QFrame()
 		horizLine1.setFrameStyle(QtGui.QFrame.HLine)
 		horizLine2=QtGui.QFrame()
 		horizLine2.setFrameStyle(QtGui.QFrame.HLine)
 		horizLine3=QtGui.QFrame()
 		horizLine3.setFrameStyle(QtGui.QFrame.HLine)
+		horizLine4=QtGui.QFrame()
+		horizLine4.setFrameStyle(QtGui.QFrame.HLine)		
 
 		sectionLabel=QtGui.QLabel("Data sectioning")
 		sectionLabel.setFont(QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold))
@@ -156,10 +183,11 @@ class sf_MainWindow(object):
 		sectionIntList.append(self.yMax)
 		self.sectionButton = QtGui.QPushButton('Section')
 		self.revertButton = QtGui.QPushButton('Revert')
-		self.writeButton = QtGui.QPushButton('Save')
+		self.writeButton = QtGui.QPushButton('Write')
 		self.writeButton.setMinimumWidth(50)
 
 		#splineBox is the main container, the sectionBox is nested within
+		splineBox.addRow(self.reloadButton)
 		splineBox.addRow(horizLine1)
 		splineBox.addRow(splineLabel)
 		splineBox.addRow(self.numLabel1,self.numEdit1)
@@ -167,12 +195,17 @@ class sf_MainWindow(object):
 		splineBox.addRow(self.numLabel3,self.numEdit3)
 		splineBox.addRow(self.numLabel4,self.numEdit4)
 		splineBox.addRow(self.numLabel5,self.numEdit5)
+		splineBox.addRow(self.numLabel6)
+		splineBox.addRow(drx_label,self.drx)
+		splineBox.addRow(dry_label,self.dry)
 		splineBox.addRow(self.updateButton)
-		splineBox.addRow(self.statLabel)
+		
 		splineBox.addRow(horizLine2)
 		splineBox.addRow(sectionBox)
 		splineBox.addRow(horizLine3)
 		splineBox.addRow(self.writeButton)
+		splineBox.addRow(horizLine4)
+		splineBox.addRow(self.statusLabel)
 
 		
 		sectionBox.addWidget(sectionLabel,1,1,1,4)
@@ -193,7 +226,7 @@ class sf_MainWindow(object):
 		self.vtkWidget.start()
 
 
-class sf_Interactor(QtGui.QMainWindow):
+class sf_interactor(QtGui.QMainWindow):
 
 	def __init__(self, parent = None):
 		QtGui.QMainWindow.__init__(self, parent)
@@ -207,65 +240,81 @@ class sf_Interactor(QtGui.QMainWindow):
 		self.ren.GetActiveCamera().ParallelProjectionOn()
 		self.cp=self.ren.GetActiveCamera().GetPosition()
 		self.fp=self.ren.GetActiveCamera().GetFocalPoint()
-		self.iren.AddObserver("KeyPressEvent", self.Keypress)
+		self.iren.AddObserver("KeyPressEvent", self.keypress)
 
 		self.PointSize=2
 		self.LineWidth=1
 		self.Zaspect=1.0
 		self.limits=np.empty(6)
 
-		if (len(sys.argv)<2) or (not os.path.isfile(sys.argv[1])):
-			self.filer,startdir=GetFile()
-			if self.filer == None:
-				#if its called from the commandline
-				if sys.stdin.isatty() and not hasattr(sys,'ps1'):
-					sys.exit("No file identified")
-				else:
-					#hopefully return to interactive python
-					return
-		elif len(args)==2:
-			filer=args[0]
-			self.outputd=args[1]
-			if not os.path.exists(self.outputd): #make the directory if it doesn't exist
-				os.makedirs(self.outputd)
-		else:
-			sys.exit("Arguments not specified correctly. Quitting.")
+		self.ui.reloadButton.clicked.connect(lambda: self.get_input_data(None))
+		self.ui.updateButton.clicked.connect(lambda: self.onUpdateSpline())
+		self.ui.sectionButton.clicked.connect(lambda: self.Cut())
+		self.ui.revertButton.clicked.connect(lambda: self.RemoveCut())
+		self.ui.writeButton.clicked.connect(lambda: self.WriteOutput())
 
-		#Read in reference data, calculate relevant details
-		try:
-			mat_contents = sio.loadmat(self.filer)
+
+	def get_input_data(self,filer):
+		"""
+		Loads the content of a *.mat file pertaining to this particular step
+		"""
+		
+		if hasattr(self,'pointActor'): #then remove everything
+			self.ren.RemoveActor(self.pointActor)
+			self.ren.RemoveActor(self.outlineActor)
+		
+		if hasattr(self,'splineActor'):
+			self.ren.RemoveActor(self.splineActor)
+
+		
+		if filer == None:
+			filer, _, =get_file('*.mat')
+		
+		if filer: #check variables
+			mat_contents = sio.loadmat(filer)
+			self.fileo=filer
 			try:
-				avg=mat_contents['avg']
-				pts=avg['pts'][0]
-				pts=np.concatenate(pts,axis=0)
-				pts=pts[~np.isnan(pts).any(axis=1)] #remove all nans
-				self.RefOutline=np.concatenate(mat_contents['ali']['x_out'],axis=0)[0]
+				pts=mat_contents['aa']
+
+				self.pts=pts[~np.isnan(pts).any(axis=1)] #remove all nans
+				self.RefOutline=np.concatenate(mat_contents['ref']['x_out'],axis=0)[0]
 				RefMin=np.amin(self.RefOutline,axis=0)
 				RefMax=np.amax(self.RefOutline,axis=0)
-				self.limits=[RefMin[0],RefMax[0],RefMin[1],RefMax[1],np.amin(pts[:,-1],axis=0),np.amax(pts[:,-1],axis=0)]
+				self.limits=[RefMin[0],RefMax[0],RefMin[1],RefMax[1],np.amin(self.pts[:,-1],axis=0),np.amax(self.pts[:,-1],axis=0)]
+				self.RefMin,self.RefMax=RefMin,RefMax
 				self.ui.xMin.setText('%.3f'%self.limits[0])
 				self.ui.xMax.setText('%.3f'%self.limits[1])
 				self.ui.yMin.setText('%.3f'%self.limits[2])
 				self.ui.yMax.setText('%.3f'%self.limits[3])
-			except KeyError:
-				print "Couldn't read variables from file. Quitting."
-				return
 			
-		except KeyError:
-			print "Error reading reference data"
-			return
-		self.DisplayPointCloud(pts,RefMin,RefMax)
-		self.DisplayOutline(self.RefOutline)
-		self.ui.updateButton.clicked.connect(lambda: self.onUpdateSpline(pts,self.RefOutline,RefMin,RefMax))
-		self.ui.sectionButton.clicked.connect(lambda: self.Cut())
-		self.ui.revertButton.clicked.connect(lambda: self.RemoveCut())
-		self.ui.writeButton.clicked.connect(lambda: self.WriteOutput())
-		if self.filer == None:
-			return
+				#Generate actors
+				color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
+				_, self.pointActor, _, = gen_point_cloud(self.pts,color,self.PointSize)
+				self.ren.AddActor(self.pointActor)
+				self.outlineActor, _, = gen_outline(self.RefOutline,color,self.PointSize)
+				self.ren.AddActor(self.outlineActor)
 
-	def onUpdateSpline(self,p,ro,rmin,rmax):
+				#add axes
+				self.add_axis(self.limits,[1,1,1])
+				
+			except: #Exception as e: print str(e)
+				
+				print "Couldn't read in both sets of data."
+			
+		else:
+			print 'Invalid *.mat file'
+			return
 		
-		self.ui.statLabel.setText("Fitting . . .")
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+		# update status
+		self.ui.activeFileLabel.setText("Current analysis file:%s"%filer)
+			
+	def onUpdateSpline(self):
+		p,ro,rmin,rmax=self.pts,self.RefOutline,self.RefMin,self.RefMax
+		self.ui.statusLabel.setText("Fitting . . .")
 		QtGui.qApp.processEvents()
 		#read input parameters
 		gx=float(self.ui.numEdit1.text())
@@ -279,7 +328,7 @@ class sf_Interactor(QtGui.QMainWindow):
 
 		#make sure both x & y have enough values in either direction
 		if len(tx)<3 or len(ty)<3:
-			self.ui.statLabel.setText("Grid too large . . .")
+			self.ui.statusLabel.setText("Grid too large . . .")
 			self.ui.updateButton.setEnabled(True)
 			return
 		tx=np.insert(tx,0,[rmin[0]] * kx) #to make sure knots are repeated at edges
@@ -291,11 +340,21 @@ class sf_Interactor(QtGui.QMainWindow):
 		try:
 			self.tck = bisplrep(p[:,0], p[:,1], p[:,2], kx=kx, ky=ky, tx=tx, ty=ty, task=-1) #get spline representation
 
-			
 			#now evaluate for show
-			rx=np.linspace(rmin[0],rmax[0],int((rmax[0]-rmin[0])/(gx/2)))
-			ry=np.linspace(rmin[1],rmax[1],int((rmax[1]-rmin[1])/(gy/2)))
-			
+			if not hasattr(self,'dryval'): #then it won't have drxval
+				rx=np.linspace(rmin[0],rmax[0],int((rmax[0]-rmin[0])/(gx/2)))
+				ry=np.linspace(rmin[1],rmax[1],int((rmax[1]-rmin[1])/(gy/2)))
+				self.drxval,self.dryval=rx[1]-rx[0],ry[1]-ry[0]
+				self.ui.drx.setText('%.3f'%(self.drxval))
+				self.ui.dry.setText('%.3f'%(self.dryval))
+			else: #read the res directly from UI, apply and update
+				self.drxval,self.dryval=float(self.ui.drx.text()),float(self.ui.dry.text())
+				rx=np.linspace(rmin[0],rmax[0],int((rmax[0]-rmin[0])/(self.drxval)))
+				ry=np.linspace(rmin[1],rmax[1],int((rmax[1]-rmin[1])/(self.dryval)))
+				self.drxval,self.dryval=rx[1]-rx[0],ry[1]-ry[0]
+				self.ui.drx.setText('%.3f'%(self.drxval))
+				self.ui.dry.setText('%.3f'%(self.dryval))
+				
 			grid_x, grid_y = np.meshgrid(rx,ry,indexing='xy')
 			grid_x=np.transpose(grid_x)
 			grid_y=np.transpose(grid_y)
@@ -334,7 +393,7 @@ class sf_Interactor(QtGui.QMainWindow):
 					points3D[:,j]=points3D[:,j]+t_offset[j]
 					ro[:,j]=ro[:,j]+t_offset[j]
 
-			self.ui.statLabel.setText("Rendering . . .")
+			self.ui.statusLabel.setText("Rendering . . .")
 			self.DisplaySplineFit(points3D,tri)
 
 			zeval = np.empty(np.size(p[:,2]))
@@ -344,12 +403,12 @@ class sf_Interactor(QtGui.QMainWindow):
 			a=(zeval-p[:,2])
 			RSME=(np.sum(a*a)/len(a))**0.5
 
-			self.ui.statLabel.setText("RSME: %2.2f micron . . . Idle"%(RSME*1000))
+			self.ui.statusLabel.setText("RSME: %2.2f micron . . . Idle"%(RSME*1000))
 
 		except ValueError as ve:
 			print ve
 			splineFail= True
-			self.ui.statLabel.setText("Last fit failed . . . Idle")
+			self.ui.statusLabel.setText("Last fit failed . . . Idle")
 		
 		self.ui.updateButton.setEnabled(True)
 
@@ -368,7 +427,6 @@ class sf_Interactor(QtGui.QMainWindow):
 			triangle=vtk.vtkTriangle()
 			for j in range(0,3):
 				triangle.GetPointIds().SetId(j,i[j])
-				print j,i[j]
 			triangles.InsertNextCell(triangle)
 
 		trianglePolyData = vtk.vtkPolyData()
@@ -418,29 +476,44 @@ class sf_Interactor(QtGui.QMainWindow):
 		planeCollection.AddItem(planey1)
 		planeCollection.AddItem(planey2)
 		
-
-		self.Omapper.SetClippingPlanes(planeCollection)
-		self.Pmapper.SetClippingPlanes(planeCollection)
+		Omapper=self.outlineActor.GetMapper()
+		Pmapper=self.pointActor.GetMapper()
+		Omapper.SetClippingPlanes(planeCollection)
+		Pmapper.SetClippingPlanes(planeCollection)
 
 		if hasattr(self,'Smapper'):
 			self.Smapper.SetClippingPlanes(planeCollection)
 		nl=np.array(self.ax3D.GetBounds())
 		self.ren.RemoveActor(self.ax3D)
-		self.AddAxis([pts[0],pts[1],pts[2],pts[3],nl[-2],nl[-1]],1)
+		#add axes
+		self.add_axis(self.limits,[1,1,1])
+
+		
+		#update
+		self.ren.ResetCamera()
 		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
 	
 	def RemoveCut(self):
 		self.ui.xMin.setText('%.3f'%self.limits[0])
 		self.ui.xMax.setText('%.3f'%self.limits[1])
 		self.ui.yMin.setText('%.3f'%self.limits[2])
 		self.ui.yMax.setText('%.3f'%self.limits[3])
-		self.Omapper.RemoveAllClippingPlanes()
-		self.Pmapper.RemoveAllClippingPlanes()
+		Omapper=self.outlineActor.GetMapper()
+		Pmapper=self.pointActor.GetMapper()
+		Omapper.RemoveAllClippingPlanes()
+		Pmapper.RemoveAllClippingPlanes()
 		if hasattr(self,'Smapper'):
 			self.Smapper.RemoveAllClippingPlanes()
 		self.ren.RemoveActor(self.ax3D)
-		self.AddAxis(self.limits,1)
+		#add axes
+		self.add_axis(self.limits,[1,1,1])
+
+		
+		#update
+		self.ren.ResetCamera()
 		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
 	
 	def DisplayPointCloud(self,pts,min,max):
 
@@ -498,7 +571,7 @@ class sf_Interactor(QtGui.QMainWindow):
 		self.ui.vtkWidget.update()
 
 
-	def Keypress(self,obj,event):
+	def keypress(self,obj,event):
 		key = obj.GetKeyCode()
 
 		if key =="1":
@@ -510,30 +583,40 @@ class sf_Interactor(QtGui.QMainWindow):
 
 		elif key=="z":
 			self.Zaspect=self.Zaspect*2
-			self.pointActor.SetScale(1,1,self.Zaspect)
+			s,nl,axs=self.get_scale()
 			if hasattr(self,'splineActor'):
-				self.splineActor.SetScale(1,1,self.Zaspect)
-			self.ren.RemoveActor(self.ax3D)
-			nl=np.append(self.limits[0:4],[self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect])
-			self.AddAxis(nl,1/self.Zaspect)
+				self.splineActor.SetScale(s)
+				self.splineActor.Modified()
+			if hasattr(self,'pointActor'):
+				self.pointActor.SetScale(s)
+				self.pointActor.Modified()
+
+			self.add_axis(nl,axs)
 
 		elif key=="x":
 			self.Zaspect=self.Zaspect*0.5
-			self.pointActor.SetScale(1,1,self.Zaspect)
+			s,nl,axs=self.get_scale()
 			if hasattr(self,'splineActor'):
-				self.splineActor.SetScale(1,1,self.Zaspect)
-			self.ren.RemoveActor(self.ax3D)
-			nl=np.append(self.limits[0:4],[self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect])
-			self.AddAxis(nl,1/self.Zaspect)
+				self.splineActor.SetScale(s)
+				self.splineActor.Modified()
+			if hasattr(self,'pointActor'):
+				self.pointActor.SetScale(s)
+				self.pointActor.Modified()
+
+			self.add_axis(nl,axs)
 
 		elif key=="c":
 			self.Zaspect=1.0
-			self.pointActor.SetScale(1,1,self.Zaspect)
+			s,_,_,=self.get_scale()
 			if hasattr(self,'splineActor'):
-				self.splineActor.SetScale(1,1,self.Zaspect)
-			self.ax3D.SetFlyModeToOuterEdges()
-			self.ren.RemoveActor(self.ax3D)
-			self.AddAxis(self.limits,1)
+				self.splineActor.SetScale(s)
+				self.splineActor.Modified()
+			if hasattr(self,'pointActor'):
+				self.pointActor.SetScale(s)
+				self.pointActor.Modified()
+
+			self.add_axis(self.limits,[1,1,1])
+			self.ren.ResetCamera()
 
 		elif key=="i":
 			im = vtk.vtkWindowToImageFilter()
@@ -585,36 +668,49 @@ class sf_Interactor(QtGui.QMainWindow):
 		self.ui.vtkWidget.update()
 
 	def WriteOutput(self):
-		QtGui.qApp.processEvents()
+		
 		if hasattr(self,'splineActor'): #then spline fitting has been done
-			if hasattr(self,'outputd') is False:
-				self.outputd = askdirectory(title="Choose output directory.",initialdir=currentdir)
-			if self.outputd is '':
-				print "No output written."
-				pass
-			Prefix=os.path.basename(self.filer)
-			Prefix=Prefix.split('.')
-			fname=os.path.join(self.outputd,Prefix[0][0:-4]+"_sur.mat")
+			mat_contents=sio.loadmat(self.fileo)
+			
 			coefs=[np.reshape(self.tck[2],(len(self.tck[0])-self.tck[3]-1,-1))]
 			number=np.array([len(self.tck[0]),len(self.tck[1])])
 			order=np.array([self.tck[3], self.tck[4]])
-			sio.savemat(fname,{'spline_x': {'form': 'B-', 'knots': [self.tck[0], self.tck[1]], 'coefs': coefs, 'number': number, 'order':order, 'dim': 1, 'tck': self.tck},  'x_out':self.RefOutline})
-			print "Output saved to %s" %fname
+			new={'spline_x': {'form': 'B-', 'knots': [self.tck[0], self.tck[1]], 'coefs': coefs, 'number': number, 'order':order, 'dim': 1, 'tck': self.tck},  'x_out':self.RefOutline}
+			
+			mat_contents.update(new)
+			
+			sio.savemat(self.fileo,mat_contents)
+			
+			self.ui.statusLabel.setText("Output written to %s. Idle." %self.fileo)
 		else:
-			print 'Nothing to save.'
+			self.ui.statusLabel.setText("Nothing to write. Idle.")
 
-	def AddAxis(self,limits,scale):
+	def get_scale(self):
+		'''
+		Returns array for the keypress function
+		'''
+		s=np.array([1,1,self.Zaspect])
+		nl=np.append(self.limits[0:4],([self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect]))
+		axs=np.array([1,1,1/self.Zaspect])
+		return s,nl,axs		
+			
+	def add_axis(self,limits,scale):
+		if hasattr(self,"ax3D"):
+			self.ren.RemoveActor(self.ax3D)
 		self.ax3D = vtk.vtkCubeAxesActor()
 		self.ax3D.ZAxisTickVisibilityOn()
 		self.ax3D.SetXTitle('X')
+		self.ax3D.SetXUnits('mm')
 		self.ax3D.SetYTitle('Y')
+		self.ax3D.SetYUnits('mm')
 		self.ax3D.SetZTitle('Z')
+		self.ax3D.SetZUnits('mm')
 		self.ax3D.SetBounds(limits)
-		# self.ax3D.SetLabelScaling(True,1,1,2) #ints are powers to raise each by
-		self.ax3D.SetZAxisRange(limits[-2]*scale,limits[-1]*scale)
+		self.ax3D.SetZAxisRange(limits[-2]*scale[2],limits[-1]*scale[2])
 		self.ax3D.SetCamera(self.ren.GetActiveCamera())
 		self.ren.AddActor(self.ax3D)
-		self.ax3D.SetFlyModeToOuterEdges()
+		if not(self.ren.GetBackground()==(0.1, 0.2, 0.4)):
+			flip_colors(self.ren,self.ax3D)
 
 def GetFile():
 	root = tk.Tk()
@@ -736,5 +832,3 @@ if __name__ == "__main__":
 		fit_surface(RefFile)
 	else:
 		fit_surface()
-
-

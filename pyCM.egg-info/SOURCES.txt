@@ -7,6 +7,7 @@ pyCM/align_average.py
 pyCM/fit_surface.py
 pyCM/point_cloud.py
 pyCM/preprocess.py
+pyCM/pyCMcommon.py
 pyCM.egg-info/PKG-INFO
 pyCM.egg-info/SOURCES.txt
 pyCM.egg-info/dependency_links.txt

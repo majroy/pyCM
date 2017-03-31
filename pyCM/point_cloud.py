@@ -481,7 +481,7 @@ class pnt_interactor(QtGui.QMainWindow):
 		
 		if filep != None: #because filediag can be cancelled
 			self.Outline=np.genfromtxt(filep)
-			self.outlineActor=gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
+			self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
 			self.ren.AddActor(self.outlineActor)			
 			self.filep=filep
 			
@@ -619,7 +619,7 @@ class pnt_interactor(QtGui.QMainWindow):
 			writer.SetInputConnection(im.GetOutputPort())
 			writer.SetFileName("point_cloud.png")
 			writer.Write()
-			print 'Screen output saved to %s' %os.path.join(currentdir,'point_cloud.png')
+			print 'Screen output saved to %s' %os.path.join(os.getcwd(),'point_cloud.png')
 
 		elif key=="a":
 			if hasattr(self,'ax3D'):

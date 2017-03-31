@@ -131,9 +131,15 @@ def gen_outline(pts,color,size):
 	'''
 	Returns an outline actor with specified pts, color and size. Incoming pnts should be ordered.
 	'''
+	if color[0]<=1 and color != None:
+		color=(int(color[0]*255),int(color[1]*255),int(color[2]*255))
+	if color[0]>=1 and color != None:
+		color=(color[0]/float(255),color[1]/float(255),color[2]/float(255))
 	points=vtk.vtkPoints()
+
 	for i in pts:
 		points.InsertNextPoint(i)
+
 	lineseg=vtk.vtkPolygon()
 	lineseg.GetPointIds().SetNumberOfIds(len(pts))
 	for i in range(len(pts)):
@@ -142,6 +148,7 @@ def gen_outline(pts,color,size):
 	linesegcells.InsertNextCell(lineseg)
 	outline=vtk.vtkPolyData()
 	outline.SetPoints(points)
+	outline.SetVerts(linesegcells)
 	outline.SetLines(linesegcells)
 	Omapper=vtk.vtkPolyDataMapper()
 	Omapper.SetInputData(outline)
@@ -149,7 +156,7 @@ def gen_outline(pts,color,size):
 	outlineActor.SetMapper(Omapper)
 	outlineActor.GetProperty().SetColor(color)
 	outlineActor.GetProperty().SetPointSize(size)
-	return outlineActor
+	return outlineActor,outline
 
 def xyview(renderer, camera,cp,fp):
 	camera.SetPosition(0,0,cp[2]+0)
