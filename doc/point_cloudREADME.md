@@ -36,12 +36,12 @@ This will load the perimeter file located in the current working directory, the 
 ##  Interaction functionality
 The data will appear in a custom VTK interaction window after initializing, with data appearing in white (points) or lines on a dark background. The default view is looking down on the data in the z direction, after which the view can be rotated to show the data in perspective ([Fig. 1](#fig1)) by pressing the left mouse button. The middle mouse button provides a pan function while pressed, and the right mouse button zooms. There are three named views that are accessed via **1**, **2** and **3** looking down the z, x and y directions, respectively. 
 
-<span>![<span>Main Window</span>](images/point_cloud_m.png)</span>  
+<span>![<span>Main Window</span>](images/Point_Cloud_m.png)</span>  
 *<a name="fig1"></a> Figure 1: Main default interaction window with a dark background and white data and annotations. Perimeter is shown as a solid line, with axes to show scale.*
 
 For publication purposes, the ability to flip the default color scheme (dark on bright) has been provided. This is obtained by pressing f ([Fig. 2](#fig2)) on the keyboard. Again, for publication purposes, a facility has been provided for printing the interaction window to file. Pressing **i** will print the interaction window to the current working directory as ’point_cloud.png’.
 
-<span>![<span>Flip color</span>](images/point_cloud_f.png)</span>  
+<span>![<span>Flip color</span>](images/Point_Cloud_f.png)</span>  
 *<a name="fig2"></a> Figure 2: Flipped colour scheme with a white background and black data and annotations. Pressing f on the keyboard when the window is in focus flips to and from this scheme.*
 
 As contour data has dimensions that are sometimes orders of magnitude larger in x and y, a facility for increasing the x, y and z-aspect of the data has been provided, depending on the radio button selected at the left-hand side of the GUI. Pressing **z** increases the aspect ratio by 2x with each keypress, pressing **x** decreases by half, and **c** returns to the default aspect ratio. These same keys have been also mapped to increase/decrease the size of the points themselves: pressing **Shift+z** increases point size, **Shift+x** decreases it and **Shift+c** returns to default.
@@ -50,7 +50,7 @@ Masking of points to be discluded in the subsequent analysis can be accomplished
 
 In order to select masked points, there is an interaction sequence which is triggered by pressing *Picker*. Pressing **r** will disable rotation such that using the left mouse button will enable the user to draw a rectangular window around points to be masked ([Fig. 4](#fig4)). This rectangle can be drawn and redrawn any number of times; panning and zooming are accessible by pressing **r** once more. The *Pick active* pane will activate when the picker is active. This can be repeated any number of times. If a mistake is made, then the last pick can be undone with the *Undo last pick* button to deselect all highlighted points the last time the picker was active. Note that a hardware selection tool has been employed: only points that are visible in the particular view/orientation will be selected. If a mistake is made, then the entire dataset can be reloaded with the *Reload source* button.
 
-<span>![<span>ZAspect</span>](images/point_cloud_u.png)</span>  
+<span>![<span>ZAspect</span>](images/Point_Cloud_u.png)</span>  
 *<a name="fig4"></a> Figure 4: Points to be eliminated/dismissed from subsequent analysis can be selected, as can the overall point cloud using the **Pick options** pane.*
 
 Once the required points have been added to the mask, then the function can then write a *.mat file for the displayed perimeter/point cloud, targeting the structure identified with the radio button in the *Write output* pane. If this *.mat file has not been generated, then a GUI will prompt for a location. If there is already a *Reference* or *Floating* data series in the *.mat file, the user will be asked if they wish to overwrite.
