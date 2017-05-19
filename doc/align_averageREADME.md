@@ -22,7 +22,7 @@ Transformation matrix | A variable called transM added to the *.mat results file
 The function can be called from interactive Python according to:
 ~~~
 >from pyCM import align_average
->ali_avg_interactor()
+>align_average.ali_avg_interactor()
 ~~~
 which will provide a GUI to locate the *.mat file with the floating and reference point cloud data, according to the description above.
 
