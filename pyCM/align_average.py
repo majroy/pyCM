@@ -617,7 +617,7 @@ class aa_interactor(QtGui.QMainWindow):
 			if hasattr(self,'fActor'):
 				self.fActor.SetScale(s)
 				self.fActor.Modified()
-			if hasattr(self,'aActor')
+			if hasattr(self,'aActor'):
 				self.aActor.SetScale(s)
 				self.aActor.Modified()
 			
