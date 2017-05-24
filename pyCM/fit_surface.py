@@ -44,7 +44,7 @@ from pkg_resources import Requirement, resource_filename
 from pyCMcommon import *
 
 
-def fit_surface(*args, **kwargs):
+def sf_interactor(*args, **kwargs):
 	app = QApplication(sys.argv)
 	
 	spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
@@ -55,12 +55,12 @@ def fit_surface(*args, **kwargs):
 	splash.show()
 	app.processEvents()
 	
-	window = sf_interactor()
+	window = surf_int()
 
 	if len(args)==1:
-		sf_interactor.get_input_data(window,args[0])
+		surf_int.get_input_data(window,args[0])
 	else:
-		sf_interactor.get_input_data(window,None)
+		surf_int.get_input_data(window,None)
 	
 	window.show()
 	splash.finish(window)
@@ -226,7 +226,7 @@ class sf_MainWindow(object):
 		self.vtkWidget.start()
 
 
-class sf_interactor(QtGui.QMainWindow):
+class surf_int(QtGui.QMainWindow):
 
 	def __init__(self, parent = None):
 		QtGui.QMainWindow.__init__(self, parent)
