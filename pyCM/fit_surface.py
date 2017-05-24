@@ -821,14 +821,7 @@ def FlipColors(ren,actor,contrast):
 				actor.GetProperty().SetColor(0.8039, 0.3490, 0.2902)
 
 if __name__ == "__main__":
-	currentdir=os.getcwd()
-
 	if len(sys.argv)>2:
-		RefFile=os.path.join(currentdir,sys.argv[1])
-		outDir=os.path.join(currentdir,sys.argv[2])
-		fit_surface(RefFile,outDir)
-	elif len(sys.argv)>1:
-		RefFile=os.path.join(currentdir,sys.argv[1])
-		fit_surface(RefFile)
+		sf_interactor(sys.argv[1])
 	else:
-		fit_surface()
+		sf_interactor()
