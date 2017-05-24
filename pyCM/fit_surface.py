@@ -55,12 +55,12 @@ def fit_surface(*args, **kwargs):
 	splash.show()
 	app.processEvents()
 	
-	window = sf_Interactor()
+	window = sf_interactor()
 
 	if len(args)==1:
-		sf_Interactor.get_input_data(window,args[0])
+		sf_interactor.get_input_data(window,args[0])
 	else:
-		sf_Interactor.get_input_data(window,None)
+		sf_interactor.get_input_data(window,None)
 	
 	window.show()
 	splash.finish(window)
