@@ -7,7 +7,7 @@ The contour method for measuring residual stress is a cost effective, robust tec
 For more information on the contour method:
 * Michael Prime's website containing an extensive background and literature overview: http://www.lanl.gov/contour/
 * Hill Engineering http://hill-engineering.com/contour-method/
-* StressMap, UK provider of contour method measurements based at the Open University http://stressmap.open.ac.uk/
+* StressMap, UK provider of contour method measurements based at the Open University http://www.stressmap.co.uk
 * VEQTER, expertise in a wide range of residual stress measurement techniques http://www.veqter.co.uk/residual-stress-measurement/contour
 
 ## Analysis code
