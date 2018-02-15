@@ -49,7 +49,7 @@ python -m pip install <pkg_prefix>.whl
 These instructions cover the steps needed to install all dependencies and then add the pyCM components to your Python PATH. This permits calling the pyCM components anywhere on a host machine.
 
 1. Clone this repository to a location on the host machine.
-2. Change directory to this location and from the command line, run `pip install pyCM-*` where `pyCM-*` is the most recent tarball from the `dist` directory where you've cloned the repository. Aside from PyQt4, the remainder of the requisite packages will be installed from PyPI.
+2. Change directory to this location and from the command line, run `pip install pyCM-*` where `pyCM-*` is the most recent tarball from the `dist` directory where you've cloned the repository. The remainder of the requisite packages will be installed from PyPI.
 3. Check if it installed properly by trying to import the pyCM library from any working directory at the Python prompt/IDLE:
 ~~~
 from pyCM import *
