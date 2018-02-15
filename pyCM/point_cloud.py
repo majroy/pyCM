@@ -41,7 +41,7 @@ import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCMcommon import *
+from .pyCMcommon import *
 
 
 nosio=False
