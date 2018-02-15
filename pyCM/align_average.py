@@ -26,13 +26,14 @@ e - write output and exit
 -------------------------------------------------------------------------------
 ver 1.1 16-11-06
 1.1 - Initial release
-1.2 - Refactored to use pyQt interface and eliminated global variables
+1.2 - Refactored to use PyQt interface and eliminated global variables
+1.3 - Refactored to use PyQt5, Python 3
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.2"
+__version__ = "1.3"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-__copyright__ = "(c) M. J. Roy, 2014-2017"
+__copyright__ = "(c) M. J. Roy, 2014-2018"
 
 import sys
 import os.path
@@ -44,23 +45,24 @@ import scipy.io as sio
 from scipy.interpolate import griddata
 from scipy.spatial.distance import pdist, squareform
 from matplotlib import path
-from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt4 import QtCore, QtGui
-from pkg_resources import Requirement, resource_filename
+from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from PyQt5 import QtCore, QtGui, QtWidgets
 from pyCMcommon import *
+from pkg_resources import Requirement, resource_filename
 
 
-def ali_avg_interactor(*args,**kwargs):
+
+def aa_def(*args,**kwargs):
 	"""
 	Main function, builds qt interaction
 	"""	
-	app = QtGui.QApplication.instance()
+	app = QtWidgets.QApplication.instance()
 	if app is None:
 		app = QApplication(sys.argv)
 	
 	spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
 	splash_pix = QtGui.QPixmap(spl_fname,'PNG')
-	splash = QtGui.QSplashScreen(splash_pix)
+	splash = QtWidgets.QSplashScreen(splash_pix)
 	splash.setMask(splash_pix.mask())
 
 	splash.show()
@@ -94,17 +96,17 @@ class ali_avg(object):
 		MainWindow.setObjectName("MainWindow")
 		MainWindow.setWindowTitle("pyCM - Alignment and averaging tool v%s" %__version__)
 		MainWindow.resize(1280, 720)
-		self.centralWidget = QtGui.QWidget(MainWindow)
-		self.Boxlayout = QtGui.QHBoxLayout(self.centralWidget)
-		self.Subtendlayout=QtGui.QVBoxLayout()
-		mainUiBox = QtGui.QFormLayout()
+		self.centralWidget = QtWidgets.QWidget(MainWindow)
+		self.Boxlayout = QtWidgets.QHBoxLayout(self.centralWidget)
+		self.Subtendlayout=QtWidgets.QVBoxLayout()
+		mainUiBox = QtWidgets.QFormLayout()
 
 		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
-		self.vtkWidget.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+		self.vtkWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.vtkWidget.setMinimumSize(1150, 700); #leave 100 px on the size for i/o
 
 		self.Subtendlayout.addWidget(self.vtkWidget)
-		self.activeFileLabel=QtGui.QLabel("Idle")
+		self.activeFileLabel=QtWidgets.QLabel("Idle")
 		self.activeFileLabel.setWordWrap(True)
 		self.activeFileLabel.setFont(QtGui.QFont("Helvetica",italic=True))
 		self.activeFileLabel.setMinimumWidth(100)
@@ -117,66 +119,66 @@ class ali_avg(object):
 		headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
 		
 		# #define buttons/widgets
-		self.reloadButton = QtGui.QPushButton('Load')
-		scalingLabel=QtGui.QLabel("Active axis for scaling")
+		self.reloadButton = QtWidgets.QPushButton('Load')
+		scalingLabel=QtWidgets.QLabel("Active axis for scaling")
 		scalingLabel.setFont(headFont)
-		self.xsButton=QtGui.QRadioButton("x")
-		self.ysButton=QtGui.QRadioButton("y")
-		self.zsButton=QtGui.QRadioButton("z")
+		self.xsButton=QtWidgets.QRadioButton("x")
+		self.ysButton=QtWidgets.QRadioButton("y")
+		self.zsButton=QtWidgets.QRadioButton("z")
 		self.zsButton.setChecked(True)
-		self.scalingButtonGroup = QtGui.QButtonGroup()
+		self.scalingButtonGroup = QtWidgets.QButtonGroup()
 		self.scalingButtonGroup.addButton(self.xsButton)
 		self.scalingButtonGroup.addButton(self.ysButton)
 		self.scalingButtonGroup.addButton(self.zsButton)
 		self.scalingButtonGroup.setExclusive(True)
-		scaleBoxlayout = QtGui.QGridLayout()
+		scaleBoxlayout = QtWidgets.QGridLayout()
 		scaleBoxlayout.addWidget(self.xsButton,1,1)
 		scaleBoxlayout.addWidget(self.ysButton,1,2)
 		scaleBoxlayout.addWidget(self.zsButton,1,3)
 		
-		horizLine1=QtGui.QFrame()
-		horizLine1.setFrameStyle(QtGui.QFrame.HLine)
-		mirrorLabel=QtGui.QLabel("Mirroring")
+		horizLine1=QtWidgets.QFrame()
+		horizLine1.setFrameStyle(QtWidgets.QFrame.HLine)
+		mirrorLabel=QtWidgets.QLabel("Mirroring")
 		mirrorLabel.setFont(headFont)
-		self.mirrorXbutton = QtGui.QPushButton('ZY')
-		self.mirrorYbutton = QtGui.QPushButton('ZX')
+		self.mirrorXbutton = QtWidgets.QPushButton('ZY')
+		self.mirrorYbutton = QtWidgets.QPushButton('ZX')
 
-		horizLine2=QtGui.QFrame()
-		horizLine2.setFrameStyle(QtGui.QFrame.HLine)
-		alignLabel=QtGui.QLabel("Alignment")
+		horizLine2=QtWidgets.QFrame()
+		horizLine2.setFrameStyle(QtWidgets.QFrame.HLine)
+		alignLabel=QtWidgets.QLabel("Alignment")
 		alignLabel.setFont(headFont)
-		self.transXlabel=QtGui.QLabel("Translate x:")
-		self.transX = QtGui.QLineEdit()
+		self.transXlabel=QtWidgets.QLabel("Translate x:")
+		self.transX = QtWidgets.QLineEdit()
 		self.transX.setText('0')
 		self.transX.setMinimumWidth(50)
-		self.transYlabel=QtGui.QLabel("Translate y:")
-		self.transY = QtGui.QLineEdit()
+		self.transYlabel=QtWidgets.QLabel("Translate y:")
+		self.transY = QtWidgets.QLineEdit()
 		self.transY.setText('0')
 		self.transY.setMinimumWidth(50)
-		self.transButton=QtGui.QPushButton('Translate floating')
+		self.transButton=QtWidgets.QPushButton('Translate floating')
 		
-		self.alignButtonGroup = QtGui.QButtonGroup()
-		self.alignOutlineButton=QtGui.QRadioButton("Outline")
-		self.alignPointCloudButton = QtGui.QRadioButton("Point cloud")
+		self.alignButtonGroup = QtWidgets.QButtonGroup()
+		self.alignOutlineButton=QtWidgets.QRadioButton("Outline")
+		self.alignPointCloudButton = QtWidgets.QRadioButton("Point cloud")
 		self.alignOutlineButton.setChecked(True)
 		self.alignButtonGroup.addButton(self.alignOutlineButton)
 		self.alignButtonGroup.addButton(self.alignPointCloudButton)
 		self.alignButtonGroup.setExclusive(True)
-		self.alignButton = QtGui.QPushButton('Align')
+		self.alignButton = QtWidgets.QPushButton('Align')
 		
-		horizLine3=QtGui.QFrame()
-		horizLine3.setFrameStyle(QtGui.QFrame.HLine)
-		averageLabel=QtGui.QLabel("Averaging")
+		horizLine3=QtWidgets.QFrame()
+		horizLine3.setFrameStyle(QtWidgets.QFrame.HLine)
+		averageLabel=QtWidgets.QLabel("Averaging")
 		averageLabel.setFont(headFont)
-		self.averageButton = QtGui.QPushButton('Average')
+		self.averageButton = QtWidgets.QPushButton('Average')
 		
-		horizLine4=QtGui.QFrame()
-		horizLine4.setFrameStyle(QtGui.QFrame.HLine)
-		self.writeButton=QtGui.QPushButton('Write')
+		horizLine4=QtWidgets.QFrame()
+		horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)
+		self.writeButton=QtWidgets.QPushButton('Write')
 		
-		horizLine5=QtGui.QFrame()
-		horizLine5.setFrameStyle(QtGui.QFrame.HLine)
-		self.statusLabel=QtGui.QLabel("Idle")
+		horizLine5=QtWidgets.QFrame()
+		horizLine5.setFrameStyle(QtWidgets.QFrame.HLine)
+		self.statusLabel=QtWidgets.QLabel("Idle")
 		self.statusLabel.setWordWrap(True)
 		self.statusLabel.setFont(QtGui.QFont("Helvetica",italic=True))
 		self.statusLabel.setMinimumWidth(50)
@@ -208,12 +210,12 @@ class ali_avg(object):
 	def initialize(self):
 		self.vtkWidget.start()
 
-class aa_interactor(QtGui.QMainWindow):
+class aa_interactor(QtWidgets.QMainWindow):
 	"""
 	Sets up the main VTK window, reads file and sets connections between UI and interactor
 	"""
 	def __init__(self, parent = None):
-		QtGui.QMainWindow.__init__(self, parent)
+		QtWidgets.QMainWindow.__init__(self, parent)
 		self.ui = ali_avg()
 		self.ui.setupUi(self)
 		self.ren = vtk.vtkRenderer()
@@ -308,7 +310,7 @@ class aa_interactor(QtGui.QMainWindow):
 			# return
 		
 		self.ui.statusLabel.setText("Averaging, applying grid . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.qApp.processEvents()
 		
 		#temporarily shift all data such that it appears in the first cartesian quadrant
 		tT=np.amin(self.rO,axis=0)
@@ -344,7 +346,7 @@ class aa_interactor(QtGui.QMainWindow):
 		grid_Align=griddata(self.flp[:,:2],self.flp[:,-1],(grid_x,grid_y),method='linear')
 		
 		self.ui.statusLabel.setText("Averaging using grid . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.qApp.processEvents()
 		
 		#average z values
 		grid_Avg=(grid_Ref+grid_Align)/2
@@ -363,7 +365,7 @@ class aa_interactor(QtGui.QMainWindow):
 		self.rO+tT, self.fO+tT, self.rp+tT, self.flp+tT, self.ap+tT
 		
 		self.ui.statusLabel.setText("Rendering . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.qApp.processEvents()
 		
 		#show it
 		color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
@@ -389,7 +391,7 @@ class aa_interactor(QtGui.QMainWindow):
 			self.ren.RemoveActor(self.fActor)
 			self.ren.RemoveActor(self.fOutlineActor)
 		else:
-			print "Need to have data loaded before manipulating . . .\n"
+			print("Need to have data loaded before manipulating . . .\n")
 
 		if flipDirection == "x":
 			self.flp[:,0]=-self.flp[:,0]
@@ -435,7 +437,7 @@ class aa_interactor(QtGui.QMainWindow):
 		
 	def align(self):
 		self.ui.statusLabel.setText("Starting alignment . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.qApp.processEvents()
 		
 		icp=vtk.vtkIterativeClosestPointTransform()
 		if self.ui.alignPointCloudButton.isChecked():
@@ -585,10 +587,10 @@ class aa_interactor(QtGui.QMainWindow):
 				self.add_axis(self.limits,[1,1,1])
 
 			except:
-				print "Couldn't read in both sets of data."
+				print("Couldn't read in both sets of data.")
 			
 		else:
-			print 'Invalid *.mat file'
+			print("Invalid *.mat file")
 			return
 		
 		#update
@@ -669,7 +671,7 @@ class aa_interactor(QtGui.QMainWindow):
 			writer.SetInputConnection(im.GetOutputPort())
 			writer.SetFileName("Avg_aligned.png")
 			writer.Write()
-			print 'Screen output saved to %s' %os.path.join(os.getcwd(),'Avg_aligned.png')
+			print("Screen output saved to %s" %os.path.join(os.getcwd(),'Avg_aligned.png'))
 
 		elif key=="a":
 			if hasattr(self,'ax3D'):
@@ -735,6 +737,6 @@ class aa_interactor(QtGui.QMainWindow):
 		
 if __name__ == '__main__':
 	if len(sys.argv)>2:
-		ali_avg_interactor(sys.argv[1])
+		aa_def(sys.argv[1])
 	else:
-		ali_avg_interactor()
+		aa_def()

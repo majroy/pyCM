@@ -8,17 +8,18 @@ __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2017"
 
-import os,sys
-from PyQt4.QtGui import QApplication, QFileDialog
+import os,sys,yaml
+from PyQt5 import QtCore, QtGui, QtWidgets
 import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 import numpy as np
 import scipy.io as sio
+import h5py
 
 
 def get_file(*args):
 	'''
-	Returns absolute path to filename and the directory it is located in from a PyQt4 filedialog. First value is file extension, second is a string which overwrites the window message.
+	Returns absolute path to filename and the directory it is located in from a PyQt5 filedialog. First value is file extension, second is a string which overwrites the window message.
 	'''
 	ext=args[0]
 	ftypeName={}
@@ -30,14 +31,14 @@ def get_file(*args):
 	if len(args)==2:
 		ftypeName[ext][0] = args[1]
 		
-	lapp = QApplication.instance()
+	lapp = QtWidgets.QApplication.instance()
 	if lapp is None:
-		lapp = QApplication([])
+		lapp = QtWidgetsQApplication([])
 	if ext=='*.txt':
-		filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
+		filer = QtWidgets.QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
          os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;'+ftypeName['*.dat'][2]+' ('+ftypeName['*.dat'][1]+');;'+ftypeName['*.mat'][2]+' ('+ftypeName['*.mat'][1]+');;All Files (*.*)'))
 	else:
-		filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
+		filer = QtWidgets.QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
          os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;All Files (*.*)'))
 
 	
@@ -48,8 +49,9 @@ def get_file(*args):
 	else:
 		filer=str(filer)
 		startdir=os.path.dirname(filer)
-		
-	return filer, startdir
+	
+	#Hacky, but resolves the Qstring that gets returned by QfileDialog
+	return filer.split(",")[0].strip("'('"), startdir.strip("('")
 				
 	
 def get_open_file(ext,outputd):
@@ -62,15 +64,15 @@ def get_open_file(ext,outputd):
 	ftypeName['*.geo']='Gmsh geometry file'
 	ftypeName['*.dxf']='Drawing eXchange Format'
 	ftypeName['*.py']='Abaqus Python script'
-	ftypeName['*_ccx.inp']='Calculix input file'
-	ftypeName['*_abq.inp']='Abaqus input file'
+	ftypeName['*.ccx.inp']='Calculix input file'
+	ftypeName['*.abq.inp']='Abaqus input file'
 	
 	if outputd==None: id=os.getcwd()
 	else: id=outputd
-	lapp = QApplication.instance()
+	lapp = QtWidgets.QApplication.instance()
 	if lapp is None:
-		lapp = QApplication([])
-	filer = QFileDialog.getSaveFileName(None, 'Select the save location:', id,(ftypeName[ext]+' ('+ext+')'))
+		lapp = QtWidgets.QApplication([])
+	filer = QtWidgets.QFileDialog.getSaveFileName(None, 'Select the save location:', id,(ftypeName[ext]+' ('+ext+')'))
 	
 	if filer == '':
 		filer = None
@@ -83,9 +85,10 @@ def get_open_file(ext,outputd):
 			filer=filer[:-4]+ext.split('*')[-1]
 
 		startdir=os.path.dirname(filer)
-		
-	return filer, startdir
-		
+	
+	#Hacky, but resolves the Qstring that gets returned by QfileDialog
+	
+	return filer.split(",")[0].strip("'('"), startdir.strip("('")
 
 def gen_point_cloud(pts,color,size):
 	'''
@@ -249,3 +252,86 @@ def read_uom_mat(file):
 	except:
 		print("Couldn't data from %s."%file)
 		return
+		
+class Ui_getFEAconfigDialog(object):
+	def setupUi(self, getFEAconfigDialog):
+		getFEAconfigDialog.setObjectName("getFEAconfigDialog")
+		getFEAconfigDialog.resize(630, 201)
+		self.verticalLayout = QtWidgets.QVBoxLayout(getFEAconfigDialog)
+		self.verticalLayout.setObjectName("verticalLayout")
+		
+		self.horizontalLayout_3 = QtWidgets.QHBoxLayout()
+		self.horizontalLayout_3.setObjectName("horizontalLayout_3")
+		self.dialoglabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_3.addWidget(self.dialoglabel)
+		self.verticalLayout.addLayout(self.horizontalLayout_3)
+		
+		self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
+		self.abaExec = QtWidgets.QLineEdit(getFEAconfigDialog)
+		self.abaLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_2.addWidget(self.abaLabel)
+		self.horizontalLayout_2.addWidget(self.abaExec)
+		self.verticalLayout.addLayout(self.horizontalLayout_2)
+
+		self.horizontalLayout_1 = QtWidgets.QHBoxLayout()
+		self.gmshExec = QtWidgets.QLineEdit(getFEAconfigDialog)
+		self.gmshLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_1.addWidget(self.gmshLabel)
+		self.horizontalLayout_1.addWidget(self.gmshExec)
+		self.verticalLayout.addLayout(self.horizontalLayout_1)
+		
+		self.horizontalLayout_0 = QtWidgets.QHBoxLayout()
+		self.ccxExec = QtWidgets.QLineEdit(getFEAconfigDialog)
+		self.ccxLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_0.addWidget(self.ccxLabel)
+		self.horizontalLayout_0.addWidget(self.ccxExec)
+		self.verticalLayout.addLayout(self.horizontalLayout_0)
+		
+		
+		self.horizontalLayout = QtWidgets.QHBoxLayout()
+		self.ConfigFileLoc = QtWidgets.QLabel(getFEAconfigDialog)
+		self.ConfigFileLoc.setFont(QtGui.QFont("Helvetica",italic=True))
+		self.ConfigFileLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.pushButton = QtWidgets.QPushButton(getFEAconfigDialog)
+		self.horizontalLayout.addWidget(self.ConfigFileLabel)
+		self.horizontalLayout.addWidget(self.ConfigFileLoc)
+		self.horizontalLayout.addWidget(self.pushButton)
+		self.verticalLayout.addLayout(self.horizontalLayout)
+
+		self.retranslateUi(getFEAconfigDialog)
+		QtCore.QMetaObject.connectSlotsByName(getFEAconfigDialog)
+		
+		# connect the two functions
+		self.pushButton.clicked.connect(lambda: self.makeConfigChange(getFEAconfigDialog))
+		# self.pushButton_2.clicked.connect(self.return_cancel)
+
+	def retranslateUi(self, getFEAconfigDialog):
+		_translate = QtCore.QCoreApplication.translate
+		getFEAconfigDialog.setWindowTitle(_translate("getFEAconfigDialog", "pyCM FEA configuration settings"))
+		self.dialoglabel.setText(_translate("getFEAconfigDialog", "Please specify the full path to relevant executable, or leave blank if not relevant."))
+		self.abaLabel.setText(_translate("getFEAconfigDialog", "Abaqus executable"))
+		self.gmshLabel.setText(_translate("getFEAconfigDialog", "Gmsh executable"))
+		self.ccxLabel.setText(_translate("getFEAconfigDialog", "Calculix executable"))
+		# self.pushButton_2.setText(_translate("getFEAconfigDialog", "Acept"))
+		self.ConfigFileLabel.setText(_translate("getFEAconfigDialog", "Current config file:",None))
+		self.ConfigFileLoc.setText(_translate("getFEAconfigDialog", "Undefined", None))
+		self.pushButton.setText(_translate("getFEAconfigDialog", "Set"))
+
+
+	def makeConfigChange(self, getFEAconfigDialog):
+		try:
+			data= dict(FEA = 
+			dict(
+			abaqusExec = str(self.abaExec.text()),
+			gmshExec = str(self.gmshExec.text()),
+			ccxExec = str(self.ccxExec.text()),
+			)
+			)
+			with open(str(self.ConfigFileLoc.text()), 'w') as outfile:
+				yaml.dump(data, outfile, default_flow_style=False)
+		except:
+			print("Configuration change failed.")
+			
+
+		getFEAconfigDialog.close()
+

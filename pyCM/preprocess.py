@@ -23,12 +23,13 @@ LMB+p - The p button with the Left mouse button allow
 e     - allows the user to change their FEA exec location
 -------------------------------------------------------------------------------
 ver 0.1 17-01-04
+1.0 - Refactored for PyQt5 & Python 3.x
 '''
 __author__ = "M.J. Roy"
-__version__ = "0.1"
+__version__ = "1.0"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-__copyright__ = "(c) M. J. Roy, 2014-2017"
+__copyright__ = "(c) M. J. Roy, 2014-2018"
 
 import os,sys,time,yaml
 import subprocess as sp
@@ -39,37 +40,23 @@ from scipy.interpolate import bisplev,interp1d
 from scipy.spatial.distance import pdist, squareform
 import vtk
 from vtk.util.numpy_support import vtk_to_numpy as v2n
-from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtGui import QApplication, QFileDialog
+from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from PyQt5 import QtCore, QtGui, QtWidgets
 from pyCMcommon import *
 
-try:
-    _fromUtf8 = QtCore.QString.fromUtf8
-except AttributeError:
-    def _fromUtf8(s):
-        return s
-
-try:
-    _encoding = QtGui.QApplication.UnicodeUTF8
-    def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig, _encoding)
-except AttributeError:
-    def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig)
 
 
 def FEAtool(*args, **kwargs):
 	"""
 	Main function, builds qt interaction
 	"""	
-	app = QtGui.QApplication.instance()
+	app = QtWidgets.QApplication.instance()
 	if app is None:
-		app = QApplication(sys.argv)
+		app = QtWidgets.QApplication(sys.argv)
 	
 	spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
 	splash_pix = QtGui.QPixmap(spl_fname,'PNG')
-	splash = QtGui.QSplashScreen(splash_pix)
+	splash = QtWidgets.QSplashScreen(splash_pix)
 	splash.setMask(splash_pix.mask())
 
 	splash.show()
@@ -77,8 +64,8 @@ def FEAtool(*args, **kwargs):
 	
 	window = msh_interactor()
 	if len(args)==2: msh_interactor.getInputData(window,args[0],args[1])
-	elif len(args)==1: msh_interactor.getInputData(window,None,args[0])
-	else: msh_interactor.getInputData(window,None,None)
+	elif len(args)==1: msh_interactor.getInputData(window,args[0],None)
+	else: msh_interactor.getInputData(window,"",None)
 
 
 	window.show()
@@ -103,114 +90,114 @@ class sf_MainWindow(object):
 		MainWindow.setObjectName("MainWindow")
 		MainWindow.setWindowTitle("pyCM - FEA preprocessing v%s" %__version__)
 		MainWindow.resize(1280, 720)
-		self.centralWidget = QtGui.QWidget(MainWindow)
-		self.Boxlayout = QtGui.QHBoxLayout(self.centralWidget)
-		mainUiBox = QtGui.QFormLayout()
+		self.centralWidget = QtWidgets.QWidget(MainWindow)
+		self.Boxlayout = QtWidgets.QHBoxLayout(self.centralWidget)
+		mainUiBox = QtWidgets.QFormLayout()
 
 		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
-		self.vtkWidget.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+		self.vtkWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.vtkWidget.setMinimumSize(1150, 640); #leave 100 px on the size for i/o
 
 		self.Boxlayout.addWidget(self.vtkWidget)
 		self.Boxlayout.addStretch(1)
 		MainWindow.setCentralWidget(self.centralWidget)
 
-		horizLine1=QtGui.QFrame()
-		horizLine1.setFrameStyle(QtGui.QFrame.HLine)
-		outlineLabel=QtGui.QLabel("Outline modification")
+		horizLine1=QtWidgets.QFrame()
+		horizLine1.setFrameStyle(QtWidgets.QFrame.HLine)
+		outlineLabel=QtWidgets.QLabel("Outline modification")
 		headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
 		outlineLabel.setFont(headFont)
-		seedLengthLabel=QtGui.QLabel("Spacing")
-		self.seedLengthInput = QtGui.QLineEdit()
-		numSeedLabel=QtGui.QLabel("Quantity")
-		self.numSeed = QtGui.QSpinBox()
+		seedLengthLabel=QtWidgets.QLabel("Spacing")
+		self.seedLengthInput = QtWidgets.QLineEdit()
+		numSeedLabel=QtWidgets.QLabel("Quantity")
+		self.numSeed = QtWidgets.QSpinBox()
 		self.numSeed.setMinimum(4)
 		self.numSeed.setMaximum(750)
 		self.numSeed.setValue(100)
 
-		self.updateOutlineButton = QtGui.QPushButton('Update')
-		self.spacingButton=QtGui.QRadioButton("Spacing")
-		self.quantityButton=QtGui.QRadioButton("Quantity")
+		self.updateOutlineButton = QtWidgets.QPushButton('Update')
+		self.spacingButton=QtWidgets.QRadioButton("Spacing")
+		self.quantityButton=QtWidgets.QRadioButton("Quantity")
 		self.quantityButton.setChecked(True)
-		self.outlineButtonGroup = QtGui.QButtonGroup()
+		self.outlineButtonGroup = QtWidgets.QButtonGroup()
 		self.outlineButtonGroup.addButton(self.spacingButton)
 		self.outlineButtonGroup.addButton(self.quantityButton)
 		self.outlineButtonGroup.setExclusive(True)
-		self.geoButton=QtGui.QRadioButton("geo")
-		self.dxfButton=QtGui.QRadioButton("dxf")
+		self.geoButton=QtWidgets.QRadioButton("geo")
+		self.dxfButton=QtWidgets.QRadioButton("dxf")
 		self.geoButton.setChecked(True)
-		self.outlineButtonGroup = QtGui.QButtonGroup()
+		self.outlineButtonGroup = QtWidgets.QButtonGroup()
 		self.outlineButtonGroup.addButton(self.geoButton)
 		self.outlineButtonGroup.addButton(self.dxfButton)
 		self.outlineButtonGroup.setExclusive(True)
-		self.outlineButton = QtGui.QPushButton('Write')
+		self.outlineButton = QtWidgets.QPushButton('Write')
 		self.outlineButton.setMinimumWidth(50)
 		
-		horizLine2=QtGui.QFrame()
-		horizLine2.setFrameStyle(QtGui.QFrame.HLine)
-		meshscriptLabel=QtGui.QLabel("Generate mesh")
+		horizLine2=QtWidgets.QFrame()
+		horizLine2.setFrameStyle(QtWidgets.QFrame.HLine)
+		meshscriptLabel=QtWidgets.QLabel("Generate mesh")
 		meshscriptLabel.setFont(headFont)
-		lengthLabel=QtGui.QLabel("Length")
-		self.lengthInput = QtGui.QLineEdit()
-		numPartLabel=QtGui.QLabel("Partitions")
-		self.numPart = QtGui.QSpinBox()
+		lengthLabel=QtWidgets.QLabel("Length")
+		self.lengthInput = QtWidgets.QLineEdit()
+		numPartLabel=QtWidgets.QLabel("Partitions")
+		self.numPart = QtWidgets.QSpinBox()
 		self.numPart.setValue(10)
 		self.numPart.setMinimum(3)
-		self.gmshButton=QtGui.QRadioButton("Gmsh")
-		self.abaButton=QtGui.QRadioButton("Abaqus")
+		self.gmshButton=QtWidgets.QRadioButton("Gmsh")
+		self.abaButton=QtWidgets.QRadioButton("Abaqus")
 		self.gmshButton.setChecked(True)
-		self.codeButtonGroup = QtGui.QButtonGroup()
+		self.codeButtonGroup = QtWidgets.QButtonGroup()
 		self.codeButtonGroup.addButton(self.gmshButton)
 		self.codeButtonGroup.addButton(self.abaButton)
 		self.codeButtonGroup.setExclusive(True)
 		
-		self.quadButton=QtGui.QRadioButton("quads")
-		self.tetButton=QtGui.QRadioButton("tets")
+		self.quadButton=QtWidgets.QRadioButton("quads")
+		self.tetButton=QtWidgets.QRadioButton("tets")
 		self.quadButton.setChecked(True)
-		self.meshscriptButton = QtGui.QPushButton('Write')
-		self.runmeshButton = QtGui.QPushButton('Run')
-		self.readVTKbutton = QtGui.QPushButton('Read VTK mesh')
-		self.mtypeButtonGroup = QtGui.QButtonGroup()
+		self.meshscriptButton = QtWidgets.QPushButton('Write')
+		self.runmeshButton = QtWidgets.QPushButton('Run')
+		self.readVTKbutton = QtWidgets.QPushButton('Read VTK mesh')
+		self.mtypeButtonGroup = QtWidgets.QButtonGroup()
 		self.mtypeButtonGroup.addButton(self.tetButton)
 		self.mtypeButtonGroup.addButton(self.quadButton)
 		self.mtypeButtonGroup.setExclusive(True)
 		
-		horizLine3=QtGui.QFrame()
-		horizLine3.setFrameStyle(QtGui.QFrame.HLine)
-		bcLabel=QtGui.QLabel("Impose BCs & material")
+		horizLine3=QtWidgets.QFrame()
+		horizLine3.setFrameStyle(QtWidgets.QFrame.HLine)
+		bcLabel=QtWidgets.QLabel("Impose BCs & material")
 		bcLabel.setFont(headFont)
-		# self.rigidBodyButton = QtGui.QPushButton('Rigid body')
-		self.imposeSpline = QtGui.QPushButton('Impose spline fit')
-		rBLabel=QtGui.QLabel("Rigid body BCs")
-		self.rigidBodyButton = QtGui.QPushButton('Choose')
-		self.rigidBodyUndoButton = QtGui.QPushButton('Revert')
-		materialLabel=QtGui.QLabel("Material properties")
-		poissonLabel=QtGui.QLabel("Poisson's ratio, v")
-		modulusLabel=QtGui.QLabel("Modulus, E (MPa)")
-		self.poissonInput = QtGui.QLineEdit()
+		# self.rigidBodyButton = QtWidgets.QPushButton('Rigid body')
+		self.imposeSpline = QtWidgets.QPushButton('Impose spline fit')
+		rBLabel=QtWidgets.QLabel("Rigid body BCs")
+		self.rigidBodyButton = QtWidgets.QPushButton('Choose')
+		self.rigidBodyUndoButton = QtWidgets.QPushButton('Revert')
+		materialLabel=QtWidgets.QLabel("Material properties")
+		poissonLabel=QtWidgets.QLabel("Poisson's ratio, v")
+		modulusLabel=QtWidgets.QLabel("Modulus, E (MPa)")
+		self.poissonInput = QtWidgets.QLineEdit()
 		self.poissonInput.setText("%.3f"%(0.3))
-		self.modulusInput = QtGui.QLineEdit()
+		self.modulusInput = QtWidgets.QLineEdit()
 		self.modulusInput.setText("%7.0f"%(200000))
 
-		horizLine4=QtGui.QFrame()
-		horizLine4.setFrameStyle(QtGui.QFrame.HLine)
-		FEALabel=QtGui.QLabel("Compose FEA")
+		horizLine4=QtWidgets.QFrame()
+		horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)
+		FEALabel=QtWidgets.QLabel("Compose FEA")
 		FEALabel.setFont(headFont)
-		self.CalculixButton=QtGui.QRadioButton("Calculix")
-		self.AbaqusButton=QtGui.QRadioButton("Abaqus")
+		self.CalculixButton=QtWidgets.QRadioButton("Calculix")
+		self.AbaqusButton=QtWidgets.QRadioButton("Abaqus")
 		self.CalculixButton.setChecked(True)
-		self.ctypeButtonGroup = QtGui.QButtonGroup()
+		self.ctypeButtonGroup = QtWidgets.QButtonGroup()
 		self.ctypeButtonGroup.addButton(self.AbaqusButton)
 		self.ctypeButtonGroup.addButton(self.CalculixButton)
 		# self.ctypeButtonGroup.addButton(self.CodeAsterButton)
 		self.ctypeButtonGroup.setExclusive(True)
-		self.runFEAButton=QtGui.QRadioButton("Run")
+		self.runFEAButton=QtWidgets.QRadioButton("Run")
 		self.runFEAButton.setChecked(True)
-		self.goButton = QtGui.QPushButton('Write')
+		self.goButton = QtWidgets.QPushButton('Write')
 		
-		horizLine5=QtGui.QFrame()
-		horizLine5.setFrameStyle(QtGui.QFrame.HLine)
-		self.statLabel=QtGui.QLabel("Idle")
+		horizLine5=QtWidgets.QFrame()
+		horizLine5.setFrameStyle(QtWidgets.QFrame.HLine)
+		self.statLabel=QtWidgets.QLabel("Idle")
 		self.statLabel.setWordWrap(True)
 		self.statLabel.setFont(QtGui.QFont("Helvetica",italic=True))
 		self.statLabel.setMinimumWidth(50)
@@ -251,12 +238,12 @@ class sf_MainWindow(object):
 	def initialize(self):
 		self.vtkWidget.start()
 
-class msh_interactor(QtGui.QMainWindow):
+class msh_interactor(QtWidgets.QMainWindow):
 	"""
 	Sets up the main VTK window, reads file and sets connections between UI and interactor
 	"""
 	def __init__(self, parent = None):
-		QtGui.QMainWindow.__init__(self, parent)
+		QtWidgets.QMainWindow.__init__(self, parent)
 		self.ui = sf_MainWindow()
 		self.ui.setupUi(self)
 		self.ren = vtk.vtkRenderer()
@@ -280,15 +267,18 @@ class msh_interactor(QtGui.QMainWindow):
 		try:
 			self.filec = resource_filename("pyCM","pyCMconfig.yml")#needs to be pyCM
 		except: #resource_filename will inform if the directory doesn't exist
-			self.filec=resource_filename("numpy","pyCMconfig.yml")#needs to be pyCM
+			# self.filec=resource_filename("numpy","pyCMconfig.yml")#needs to be pyCM
+			print("Did not find config file in the pyCM installation directory.")
 		try:
 			with open(self.filec,'r') as ymlfile:
 				self.cfg = yaml.load(ymlfile)	
 		except:
 			try:
+				print("Trying to get input")
 				self.cfg= GetFEAconfig(['','',''],self.filec)
 			except:
 				sys.exit("Failed to set config file. Quitting.")
+				
 	
 		#Sets all connections between gui and functions
 
@@ -304,7 +294,7 @@ class msh_interactor(QtGui.QMainWindow):
 		self.ui.goButton.clicked.connect(lambda: self.doFEA())
 
 	def getInputData(self,filer,outputd):
-		if outputd==None or (not os.path.isfile(filer)):
+		if outputd==None and (not os.path.isfile(filer)):
 			self.outputd=None
 			self.filer,startdir=get_file("*.mat")
 			if self.filer == None:
@@ -312,7 +302,7 @@ class msh_interactor(QtGui.QMainWindow):
 				if sys.stdin.isatty() and not hasattr(sys,'ps1'):
 					sys.exit("No file identified")
 				else:
-					print 'No surface file specified, exiting.'
+					print("No surface file specified, exiting.")
 					#return to interactive python
 					exit()
 		elif not outputd==None and filer==None:
@@ -320,8 +310,8 @@ class msh_interactor(QtGui.QMainWindow):
 			if not os.path.exists(self.outputd): #make the directory if it doesn't exist
 				os.makedirs(self.outputd)
 		
-		elif os.path.exists(outputd) and os.path.isfile(filer):
-			self.outputd=outputd
+		elif os.path.isfile(filer):
+			self.outputd=os.path.dirname(filer)
 			self.filer = filer
 		else:
 			sys.exit("Arguments not specified correctly. Quitting.")
@@ -349,11 +339,11 @@ class msh_interactor(QtGui.QMainWindow):
 				self.ui.numSeed.setValue(len(self.Outline))
 
 			except KeyError:
-				print "Couldn't read variables from file. Quitting."
+				print("Couldn't read variables from file. Quitting.")
 				return
 			
 		except KeyError:
-			print "Error reading reference data"
+			print("Error reading reference data")
 			return
 		color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
 		self.outlineActor, _, = gen_outline(self.Outline,color,self.PointSize)
@@ -389,11 +379,15 @@ class msh_interactor(QtGui.QMainWindow):
 		"""
 		
 		if hasattr(self,"pickedCornerInd"):
-			print 'Undo/revert from current BCs first'
+			print("Undo/revert from current BCs first")
 			return
 		
 		if not hasattr(self,"corners"):
-			QtGui.QMessageBox.warning(self, "pyCM Error", "Impose contour displacement BCs before imposing rigid body BCs",QtGui.QMessageBox.Close, QtGui.QMessageBox.NoButton,QtGui.QMessageBox.NoButton)
+			msg=QtWidgets.QMessageBox()
+			msg.setIcon(QtWidgets.QMessageBox.Information)
+			msg.setText("Impose contour displacement BCs before imposing rigid body BCs")
+			msg.setWindowTitle("pyCM Error")
+			msg.exec_()
 			return
 				
 		directions=np.array([[0,-1,0],[0,-1,0],[1,0,0],[1,0,0],
@@ -641,7 +635,8 @@ class msh_interactor(QtGui.QMainWindow):
 		N=len(Outline)
 		if self.ui.geoButton.isChecked():
 			try:
-				fid,self.ofile=GetOpenFile("*.geo",self.outputd)
+				filename,self.ofile=get_open_file("*.geo",self.outputd)
+				fid=open(filename,'w+')
 			except:
 				return
 			pc=0
@@ -666,9 +661,12 @@ class msh_interactor(QtGui.QMainWindow):
 
 		elif self.ui.dxfButton.isChecked():
 			try:
-				fid,self.ofile_d=GetOpenFile("*.dxf",self.outputd)
-			except:
+				self.ofile_d,_=get_open_file("*.dxf",self.outputd)
+				fid=open(self.ofile_d,'w+')
+			except Exception as e:
+				print("Didn't write dxf file.")
 				return
+			
 			
 			fid.write("0\nSECTION\n2\nENTITIES\n0\n")
 			for i in range(N-1):
@@ -685,29 +683,30 @@ class msh_interactor(QtGui.QMainWindow):
 	
 		if self.ui.gmshButton.isChecked():
 			self.ui.statLabel.setText("Running Gmsh script . . .")
-			QtGui.qApp.processEvents()
-			execStr=(self.cfg['FEA']['gmshExec']).encode('string-escape')
+			QtWidgets.QApplication.processEvents()
+			execStr=(self.cfg['FEA']['gmshExec'])
+			self.vtkFile=self.geofile[0:-3]+"vtk"
 			try:
 				if self.ui.tetButton.isChecked():
 					#make sure second order tets are generated
-					out=sp.check_output([execStr,"-3","-order","2",self.geofile,"-o",self.geofile[0:-3]+"vtk"])
+					out=sp.check_output([execStr,"-3","-order","2",self.geofile,"-o",self.vtkFile])
 				else:
-					out=sp.check_output([execStr,"-3",self.geofile,"-o",self.geofile[0:-3]+"vtk"])
-				print "Gmsh output log:"
-				print "----------------"
-				print out
-				print "----------------"
+					out=sp.check_output([execStr,"-3",self.geofile,"-o",self.vtkFile])
+				print("Gmsh output log:")
+				print("----------------")
+				print(out.decode("utf-8"))
+				print("----------------")
 				self.ui.statLabel.setText("Gmsh VTK file written . . . Idle")
 			except sp.CalledProcessError as e:
-				print "Gmsh command failed for some reason."
-				print e
+				print("Gmsh command failed for some reason.")
+				print(e.decode("utf-8"))
 				self.ui.statLabel.setText("Gmsh call failed . . . Idle")
 				
 		#Run equivalent Abaqus command chain, with the addition to converting mesh to legacy VTK file
 		if self.ui.abaButton.isChecked():
 			self.ui.statLabel.setText("Running Abaqus CAE script . . .")
-			QtGui.qApp.processEvents()
-			execStr=(self.cfg['FEA']['abaqusExec']).encode('string-escape')
+			QtWidgets.QApplication.processEvents()
+			execStr=(self.cfg['FEA']['abaqusExec'])#.encode('string-escape')
 			currentPath=os.getcwd()
 			abaqusCAEfile=os.path.basename(self.abapyfile)
 			abaqusrunloc=os.path.dirname(self.abapyfile)
@@ -715,34 +714,41 @@ class msh_interactor(QtGui.QMainWindow):
 			try:
 				self.ui.statLabel.setText("Writing Abaqus .inp file . . . ")
 				out=sp.check_output([execStr,"cae","noGUI="+abaqusCAEfile],shell=True)
-				print "Abaqus CAE log:"
-				print "----------------"
-				print out
-				print "----------------"
+				print("Abaqus CAE log:")
+				print("----------------")
+				print(out.decode("utf-8"))
+				print("----------------")
 				self.ui.statLabel.setText("Converting Abaqus .inp file to VTK . . . ")
 				#the CAE script will generate an input deck with the same prefix as the dxf file.
-				ConvertInptoVTK(self.ofile_d[0:-3]+"inp",self.ofile_d[0:-4]+"_inp.vtk")
+				self.vtkFile=self.ofile_d[0:-4]+"_inp.vtk"
+				ConvertInptoVTK(self.ofile_d[0:-3]+"inp",self.vtkFile)
 				self.ui.statLabel.setText("Abaqus .inp file converted . . . Idle")
 				os.chdir(currentPath)
 			except sp.CalledProcessError as e:
-				print "Abaqus CAE command failed for some reason."
-				print e
+				print("Abaqus CAE command failed for some reason.")
+				print(e.decode("utf-8"))
 				self.ui.statLabel.setText("Abaqus CAE call failed . . . Idle")
 			
 			
 	def WriteGeo(self):
-		QtGui.qApp.processEvents()
+		QtWidgets.QApplication.processEvents()
 		if self.ui.gmshButton.isChecked():
 			try:
-				fid,self.geofile=GetOpenFile("*.geo",self.outputd)
+				self.geofile,_=get_open_file("*.geo",self.outputd)
+				fid=open(self.geofile,'w+')
 			except:
 				return
 		else:
 			if not hasattr(self,'ofile_d'):
-				QtGui.QMessageBox.warning(self, "pyCM Error", "Export dxf outline prior to writing Abaqus Python script.",QtGui.QMessageBox.Close, QtGui.QMessageBox.NoButton,QtGui.QMessageBox.NoButton)
+				msg=QtWidgets.QMessageBox()
+				msg.setIcon(QtWidgets.QMessageBox.Information)
+				msg.setText("Write dxf outline prior to writing Abaqus Python script.")
+				msg.setWindowTitle("pyCM Error")
+				msg.exec_()
 				return
 			try:
-				fid,self.abapyfile=GetOpenFile("*.py",self.outputd)
+				self.abapyfile,_=get_open_file("*.py",self.outputd)
+				fid=open(self.abapyfile,'w+')
 			except:
 				return
 
@@ -946,15 +952,15 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				
 			# if hasattr(self,"labelActor"):
 				# self.ren.RemoveActor(self.labelActor) #debug
-			
-		self.vtkfile, startdir = get_file('*.vtk')
+		if not hasattr(self,"vtkFile"):
+			self.vtkFile, startdir = get_file('*.vtk')
 		self.ui.statLabel.setText("Reading . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.QApplication.processEvents()
 		self.meshSource=vtk.vtkUnstructuredGridReader()
-		self.meshSource.SetFileName(self.vtkfile)
+		self.meshSource.SetFileName(self.vtkFile)
 		self.meshSource.Update()
 		self.ui.statLabel.setText("Filtering out non volumetric elements . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.QApplication.processEvents()
 		#mesh as-read
 		om = self.meshSource.GetOutput()
 		#get cell types
@@ -972,7 +978,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		cellTypeArray.SetNumberOfComponents(1)
 		cellTypeArray.SetNumberOfTuples(om.GetNumberOfCells())
 		om.GetCellData().AddArray(cellTypeArray)
-		for ind in xrange(om.GetNumberOfCells()):
+		for ind in range(om.GetNumberOfCells()):
 			cellTypeArray.SetValue(ind,om.GetCell(ind).GetCellType())
 		#generate threshold filter
 		t=vtk.vtkThreshold()
@@ -985,7 +991,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		# print "Cells after thresholding:",self.mesh.GetNumberOfCells() #debug
 
 		self.ui.statLabel.setText("Rendering . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.QApplication.processEvents()
 		
 		# print "Read VTK mesh file:" #debug
 		# print "No. points:",self.mesh.GetNumberOfPoints()
@@ -1022,11 +1028,15 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		"""
 		#make sure there's a mesh to work on
 		if not hasattr(self,"meshActor"):
-			QtGui.QMessageBox.warning(self, "pyCM Error", "Need a mesh before imposing BCs",QtGui.QMessageBox.Close, QtGui.QMessageBox.NoButton,QtGui.QMessageBox.NoButton)
+			msg=QtWidgets.QMessageBox()
+			msg.setIcon(QtWidgets.QMessageBox.Information)
+			msg.setText("Need a mesh before imposing BCs")
+			msg.setWindowTitle("pyCM Error")
+			msg.exec_()
 			return
 		
 		self.ui.statLabel.setText("Locating surface elements . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.QApplication.processEvents()
 		#create a locator from a bounding box for candidate cells.
 		#Unless the mesh is highly refined, this locator will a few layers of elements from the z=0 plane
 		vil = vtk.vtkIdList()
@@ -1044,7 +1054,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		
 		#push nodes of cells/elements id'ed into data structures
 		count=0
-		for i in xrange(vil.GetNumberOfIds()):
+		for i in range(vil.GetNumberOfIds()):
 			self.mesh.GetFaceStream(vil.GetId(i),ptIds)
 			cellType=self.mesh.GetCellType(vil.GetId(i))
 			if cellType == self.mainCellType:
@@ -1054,7 +1064,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				
 		# for i in xrange(vilrf.GetNumberOfIds()):
 			# print self.mesh.GetCellPoints(vil.GetId(i))
-		print v2n(nfaces.GetData())
+		# print(v2n(nfaces.GetData()))
 		#convert the vtklist to numpy array, resize accordingly; 1D array consists of number of nodes/element, followed by node/point number
 		rawPIds=v2n(nfaces.GetData()) 
 		
@@ -1081,7 +1091,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.BCnodeLabel.SetName("NodeID")
 		
 		self.ui.statLabel.setText("Imposing nodal displacements . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.QApplication.processEvents()
 		#build new mesh of shell elements to show the BC surface
 		ccount=0
 		ppcount=0
@@ -1117,11 +1127,11 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				ccount+=BCunit
 
 		self.BCnodeLabel.SetNumberOfValues(len(self.BCindex))
-		for j in xrange(len(self.BCindex)):
+		for j in range(len(self.BCindex)):
 			self.BCnodeLabel.SetValue(j,str(int(self.BCindex[j])))
 
 		self.ui.statLabel.setText("Rendering . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.QApplication.processEvents()
 		BCPolyData=vtk.vtkPolyData()
 		BCPolyData.SetPoints(BCpnts)
 		BCPolyData.GetPointData().AddArray(self.BCnodeLabel)
@@ -1131,25 +1141,25 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		cBCPolyData.SetInputData(BCPolyData)
 
 		BCmapper=vtk.vtkPolyDataMapper()
-		# BCmapper.SetInputData(BCPolyData)
+
 		BCmapper.SetInputConnection(cBCPolyData.GetOutputPort())
 		
-		"""
-		pointLabels=vtk.vtkPointSetToLabelHierarchy()
-		pointLabels.SetInputData(BCPolyData)
-		pointLabels.SetLabelArrayName("NodeID")
-		pointLabels.GetTextProperty().SetColor(1, 0.0, 0.0)
-		pointLabels.GetTextProperty().BoldOn()
-		pointLabels.GetTextProperty().ItalicOn()
-		pointLabels.GetTextProperty().ShadowOn()
+		# debug
+		# pointLabels=vtk.vtkPointSetToLabelHierarchy()
+		# pointLabels.SetInputData(BCPolyData)
+		# pointLabels.SetLabelArrayName("NodeID")
+		# pointLabels.GetTextProperty().SetColor(1, 0.0, 0.0)
+		# pointLabels.GetTextProperty().BoldOn()
+		# pointLabels.GetTextProperty().ItalicOn()
+		# pointLabels.GetTextProperty().ShadowOn()
 		# pointLabels.GetTextProperty().SetFontSize(5)
-		pointLabels.Update()
-		labelMapper = vtk.vtkLabelPlacementMapper()
-		labelMapper.SetInputConnection(pointLabels.GetOutputPort())
-		self.labelActor = vtk.vtkActor2D()
-		self.labelActor.SetMapper(labelMapper)
-		self.ren.AddActor2D(self.labelActor)
-		"""
+		# pointLabels.Update()
+		# labelMapper = vtk.vtkLabelPlacementMapper()
+		# labelMapper.SetInputConnection(pointLabels.GetOutputPort())
+		# self.labelActor = vtk.vtkActor2D()
+		# self.labelActor.SetMapper(labelMapper)
+		# self.ren.AddActor2D(self.labelActor)
+		# """
 		
 		self.BCactor=vtk.vtkActor()
 		self.BCactor.SetMapper(BCmapper)
@@ -1167,7 +1177,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.ui.vtkWidget.update()
 
 		self.ui.statLabel.setText("Finding corners . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.QApplication.processEvents()
 		#create np matrix to store surface points (and find corners)
 		self.BCpnts=v2n(BCpnts.GetData()) #BCsearch will be fast
 		allNodes=v2n(self.mesh.GetPoints().GetData())
@@ -1192,7 +1202,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.cornerInd=self.BCindex[ind.astype(int)]
 		self.corners=self.BCpnts[ind.astype(int),:]
 		
-		print self.corners,self.cornerInd
+		# print(self.corners,self.cornerInd)
 		
 		#back face
 		bfc_target=np.array([
@@ -1218,25 +1228,25 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.ui.vtkWidget.setFocus()
 		
 		self.ui.statLabel.setText("Ready for rigid body BCs . . . Idle")
-		QtGui.qApp.processEvents()
+		QtWidgets.QApplication.processEvents()
 		
 		
 	def Keypress(self,obj,event):
 		key = obj.GetKeyCode()
 
 		if key =="1":
-			XYView(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
+			xyview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
 		elif key =="2":
-			YZView(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
+			yzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
 		elif key =="3":
-			XZView(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
+			xzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
 
 		elif key=="z":
 			self.Zaspect=self.Zaspect*2
 			# self.pointActor.SetScale(1,1,self.Zaspect)
 			if hasattr(self,'BCactor'):
 				self.BCactor.SetScale(1,1,self.Zaspect)
-			nl=np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect])
+				nl=np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect])
 			self.AddAxis(nl,1/self.Zaspect)
 
 		elif key=="x":
@@ -1244,7 +1254,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			# self.pointActor.SetScale(1,1,self.Zaspect)
 			if hasattr(self,'BCactor'):
 				self.BCactor.SetScale(1,1,self.Zaspect)
-			nl=np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect])
+				nl=np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect])
 			self.AddAxis(nl,1/self.Zaspect)
 
 		elif key=="c":
@@ -1263,16 +1273,16 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			writer.SetInputConnection(im.GetOutputPort())
 			writer.SetFileName("mesh.png")
 			writer.Write()
-			print 'Screen output saved to %s' %os.path.join(currentdir,'mesh.png')
+			print("Screen output saved to %s" %os.path.join(currentdir,'mesh.png'))
 		
 		elif key=="r":
-			FlipVisible(self.ax3D)
+			flip_visible(self.ax3D)
 			
 		elif key =="f": #flip color scheme for printing
-			FlipColors(self.ren,self.ax3D)
+			flip_colors(self.ren,self.ax3D)
 				
 		elif key == "o":
-			FlipVisible(self.outlineActor)
+			flip_visible(self.outlineActor)
 
 		elif key == "e":
 			try:
@@ -1282,14 +1292,6 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				self.cfg=GetFEAconfig(l,self.filec)
 			except:
 				"Couldn't find config file where it normally is." 
-
-		
-		elif key == "q":
-			if sys.stdin.isatty():
-				sys.exit("Mesh boundary conditions imposed.")
-			else:
-				print 'Mesh boundary conditions imposed.'
-				return
 
 		self.ui.vtkWidget.update()
 
@@ -1313,20 +1315,30 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		"""
 		#so either there isn't a 'pick' attribute or the number of picks is insufficient
 		if not hasattr(self,"picks"):
-			QtGui.QMessageBox.warning(self, "pyCM Error", "Need to impose complete BCs before conducting analysis.",QtGui.QMessageBox.Close, QtGui.QMessageBox.NoButton,QtGui.QMessageBox.NoButton)
+			msg=QtWidgets.QMessageBox()
+			msg.setIcon(QtWidgets.QMessageBox.Information)
+			msg.setText("Need to impose complete BCs before conducting analysis.")
+			msg.setWindowTitle("pyCM Error")
+			msg.exec_()
 			return
 		elif not self.picks==2:
-			QtGui.QMessageBox.warning(self, "pyCM Error", "Need to specify appropriate rigid body BCs before conducting analysis.",QtGui.QMessageBox.Close, QtGui.QMessageBox.NoButton,QtGui.QMessageBox.NoButton)
+			msg=QtWidgets.QMessageBox()
+			msg.setIcon(QtWidgets.QMessageBox.Information)
+			msg.setText("Need to specify appropriate rigid body BCs before conducting analysis.")
+			msg.setWindowTitle("pyCM Error")
+			msg.exec_()
 			return
 
 		if self.ui.CalculixButton.isChecked():
 			try:
-				fid,self.ofile_FEA=GetOpenFile("*_ccx.inp",self.outputd)
+				self.ofile_FEA,_=get_open_file("*.ccx.inp",self.outputd)
+				fid=open(self.ofile_FEA,'wb+')
 			except:
 				return
 		elif self.ui.AbaqusButton.isChecked():
 			try:
-				fid,self.ofile_FEA=GetOpenFile("*_abq.inp",self.outputd)
+				self.ofile_FEA,_=get_open_file("*.abq.inp",self.outputd)
+				fid=open(self.ofile_FEA,'wb+')
 			except:
 				return
 		
@@ -1349,49 +1361,50 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			BCelemsq=np.reshape(self.BCelements,(int(len(self.BCelements)/float(16)),16))
 		BCelemsq=BCelemsq+1 #because elements start numbering at 1
 		
-		fid.write('*HEADING\n')
-		fid.write('**pyCM input deck, converted from VTK format\n')
-		fid.write('**%s\n'%self.ofile_FEA)
+		fid.write(str.encode('*HEADING\n'))
+
+		fid.write(str.encode('**pyCM input deck, converted from VTK format\n'))
+		fid.write(str.encode('**%s\n'%self.ofile_FEA))
 
 		#dump nodes
-		fid.write('*NODE\n')
+		fid.write(str.encode('*NODE\n'))
 		np.savetxt(fid,nodes,fmt='%i,%.6f,%.6f,%.6f',delimiter=',')
 		#dump 'cells'
-		fid.write('*ELEMENT, TYPE=C3D%i\n'%elType)
+		fid.write(str.encode('*ELEMENT, TYPE=C3D%i\n'%elType))
 		np.savetxt(fid,cells,fmt='%i',delimiter=',')
 		#generate element set to apply material properties
-		fid.write('*ELSET, ELSET=DOMAIN, GENERATE\n')
-		fid.write('%i,%i,%i\n'%(1,len(cells),1))
-		fid.write('*ELSET, ELSET=BC\n')
+		fid.write(str.encode('*ELSET, ELSET=DOMAIN, GENERATE\n'))
+		fid.write(str.encode('%i,%i,%i\n'%(1,len(cells),1)))
+		fid.write(str.encode('*ELSET, ELSET=BC\n'))
 		np.savetxt(fid,BCelemsq,fmt='%i',delimiter=',')
 		if not nR==0:
 			for i in self.BCelements[-nR:]:
 				if i==self.BCelements[-1]:
-					fid.write('%i'%(i+1))
+					fid.write(str.encode('%i'%(i+1)))
 				else:
-					fid.write('%i,'%(i+1))
-			fid.write('\n')
+					fid.write(str.encode('%i,'%(i+1)))
+			fid.write(str.encode('\n'))
 		#write/apply material properties
-		fid.write('*SOLID SECTION, ELSET=DOMAIN, MATERIAL=USERSPEC\n')
-		fid.write('*MATERIAL, NAME=USERSPEC\n')
-		fid.write('*ELASTIC, TYPE=ISO\n')
-		fid.write('%7.0f,%.3f\n'%(float(self.ui.modulusInput.text()),float(self.ui.poissonInput.text())))
-		fid.write('*STEP, NAME=CONFORM\n')
-		fid.write('*STATIC\n')
-		fid.write('*BOUNDARY, OP=NEW\n')
-		fid.write('%i, 1,2, 0\n'%(self.cornerInd[self.pickedCornerInd[0]]+1))
-		fid.write('%i, 2, 0\n'%(self.cornerInd[self.pickedCornerInd[1]]+1))
-		fid.write('*BOUNDARY, OP=NEW\n')
+		fid.write(str.encode('*SOLID SECTION, ELSET=DOMAIN, MATERIAL=USERSPEC\n'))
+		fid.write(str.encode('*MATERIAL, NAME=USERSPEC\n'))
+		fid.write(str.encode('*ELASTIC, TYPE=ISO\n'))
+		fid.write(str.encode('%7.0f,%.3f\n'%(float(self.ui.modulusInput.text()),float(self.ui.poissonInput.text()))))
+		fid.write(str.encode('*STEP, NAME=CONFORM\n'))
+		fid.write(str.encode('*STATIC\n'))
+		fid.write(str.encode('*BOUNDARY\n'))
+		fid.write(str.encode('%i, 1,2, 0\n'%(self.cornerInd[self.pickedCornerInd[0]]+1)))
+		fid.write(str.encode('%i, 2, 0\n'%(self.cornerInd[self.pickedCornerInd[1]]+1)))
+		fid.write(str.encode('*BOUNDARY\n'))
 		for ind in range(len(self.BCindex)):
-			fid.write('%i, 3,, %6.6f\n'%(self.BCindex[ind]+1,self.BCpnts[ind,2]))
-		fid.write('*EL FILE\n')
-		fid.write('S,E\n')#get all stresses and strains just to be safe.
-		fid.write('*EL PRINT, ELSET=BC\n')
+			fid.write(str.encode('%i, 3,, %6.6f\n'%(self.BCindex[ind]+1,self.BCpnts[ind,2])))
+		fid.write(str.encode('*EL FILE\n'))
+		fid.write(str.encode('S,E\n'))#get all stresses and strains just to be safe.
+		fid.write(str.encode('*EL PRINT, ELSET=BC\n'))
 		if self.ui.CalculixButton.isChecked():
-			fid.write('S\n')#Coords by default
+			fid.write(str.encode('S\n'))#Coords by default
 		elif self.ui.AbaqusButton.isChecked():
-			fid.write('COORD,S\n')#have to specify coords
-		fid.write('*ENDSTEP')
+			fid.write(str.encode('COORD,S\n'))#have to specify coords
+		fid.write(str.encode('*ENDSTEP'))
 		
 		fid.close()
 		
@@ -1404,191 +1417,43 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		'''
 		if self.ui.CalculixButton.isChecked():
 			#get the exe from cfg
-			execStr=(self.cfg['FEA']['ccxExec']).encode('string-escape')
+			execStr=(self.cfg['FEA']['ccxExec'])
 			self.ui.statLabel.setText("Running Calculix . . .")
-			QtGui.qApp.processEvents()
+			QtWidgets.QApplication.processEvents()
 			try:
-				print self.ofile_FEA[:-4]
 				out=sp.check_output([execStr,"-i",self.ofile_FEA[:-4]])
 				
-				print "Calculix output log:"
-				print "----------------"
-				print out
-				print "----------------"
+				print("Calculix output log:")
+				print("----------------")
+				print(out.decode("utf-8"))
+				print("----------------")
 				self.ui.statLabel.setText("Calculix run completed . . . Idle")
 			except sp.CalledProcessError as e:
-				print "Calculix command failed for some reason."
-				print e
+				print("Calculix command failed for some reason.")
+				print(e.decode("utf-8"))
 				self.ui.statLabel.setText("Calculix call failed . . . Idle")
 				
 		if self.ui.AbaqusButton.isChecked():
-			execStr=(self.cfg['FEA']['abaqusExec']).encode('string-escape')
+			execStr=(self.cfg['FEA']['abaqusExec'])
 			self.ui.statLabel.setText("Running Abaqus . . .")
-			QtGui.qApp.processEvents()
+			QtWidgets.QApplication.processEvents()
 			try:
 				currentPath=os.getcwd()
 				abaqusrunloc,abaqusinpfile=os.path.split(self.ofile_FEA)
 				os.chdir(abaqusrunloc)
 				out=sp.check_output(["abaqus","job="+abaqusinpfile[:-4],"int"],shell=True)
 
-				print "Abaqus output log:"
-				print "----------------"
-				print out
-				print "----------------"
+				print("Abaqus output log:")
+				print("----------------")
+				print(out.decode("utf-8"))
+				print("----------------")
 				self.ui.statLabel.setText("Abaqus run completed . . . Idle")
 				os.chdir(currentPath)
 			except sp.CalledProcessError as e:
-				print "Abaqus command failed for some reason."
-				print e
+				print("Abaqus command failed for some reason.")
+				print(e.decode("utf-8"))
 				self.ui.statLabel.setText("Abaqus call failed . . . Idle")
 
-# def GetFile(ext):
-	# '''
-	# Returns absolute path to filename and just the path from a PyQt4 filedialog.
-	# '''
-
-	# ftypeName={}
-	# ftypeName['*.mat']=["Select the SURFACE data file:", "*.mat", "MAT File"]
-	# ftypeName['*.vtk']=["Select the legacy VTK file:", "*.vtk", "VTK File"]
-
-	# lapp = QApplication.instance()
-	# if lapp is None:
-		# lapp = QApplication([])
-	# filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
-         # os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;All Files ("*.*"))'))
-
-	
-	# if filer == '':
-		# if sys.stdin.isatty() and not hasattr(sys,'ps1'):
-			# sys.exit("No file selected; exiting.")
-		# else:
-			# filer = None
-			# startdir = None
-		
-	# else:
-		
-		# startdir=os.path.dirname(str(filer))
-		# filer = os.path.basename(str(filer)) #just the filename
-		# filer=str(filer)
-	# return filer, startdir
-				
-	
-def GetOpenFile(ext,outputd):
-	'''
-	Returns both an open file object (fid) and the complete path to the file name. Checks extensions and if an extension is not imposed, it will write the appropriate extension based on ext.
-	'''
-	ftypeName={}
-	ftypeName['*.geo']='Gmsh geometry file'
-	ftypeName['*.dxf']='Drawing eXchange Format'
-	ftypeName['*.py']='Abaqus Python script'
-	ftypeName['*_ccx.inp']='Calculix input file'
-	ftypeName['*_abq.inp']='Abaqus input file'
-	
-	if outputd==None: id=os.getcwd()
-	else: id=outputd
-	lapp = QApplication.instance()
-	if lapp is None:
-		lapp = QApplication([])
-	filer = QFileDialog.getSaveFileName(None, 'Select the save location:', 
-         id,(ftypeName[ext]+' ('+ext+')'))
-
-	
-	print filer
-	
-	if filer == '':
-		if sys.stdin.isatty() and not hasattr(sys,'ps1'):
-			sys.exit("No file selected; exiting.")
-		else:
-			print 'No file selected.'
-		
-
-	if filer:
-		filer=str(filer)
-		if filer.endswith(ext[-4:]) and not filer.endswith(ext[-7:]):
-			filer=filer[:-4]+ext.split('*')[-1]
-		# if not filer.endswith(ext[-3:]) and len(ext)<8:
-			# filer+='.'+ext.split('.')[-1]
-		# elif not filer.endswith(ext[-8:]) and len(ext)>8:
-			# filer+=ext.split('*')[-1]
-		return open(filer,'w+'),filer
-	
-
-def XYView(renderer, camera,cp,fp):
-	camera.SetPosition(0,0,cp[2]+0)
-	camera.SetFocalPoint(fp)
-	camera.SetViewUp(0,1,0)
-	camera.OrthogonalizeViewUp()
-	camera.ParallelProjectionOn()
-	renderer.ResetCamera()
-
-def YZView(renderer, camera,cp,fp):
-	camera.SetPosition(cp[2]+0,0,0)
-	camera.SetFocalPoint(fp)
-	camera.SetViewUp(0,0,1)
-	camera.OrthogonalizeViewUp()
-	camera.ParallelProjectionOn()
-	renderer.ResetCamera()
-
-
-def XZView(renderer,camera,cp,fp):
-	vtk.vtkObject.GlobalWarningDisplayOff() #otherwise there's crystal eyes error . . .
-	camera.SetPosition(0,cp[2]+0,0)
-	camera.SetFocalPoint(fp)
-	camera.SetViewUp(0,0,1)
-	camera.OrthogonalizeViewUp()
-	camera.ParallelProjectionOn()
-	renderer.ResetCamera()
-	
-
-
-def FlipVisible(actor):
-	if actor.GetVisibility():
-		actor.VisibilityOff()
-	else:
-		actor.VisibilityOn()
-
-def updatePointSize(actor,NewPointSize):
-	actor.GetProperty().SetPointSize(NewPointSize)
-	actor.Modified()
-	return NewPointSize
-
-def updateLineWidth(actor,NewLineWidth):
-	actor.GetProperty().SetLineWidth(NewLineWidth)
-	actor.Modified()
-	return NewLineWidth
-
-def FlipColors(ren,actor):
-	if ren.GetBackground()==(0.1, 0.2, 0.4):
-		if hasattr(actor,'GetXAxesLinesProperty'):
-			actor.GetTitleTextProperty(0).SetColor(0,0,0)
-			actor.GetLabelTextProperty(0).SetColor(0,0,0)
-			actor.GetXAxesLinesProperty().SetColor(0,0,0)
-			actor.SetXTitle('x') #there's a vtk bug here . . .
-			
-			actor.GetTitleTextProperty(1).SetColor(0,0,0)
-			actor.GetLabelTextProperty(1).SetColor(0,0,0)
-			actor.GetYAxesLinesProperty().SetColor(0,0,0)
-
-			actor.GetTitleTextProperty(2).SetColor(0,0,0)
-			actor.GetLabelTextProperty(2).SetColor(0,0,0)
-			actor.GetZAxesLinesProperty().SetColor(0,0,0)
-			ren.SetBackground(1, 1, 1)
-	else:
-		if hasattr(actor,'GetXAxesLinesProperty'):
-			actor.GetTitleTextProperty(0).SetColor(1,1,1)
-			actor.GetLabelTextProperty(0).SetColor(1,1,1)
-			actor.GetXAxesLinesProperty().SetColor(1,1,1)
-			actor.SetXTitle('X')
-			
-			actor.GetTitleTextProperty(1).SetColor(1,1,1)
-			actor.GetLabelTextProperty(1).SetColor(1,1,1)
-			actor.GetYAxesLinesProperty().SetColor(1,1,1)
-			actor.SetYTitle('Y')
-			
-			actor.GetTitleTextProperty(2).SetColor(1,1,1)
-			actor.GetLabelTextProperty(2).SetColor(1,1,1)
-			actor.GetZAxesLinesProperty().SetColor(1,1,1)
-			ren.SetBackground(0.1, 0.2, 0.4)
 
 def ConvertInptoVTK(infile,outfile):
 	"""
@@ -1626,24 +1491,24 @@ def ConvertInptoVTK(infile,outfile):
 	Nodes=np.genfromtxt(infile,skip_header=lineFlag[0],skip_footer=i-lineFlag[1]+1,delimiter=",")
 	Elements=np.genfromtxt(infile,skip_header=lineFlag[1],skip_footer=i-lineFlag[2]+1,delimiter=",")
 	#Now write it in VTK format to a new file starting with header
-	fid=open(outfile,'w+')
-	fid.write('# vtk DataFile Version 2.0\n')
-	fid.write('%s,created by pyCM\n'%outfile[:-4])
-	fid.write('ASCII\n')
-	fid.write('DATASET UNSTRUCTURED_GRID\n')
-	fid.write('POINTS %i double\n'%len(Nodes))
-
+	fid=open(outfile,'wb+')
+	fid.write(str.encode('# vtk DataFile Version 2.0\n'))
+	fid.write(str.encode('%s,created by pyCM\n'%outfile[:-4]))
+	fid.write(str.encode('ASCII\n'))
+	fid.write(str.encode('DATASET UNSTRUCTURED_GRID\n'))
+	fid.write(str.encode('POINTS %i double\n'%len(Nodes)))
+	
 	#dump nodes
 	np.savetxt(fid,Nodes[:,1::],fmt='%.6f')
-	fid.write('\n')
-	fid.write('CELLS %i %i\n'%(len(Elements),len(Elements)*len(Elements[0,:])))
+	fid.write(str.encode('\n'))
+	fid.write(str.encode('CELLS %i %i\n'%(len(Elements),len(Elements)*len(Elements[0,:]))))
 	#Now elements, stack the number of nodes in the element instead of the element number
 	Cells=np.hstack((np.ones([len(Elements[:,0]),1])*len(Elements[0,1::]),Elements[:,1::]-1))
 	np.savetxt(fid,Cells,fmt='%i')
-	fid.write('\n')
+	fid.write(str.encode('\n'))
 
 	#Write cell types
-	fid.write('CELL_TYPES %i\n'%len(Elements))
+	fid.write(str.encode('CELL_TYPES %i\n'%len(Elements)))
 	CellType=np.ones([len(Elements[:,0]),1])*CellNum
 	np.savetxt(fid,CellType,fmt='%i')
 
@@ -1654,7 +1519,7 @@ def respace_equally(X,input):
 	s=np.insert(np.cumsum(distance),0,0)
 	Perimeter=np.sum(distance)
 
-	if not isinstance(input,(int, long)):
+	if not isinstance(input,(int)):
 		nPts=round(Perimeter/input)
 	else:
 		nPts=input
@@ -1713,111 +1578,29 @@ def DrawArrow(startPoint,length,direction,renderer):
 	renderer.AddActor(actor)
 	return actor
 	
-
-
-class Ui_getFEAconfigDialog(object):
-	def setupUi(self, getFEAconfigDialog):
-		getFEAconfigDialog.setObjectName(_fromUtf8("getFEAconfigDialog"))
-		getFEAconfigDialog.resize(630, 201)
-		self.verticalLayoutWidget = QtGui.QWidget(getFEAconfigDialog)
-		self.verticalLayoutWidget.setGeometry(QtCore.QRect(9, 9, 611, 151))
-		self.verticalLayoutWidget.setObjectName(_fromUtf8("verticalLayoutWidget"))
-		self.verticalLayout = QtGui.QVBoxLayout(self.verticalLayoutWidget)
-		self.verticalLayout.setMargin(0)
-		self.verticalLayout.setObjectName(_fromUtf8("verticalLayout"))
-		self.label = QtGui.QLabel(self.verticalLayoutWidget)
-		self.label.setObjectName(_fromUtf8("label"))
-		self.verticalLayout.addWidget(self.label)
-		self.formLayout_3 = QtGui.QFormLayout()
-		self.formLayout_3.setFieldGrowthPolicy(QtGui.QFormLayout.AllNonFixedFieldsGrow)
-		self.formLayout_3.setObjectName(_fromUtf8("formLayout_3"))
-		self.label_2 = QtGui.QLabel(self.verticalLayoutWidget)
-		self.label_2.setObjectName(_fromUtf8("label_2"))
-		self.formLayout_3.setWidget(0, QtGui.QFormLayout.LabelRole, self.label_2)
-		self.abaExec = QtGui.QLineEdit(self.verticalLayoutWidget)
-		self.abaExec.setObjectName(_fromUtf8("abaExec"))
-		self.formLayout_3.setWidget(0, QtGui.QFormLayout.FieldRole, self.abaExec)
-		self.label_3 = QtGui.QLabel(self.verticalLayoutWidget)
-		self.label_3.setObjectName(_fromUtf8("label_3"))
-		self.formLayout_3.setWidget(1, QtGui.QFormLayout.LabelRole, self.label_3)
-		self.gmshExec = QtGui.QLineEdit(self.verticalLayoutWidget)
-		self.gmshExec.setObjectName(_fromUtf8("gmshExec"))
-		self.formLayout_3.setWidget(1, QtGui.QFormLayout.FieldRole, self.gmshExec)
-		self.label_4 = QtGui.QLabel(self.verticalLayoutWidget)
-		self.label_4.setObjectName(_fromUtf8("label_4"))
-		self.formLayout_3.setWidget(2, QtGui.QFormLayout.LabelRole, self.label_4)
-		self.ccxExec = QtGui.QLineEdit(self.verticalLayoutWidget)
-		self.ccxExec.setObjectName(_fromUtf8("ccxExec"))
-		self.formLayout_3.setWidget(2, QtGui.QFormLayout.FieldRole, self.ccxExec)
-		self.verticalLayout.addLayout(self.formLayout_3)
-		self.pushButton = QtGui.QPushButton(getFEAconfigDialog)
-		self.pushButton.setGeometry(QtCore.QRect(550, 170, 75, 23))
-		self.pushButton.setObjectName(_fromUtf8("pushButton"))
-		self.formLayoutWidget_2 = QtGui.QWidget(getFEAconfigDialog)
-		self.formLayoutWidget_2.setGeometry(QtCore.QRect(10, 170, 531, 21))
-		self.formLayoutWidget_2.setObjectName(_fromUtf8("formLayoutWidget_2"))
-		self.formLayout_4 = QtGui.QFormLayout(self.formLayoutWidget_2)
-		self.formLayout_4.setFieldGrowthPolicy(QtGui.QFormLayout.AllNonFixedFieldsGrow)
-		self.formLayout_4.setMargin(0)
-		self.formLayout_4.setObjectName(_fromUtf8("formLayout_4"))
-		self.ConfigFileLabel = QtGui.QLabel(self.formLayoutWidget_2)
-		self.ConfigFileLabel.setObjectName(_fromUtf8("ConfigFileLabel"))
-		self.formLayout_4.setWidget(0, QtGui.QFormLayout.LabelRole, self.ConfigFileLabel)
-		self.ConfigFileLoc = QtGui.QLabel(self.formLayoutWidget_2)
-		self.ConfigFileLoc.setFont(QtGui.QFont("Helvetica",italic=True))
-		self.ConfigFileLoc.setObjectName(_fromUtf8("ConfigFileLoc"))
-		self.formLayout_4.setWidget(0, QtGui.QFormLayout.FieldRole, self.ConfigFileLoc)
-
-		self.retranslateUi(getFEAconfigDialog)
-		QtCore.QMetaObject.connectSlotsByName(getFEAconfigDialog)
-		
-		self.pushButton.clicked.connect(lambda: self.makeConfigChange(getFEAconfigDialog))
-		
-	def makeConfigChange(self,getFEAconfigDialog):
-		try:
-			data= dict(FEA = 
-			dict(
-			abaqusExec = str(self.abaExec.text()),
-			gmshExec = str(self.gmshExec.text()),
-			ccxExec = str(self.ccxExec.text()),
-			)
-			)
-			with open(str(self.ConfigFileLoc.text()), 'w') as outfile:
-				yaml.dump(data, outfile, default_flow_style=False)
-		except:
-			print 'Configuration change failed.'
-
-		getFEAconfigDialog.close()
-			
-	def retranslateUi(self, getFEAconfigDialog):
-		getFEAconfigDialog.setWindowTitle(_translate("getFEAconfigDialog", "pyCM FEA configuration settings", None))
-		self.label.setText(_translate("getFEAconfigDialog", "Please specify the following commands in the form of complete paths to the relevant executable, or leave blank if not available.", None))
-		self.label_2.setText(_translate("getFEAconfigDialog", "Abaqus executable:", None))
-		self.label_3.setText(_translate("getFEAconfigDialog", "Gmsh executable:", None))
-		self.label_4.setText(_translate("getFEAconfigDialog", "Calculix executable:", None))
-		self.pushButton.setText(_translate("getFEAconfigDialog", "Set commands", None))
-		self.ConfigFileLabel.setText(_translate("getFEAconfigDialog", "Current config file:", None))
-		self.ConfigFileLoc.setText(_translate("getFEAconfigDialog", "Undefined", None))
 	
 	
 def GetFEAconfig(inputlist,filec):
 	'''
 	Creates a GUI window to let the user specify FEA executable paths and writes them to a config file. Reads configs.
 	'''
-	getFEAconfigDialog = QtGui.QDialog()
+	getFEAconfigDialog = QtWidgets.QDialog()
+
 	dui = Ui_getFEAconfigDialog()
 	dui.setupUi(getFEAconfigDialog)
 	dui.abaExec.setText(inputlist[0])
 	dui.gmshExec.setText(inputlist[1])
 	dui.ccxExec.setText(inputlist[2])
 	dui.ConfigFileLoc.setText(filec)
+
 	getFEAconfigDialog.exec_()
-	del getFEAconfigDialog
+	# getFEAconfigDialog.show()
+
 	try:
 		with open(filec,'r') as ymlfile:
 			return yaml.load(ymlfile)
 	except:
-		print "Couldn't read config file for some reason."
+		print("Couldn't read config file for some reason.")
 
 	
 if __name__ == "__main__":

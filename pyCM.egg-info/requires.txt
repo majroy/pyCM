@@ -3,3 +3,5 @@ numpy
 scipy
 pyyaml
 matplotlib
+PyQt5
+h5py
