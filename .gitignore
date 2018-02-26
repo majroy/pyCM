@@ -1,2 +1,4 @@
 # exclude vscode specific files
 /.vscode/*
+# exclude test data specific to me
+/data/*
