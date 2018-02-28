@@ -2,3 +2,4 @@
 /.vscode/*
 # exclude test data specific to me
 /data/*
+/__pycache__/*
