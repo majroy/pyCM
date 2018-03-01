@@ -93,10 +93,19 @@ class QtMainWindow:
         self.head_font=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
         self.outline_label.setFont(self.head_font)
 
-        self.read_mesh_button = QtWidgets.QPushButton('Read Mesh')
-        self.read_data_button = QtWidgets.QPushButton('Read Dat')
+        self.read_sim_data_button = QtWidgets.QPushButton('Extract S33')
+        self.display_vtk_button = QtWidgets.QPushButton('Display S33')
 
-        self.main_ui_box.addRow(self.read_mesh_button, self.read_data_button)
+        self.horiz_line2 = QtWidgets.QFrame()
+        self.horiz_line2.setFrameStyle(QtWidgets.QFrame.HLine)
+        self.stat_label = QtWidgets.QLabel("Idle")
+        self.stat_label.setWordWrap(True)
+        self.stat_label.setFont(QtGui.QFont("Helvetica", italic=True))
+        self.stat_label.setMinimumWidth(50)
+
+        self.main_ui_box.addRow(self.read_sim_data_button, self.display_vtk_button)
+        self.main_ui_box.addRow(self.horiz_line2)
+        self.main_ui_box.addRow(self.stat_label)
         self.box_layout.addLayout(self.main_ui_box)
 
 class MeshInteractor(QtWidgets.QMainWindow):
@@ -139,9 +148,8 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         #self.interactor_ui_box.AddObserver("KeyPressEvent", self.Keypress)
 
-        self.main_ui_box.read_mesh_button.clicked.connect(lambda: self.load_vtk_legacy_file())
-        self.main_ui_box.read_data_button.clicked.connect(lambda: self.load_integration_points())
-        self.main_ui_box.read_data_button.clicked.connect(lambda: self.load_visualization())
+        self.main_ui_box.read_sim_data_button.clicked.connect(lambda: self.load_integration_points())
+        self.main_ui_box.display_vtk_button.clicked.connect(lambda: self.load_vtk_legacy_file())
 
     def load_vtk_legacy_file(self):
         """
@@ -155,13 +163,12 @@ class MeshInteractor(QtWidgets.QMainWindow):
             self.main_renderer.RemoveActor(self.mesh_actor)
             self.main_renderer.RemoveActor(self.scalar_bar_actor)
 
+        # load vtk file
         self.vtk_file,_=get_file("*.vtk")
         mesh_source = vtk.vtkUnstructuredGridReader()
         mesh_source.SetFileName(self.vtk_file)
 
-        # vtk will only read the first scalar. If there is more than one we need to specify it
-        # in case the field is empty vtk will not display a scalar field
-        # this is convevient since we can call the same function after adding the scalar data
+        # vtk will only read the first scalar
         mesh_source.SetScalarsName("S33")
         mesh_source.Update()
         mesh_reader_output = mesh_source.GetOutput()
@@ -229,110 +236,37 @@ class MeshInteractor(QtWidgets.QMainWindow):
         """
         Writes the the FE output data - gaussian integration points
         to the legacy vtk file. The FE data is stored in the .dat file for ABAQUS.
+        """
+        QtWidgets.QApplication.processEvents()
 
-        The following steps are performed
-         1. For 'n' 0 to MAX Elements;
-         2. Get x, y, z of each point on element 'n' in .vtk;
-         3. Locate all integration point coordinates that are in the element boundary in .dat;
-         4. Average S33 to obtain an elemental stress; - THIS IS WRONG (currently for testing)
-         5. Print averaged S33 to CELL_DATA table in .vtk file; - THIS IS WRONG (currently for testing)
-         6. 'n'++ and go to step 1.;
+        self.dat_file,_=get_file("*.dat")
 
-         Note: steps 4 and 5 are just exploratory. They need to be rewritten to:
-         4. Use element shape functions to obtain S33 at nodes from integration points
-            according to the ABAQUS numbering system;
-         5. Average all node S33 from neighbouring cells and print to Point data in .vtk file;
-
-         - Pandas is used for the data processing. This will allow statistical manipulations to be made
-           with ease if so desired in the future.
-         - MMap is used to inspect the files and locate the start/end of element scope (.vtk) and integration points (.dat).
-           IF rewriting to Python 3 MMap works in a different way!!! Care must be taken!
+    def vtk_shape_12_quadrature_points(self):
+        """
+        Define the quadrature points for hexahedral shape - 12 in vtk.
+        The element is a full integration brick with 8 nodes and 8 quadrature points.
         """
 
-        # define start/end positions for points and cells for clarity in the code
-        vtk_legacy_file_point_start = 6
-        vtk_legacy_file_point_end = None
-        vtk_legacy_file_cell_start = None
-        vtk_legacy_file_cell_end = None
-
-        # define start/end positions for FE (only ABAQUS for now) integration points for clarity
-        fe_file_integration_point_start = None
-        fe_file_integration_point_end = None
-
-        # read vtk legacy file
-        vtk_file_data = open(self.vtk_file)
-        mmap_vtk_file_data = mmap.mmap(vtk_file_data.fileno(), 0, access = mmap.ACCESS_READ)
-
-        # determine the start and end positions of the points and cells
-        print (vtk_file_data)
-        print (mmap_vtk_file_data.find("CELLS"))
-
-
-        #vtk_element
-
-        # add the scalar data and call the load_mesh
-        self.load_vtk_legacy_file(vtkFileAcquired = True)
-
-    def ConvertInptoVTK(infile, outfile):
+        # define the natural coordinates of the quadrature points
+        nat_coord_quadrature_points =   [-1/(3**(0.5)), -1/(3**(0.5)), \
+                                        -1/(3(**(0.5)), 1/(3**(0.5)), \
+                                        1/(3(**(0.5)), -1/(3**(0.5)), \
+                                        1/(3(**(0.5)), 1/(3**(0.5))]
+    def vtk_shape_12_nodal_points(self):
         """
-        Converts abaqus inp file into a legacy ASCII vtk file. First order quads (C3D8) and third order tets (C3D10) are supported.
+        Define the quadrature points for hexahedral shape - 12 in vtk.
+        The element is a full integration brick with 8 nodes and 8 quadrature points.
         """
-        fid = open(infile)
 
-        #flags for identifying sections of the inp file
-        inpKeywords = ["*Node", "*Element", "*Nset", "*Elset"]
-
-        #map abaqus mesh types to vtk objects
-        vtkType = {}
-        vtkType['C3D8'] = 12
-        vtkType['C3D10'] = 24
-
-        #create counter for all lines in the inp file, and array to store their location
-        i = 0
-        lineFlag = [];
-
-        #read file and find both where keywords occur as well as the element type used
-        while 1:
-            lines = fid.readlines(100000)
-            if not lines:
-                break
-            for line in lines:
-                i += 1
-                for keyword in inpKeywords:
-                    if line[0:len(keyword)] == keyword:
-                        lineFlag.append(i)
-                        if keyword == "*Element":
-                            line = line.replace("\n", "")
-                            CellNum = vtkType[line.split("=")[-1]]
-        fid.close()
-
-        #use genfromtxt to read between lines id'ed by lineFlag to pull in nodes and elements
-        Nodes = np.genfromtxt(infile, skip_header = lineFlag[0], skip_footer = i - lineFlag[1] + 1, delimiter = ",")
-        Elements = np.genfromtxt(infile, skip_header = lineFlag[1], skip_footer = i - lineFlag[2] + 1, delimiter = ",")
-
-        #Now write it in VTK format to a new file starting with header
-        fid = open(outfile,'w+')
-        fid.write('# vtk DataFile Version 2.0\n')
-        fid.write('%s,created by pyCM\n' %outfile[:-4])
-        fid.write('ASCII\n')
-        fid.write('DATASET UNSTRUCTURED_GRID\n')
-        fid.write('POINTS %i double\n' %len(Nodes))
-
-        #dump nodes
-        np.savetxt(fid, Nodes[:,1::], fmt='%.6f')
-        fid.write('\n')
-        fid.write('CELLS %i %i\n'%(len(Elements), len(Elements) * len(Elements[0,:])))
-        #Now elements, stack the number of nodes in the element instead of the element number
-        Cells = np.hstack((np.ones([len(Elements[:, 0]), 1]) * len(Elements[0, 1 :: ]), Elements[:, 1 :: ] - 1))
-        np.savetxt(fid,Cells, fmt = '%i')
-        fid.write('\n')
-
-        #Write cell types
-        fid.write('CELL_TYPES %i\n' % len(Elements))
-        CellType = np.ones([len(Elements[ : , 0]), 1]) * CellNum
-        np.savetxt(fid, CellType, fmt = '%i')
-
-        fid.close()
+        # define the natural coordinates of the nodal points
+        nat_coord_nodal_points = [-1, -1, -1, \
+                                 1, -1, -1, \
+                                 1, 1, -1, \
+                                 -1, 1, -1, \
+                                 -1, -1, 1, \
+                                 1, -1, 1, \
+                                 1, 1, 1, \
+                                 -1, 1, 1]
 
     def load_scalar_bar(self, vtk_mesh):
         """
