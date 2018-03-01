@@ -23,7 +23,7 @@ def get_file(*args):
 	'''
 	ext=args[0]
 	ftypeName={}
-	ftypeName['*.dat']=["Select the point cloud data file:", "*.dat", "DAT File"]
+	ftypeName['*.dat']=["Select the integration point data file:", "*.dat", "DAT File"]
 	ftypeName['*.txt']=["Select the point cloud data file:", "*.txt", "TXT File"]
 	ftypeName['*.mat']=["Select MAT data file:", "*.mat", "MAT File"]
 	ftypeName['*.vtk']=["Select the legacy VTK file:", "*.vtk", "VTK File"]
