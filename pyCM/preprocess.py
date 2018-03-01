@@ -1399,7 +1399,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			fid.write(str.encode('%i, 3,, %6.6f\n'%(self.BCindex[ind]+1,self.BCpnts[ind,2])))
 		fid.write(str.encode('*EL FILE\n'))
 		fid.write(str.encode('S,E\n'))#get all stresses and strains just to be safe.
-		fid.write(str.encode('*EL PRINT, ELSET=BC\n'))
+		fid.write(str.encode('*EL PRINT\n'))
 		if self.ui.CalculixButton.isChecked():
 			fid.write(str.encode('S\n'))#Coords by default
 		elif self.ui.AbaqusButton.isChecked():
@@ -1492,43 +1492,25 @@ def ConvertInptoVTK(infile,outfile):
 	Elements=np.genfromtxt(infile,skip_header=lineFlag[1],skip_footer=i-lineFlag[2]+1,delimiter=",")
 	#Now write it in VTK format to a new file starting with header
 	fid=open(outfile,'wb+')
+	fid.write(str.encode('# vtk DataFile Version 2.0\n'))
+	fid.write(str.encode('%s,created by pyCM\n'%outfile[:-4]))
+	fid.write(str.encode('ASCII\n'))
+	fid.write(str.encode('DATASET UNSTRUCTURED_GRID\n'))
+	fid.write(str.encode('POINTS %i double\n'%len(Nodes)))
+	
+	#dump nodes
+	np.savetxt(fid,Nodes[:,1::],fmt='%.6f')
+	fid.write(str.encode('\n'))
+	fid.write(str.encode('CELLS %i %i\n'%(len(Elements),len(Elements)*len(Elements[0,:]))))
+	#Now elements, stack the number of nodes in the element instead of the element number
+	Cells=np.hstack((np.ones([len(Elements[:,0]),1])*len(Elements[0,1::]),Elements[:,1::]-1))
+	np.savetxt(fid,Cells,fmt='%i')
+	fid.write(str.encode('\n'))
 
-	# file header
-	fid.write(str.encode('<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">\n'))
-	fid.write(str.encode('<!-- %s,created by pyCM -->\n'%outfile[:-4]))
-	fid.write(str.encode('<UnstructuredGrid>\n'))
-
-	# point and element header
-	fid.write(str.encode('<Piece NumberOfPoints=%i" NumberOfCells="%i">\n' % (len(Nodes), len(Elements)*len(Elements[0,:]))))
-
-	# write nodes
-	fid.write(str.encode('<Points>\n'))
-	fid.write(str.encode('<DataArray type="Float32" Name="Points" NumberOfComponents="3" format="ascii">\n'))
-	np.savetxt(fid, Nodes[:,1::],fmt='%.6f')
-	fid.write(str.encode('</DataArray>\n'))
-	fid.write(str.encode('</Points>\n'))
-
-	# write cells
-	fid.write(str.encode('<Cells>\n'))
-	fig.write(str.encode('<DataArray type="Int32" Name="connectivity" format="ascii">\n'))
-	# Now elements, stack the number of nodes in the element instead of the element number
-	Cells = np.hstack((np.ones([len(Elements[:,0]),1])*len(Elements[0,1::]),Elements[:,1::]-1))
-	np.savetxt(fid, Cells, fmt='%i')
-	fid.write(str.encode('</DataArray>\n'))
-
-	# write cell types
-	fid.write(str.encode('<DataArray type="UInt8" Name="types" format="ascii">\n'))
+	#Write cell types
+	fid.write(str.encode('CELL_TYPES %i\n'%len(Elements)))
 	CellType=np.ones([len(Elements[:,0]),1])*CellNum
 	np.savetxt(fid,CellType,fmt='%i')
-	fid.write(str.encode('</DataArray>'))
-
-	# write footer
-	fid.write(str.encode('</Cells>\n'))
-	fid.write(str.encode('</Piece>\n'))
-	fid.write(str.encode('</UnstructuredGrid>\n'))
-	fid.write(str.encode('</VTKFile>\n'))
-
-	fid.close()
 
 def respace_equally(X,input):
 	distance=np.sqrt(np.sum(np.diff(X,axis=0)**2,axis=1))
