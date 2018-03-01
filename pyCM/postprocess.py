@@ -28,7 +28,7 @@ import sys
 import numpy as np
 import vtk
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtGui, QtWidgets
 from pkg_resources import Requirement, resource_filename
 from .pyCMcommon import *
 
@@ -264,12 +264,25 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # we default to vtk element 12 only for now
         quadrature_data = self.get_quadrature_data(dat_file)
-        node_data = self.get_node_data(inp_file)
-        print(quadrature_data)
+        node_data, element_data = self.get_node_data(inp_file)
+
+        print("Quadrature data")
+        print(quadrature_data[1,1])
+
+        print("Nodal data")
         print(node_data)
 
+        print("Element data")
+        print(element_data)
+
+        # we have a linear map from element_data to quadrature_data
+        # take i*8 to (i+1)*8 from quadrature_data
+        # take i row from element_data
+        # find each column from i row from element_data in node_data
+        # DONE
+
     def get_node_data(self, file_name):
-        """ 
+        """
         Reads the nodal point coordinates. Returns a numpy array.
         """
 
@@ -300,16 +313,15 @@ class MeshInteractor(QtWidgets.QMainWindow):
         # extract nodal point data for
         # node id, x coord, y coord, z coord, S33
         node_data = np.genfromtxt(file_name, skip_header=node_start, skip_footer=node_end, \
-                                    delimiter=',', dtype=NP_VAR_TYPE)
+                                    delimiter=',')
 
-        #element_data = np.genfromtxt(file_name, skip_header=elem_start, skip_footer=elem_end, \
-        #                            delimiter=',', dtype=EL_VAR_TYPE)
+        element_data = np.genfromtxt(file_name, skip_header=elem_start, skip_footer=elem_end, \
+                                    delimiter=',')
 
-        # numpy provides a structured array which is not useful for our purposes
-        # we need a 2d array
         node_data = node_data.view().reshape(len(node_data), -1)
-        return node_data
-    
+        element_data = element_data.view().reshape(len(element_data), -1)
+        return node_data, element_data
+
     def get_quadrature_data(self, file_name):
         """
         Reads the quadrature point coordinates and stress values. Returns a numpy array.
@@ -351,10 +363,9 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # extract quadrature data for
         # node id, quadrature id, x coord, y coord, z coord, S33
-        element_data = np.genfromtxt(file_name, skip_header=row_start, skip_footer=11, \
-                                    usecols=(0, 2, 3, 4, 7), autostrip=True,             \
-                                    dtype=QP_VAR_TYPE)
-        return element_data
+        quadrature_data = np.genfromtxt(file_name, skip_header=row_start, skip_footer=11, \
+                                    usecols=(0, 2, 3, 4, 7), autostrip=True)
+        return quadrature_data
 
     def vtk_elem_12_quadrature_points(self):
         """
@@ -388,53 +399,53 @@ class MeshInteractor(QtWidgets.QMainWindow):
                                         [1, 1, 1], \
                                         [-1, 1, 1]]
         return nat_coord_nodal_points
-    def vtk_elem_12_shape_function1(coord1, coord2, coord3):
+    def vtk_elem_12_shape_function1(self, coord1, coord2, coord3):
         """
         Calculate the shape function for the first point
         """
-        return 0.125 * (1 - coord1) * ( 1 - coord2) * (1 - coord3)
-    
-    def vtk_elem_12_shape_function2(coord1, coord2, coord3):
+        return 0.125 * (1 - coord1) * (1 - coord2) * (1 - coord3)
+
+    def vtk_elem_12_shape_function2(self, coord1, coord2, coord3):
         """
         Calculate the shape function for the second point
         """
-        return 0.125 * (1 + coord1) * ( 1 - coord2) * (1 - coord3)
-    
-    def vtk_elem_12_shape_function3(coord1, coord2, coord3):
+        return 0.125 * (1 + coord1) * (1 - coord2) * (1 - coord3)
+
+    def vtk_elem_12_shape_function3(self, coord1, coord2, coord3):
         """
         Calculate the shape function for the third point
         """
-        return 0.125 * (1 + coord1) * ( 1 + coord2) * (1 - coord3)
-    
-    def vtk_elem_12_shape_function4(coord1, coord2, coord3):
+        return 0.125 * (1 + coord1) * (1 + coord2) * (1 - coord3)
+
+    def vtk_elem_12_shape_function4(self, coord1, coord2, coord3):
         """
         Calculate the shape function for the fourth point
         """
-        return 0.125 * (1 - coord1) * ( 1 + coord2) * (1 - coord3)
-    def vtk_elem_12_shape_function5(coord1, coord2, coord3):
+        return 0.125 * (1 - coord1) * (1 + coord2) * (1 - coord3)
+    def vtk_elem_12_shape_function5(self, coord1, coord2, coord3):
         """
         Calculate the shape function for the fifth point
         """
-        return 0.125 * (1 - coord1) * ( 1 - coord2) * (1 + coord3)
-    
-    def vtk_elem_12_shape_function6(coord1, coord2, coord3):
+        return 0.125 * (1 - coord1) * (1 - coord2) * (1 + coord3)
+
+    def vtk_elem_12_shape_function6(self, coord1, coord2, coord3):
         """
         Calculate the shape function for the sixth point
         """
-        return 0.125 * (1 + coord1) * ( 1 - coord2) * (1 + coord3)
-    
-    def vtk_elem_12_shape_function7(coord1, coord2, coord3):
+        return 0.125 * (1 + coord1) * (1 - coord2) * (1 + coord3)
+
+    def vtk_elem_12_shape_function7(self, coord1, coord2, coord3):
         """
         Calculate the shape function for the seventh point
         """
-        return 0.125 * (1 + coord1) * ( 1 + coord2) * (1 + coord3)
-    
-    def vtk_elem_12_shape_function8(coord1, coord2, coord3):
+        return 0.125 * (1 + coord1) * (1 + coord2) * (1 + coord3)
+
+    def vtk_elem_12_shape_function8(self, coord1, coord2, coord3):
         """
         Calculate the shape function for the eight point
         """
-        return 0.125 * (1 - coord1) * ( 1 + coord2) * (1 + coord3)
-    
+        return 0.125 * (1 - coord1) * (1 + coord2) * (1 + coord3)
+
     def load_scalar_bar(self, vtk_mesh):
         """
         Load the field data in the renderer
