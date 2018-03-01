@@ -241,33 +241,85 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         self.dat_file,_=get_file("*.dat")
 
-    def vtk_shape_12_quadrature_points(self):
+    def vtk_elem_12_quadrature_points(self):
         """
-        Define the quadrature points for hexahedral shape - 12 in vtk.
+        Define the natural coordinates of the quadrature points for hexahedral shape - 12 in vtk.
         The element is a full integration brick with 8 nodes and 8 quadrature points.
         """
 
-        # define the natural coordinates of the quadrature points
-        nat_coord_quadrature_points =   [-1/(3**(0.5)), -1/(3**(0.5)), \
-                                        -1/(3(**(0.5)), 1/(3**(0.5)), \
-                                        1/(3(**(0.5)), -1/(3**(0.5)), \
-                                        1/(3(**(0.5)), 1/(3**(0.5))]
-    def vtk_shape_12_nodal_points(self):
+        # natural coordinates of the quadrature points
+        nat_coord_quadrature_points = np.array[[-1/3**(0.5), -1/3**(0.5), -1/3**(0.5)], \
+                                                [-1/3**(0.5), -1/3**(0.5), 1/3**(0.5)], \
+                                                [-1/3**(0.5), 1/3**(0.5), -1/3**(0.5)], \
+                                                [-1/3**(0.5), 1/3**(0.5), 1/3**(0.5)], \
+                                                [1/3**(0.5), -1/3**(0.5), -1/3**(0.5)], \
+                                                [1/3**(0.5), -1/3**(0.5), 1/3**(0.5)], \
+                                                [1/3**(0.5), 1/3**(0.5), -1/3**(0.5)], \
+                                                [1/3**(0.5), 1/3**(0.5), 1/3**(0.5)]]
+        return nat_coord_quadrature_points
+
+    def vtk_elem_12_nodal_points(self):
         """
-        Define the quadrature points for hexahedral shape - 12 in vtk.
-        The element is a full integration brick with 8 nodes and 8 quadrature points.
+        Define the natural coordinates for the nodal points for hexahedral shape - 12 in vtk.
         """
 
-        # define the natural coordinates of the nodal points
-        nat_coord_nodal_points = [-1, -1, -1, \
-                                 1, -1, -1, \
-                                 1, 1, -1, \
-                                 -1, 1, -1, \
-                                 -1, -1, 1, \
-                                 1, -1, 1, \
-                                 1, 1, 1, \
-                                 -1, 1, 1]
-
+        # natural coordinates of the nodal points
+        nat_coord_nodal_points = np.array[[-1, -1, -1], \
+                                        [1, -1, -1], \
+                                        []1, 1, -1], \
+                                        [-1, 1, -1], \
+                                        [-1, -1, 1], \
+                                        [1, -1, 1], \
+                                        [1, 1, 1], \
+                                        [-1, 1, 1]]
+        return nat_coord_nodal_points
+    def vtk_elem_12_shape_function1(coord1, coord2, coord3):
+        """
+        Calculate the shape function for the first point
+        """
+        return 0.125 * (1 - coord1) * ( 1 - coord2) * (1 - coord3)
+    
+    def vtk_elem_12_shape_function2(coord1, coord2, coord3):
+        """
+        Calculate the shape function for the second point
+        """
+        return 0.125 * (1 + coord1) * ( 1 - coord2) * (1 - coord3)
+    
+    def vtk_elem_12_shape_function3(coord1, coord2, coord3):
+        """
+        Calculate the shape function for the third point
+        """
+        return 0.125 * (1 + coord1) * ( 1 + coord2) * (1 - coord3)
+    
+    def vtk_elem_12_shape_function4(coord1, coord2, coord3):
+        """
+        Calculate the shape function for the fourth point
+        """
+        return 0.125 * (1 - coord1) * ( 1 + coord2) * (1 - coord3)
+    def vtk_elem_12_shape_function5(coord1, coord2, coord3):
+        """
+        Calculate the shape function for the fifth point
+        """
+        return 0.125 * (1 - coord1) * ( 1 - coord2) * (1 + coord3)
+    
+    def vtk_elem_12_shape_function6(coord1, coord2, coord3):
+        """
+        Calculate the shape function for the sixth point
+        """
+        return 0.125 * (1 + coord1) * ( 1 - coord2) * (1 + coord3)
+    
+    def vtk_elem_12_shape_function7(coord1, coord2, coord3):
+        """
+        Calculate the shape function for the seventh point
+        """
+        return 0.125 * (1 + coord1) * ( 1 + coord2) * (1 + coord3)
+    
+    def vtk_elem_12_shape_function8(coord1, coord2, coord3):
+        """
+        Calculate the shape function for the eight point
+        """
+        return 0.125 * (1 - coord1) * ( 1 + coord2) * (1 + coord3)
+    
     def load_scalar_bar(self, vtk_mesh):
         """
         Load the field data in the renderer
