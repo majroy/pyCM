@@ -29,6 +29,7 @@ import numpy as np
 import vtk
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
+from pkg_resources import Requirement, resource_filename
 from .pyCMcommon import *
 
 __author__ = "M.J. Roy"
@@ -37,6 +38,17 @@ __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2018"
 
+DAT_FILE_LOOKUP_STR = "E L E M E N T   O U T P U T"
+INP_FILE_NODE_LOOKUP_STR = "*NODE"
+INP_FILE_ELEM_LOOKUP_STR = "*ELEMENT, TYPE=C3D8"
+INP_FILE_ELEM_END_LOOKUP_STR = "*ELSET, ELSET=DOMAIN, GENERATE"
+# numpy data types for the quadrature point extraction
+# the columns are: node id, quadrature id, x coord, y coord, z coord, S33
+QP_VAR_TYPE = "int32, float64, float64, float64, float64"
+# numpy data types for nodal point extraction
+NP_VAR_TYPE = "int32, float64, float64, float64"
+# numpy data types for elements extraction
+EL_VAR_TYPE = "int32, int32, int32, int32, int32, int32, int32, int32, int32"
 
 def post_process_tool():
     """
@@ -46,9 +58,17 @@ def post_process_tool():
     if app is None:
         app = QtWidgets.QApplication(sys.argv)
 
+    #spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
+    #splash_pix = QtGui.QPixmap(spl_fname,'PNG')
+    #splash = QtWidgets.QSplashScreen(splash_pix)
+    #splash.setMask(splash_pix.mask())
+
+    #splash.show()
     app.processEvents()
+
     window = MeshInteractor()
     window.show()
+    #splash.finish(window)
     window.interactor_ui_box.Initialize()
 
     ret = app.exec_()
@@ -239,7 +259,102 @@ class MeshInteractor(QtWidgets.QMainWindow):
         """
         QtWidgets.QApplication.processEvents()
 
-        self.dat_file,_=get_file("*.dat")
+        dat_file,_=get_file("*.dat")
+        inp_file,_=get_file("*.inp")
+
+        # we default to vtk element 12 only for now
+        quadrature_data = self.get_quadrature_data(dat_file)
+        node_data = self.get_node_data(inp_file)
+        print(quadrature_data)
+        print(node_data)
+
+    def get_node_data(self, file_name):
+        """ 
+        Reads the nodal point coordinates. Returns a numpy array.
+        """
+
+        # initialize
+        curr_line = 0
+        node_start = 0
+        node_end = 0
+        elem_start = 0
+        elem_end = 0
+
+        with open(file_name) as inp_file:
+            p_lines = inp_file.readlines()
+            for line in p_lines:
+                curr_line = curr_line + 1
+                if line.find(INP_FILE_NODE_LOOKUP_STR) >= 0:
+                    node_start = curr_line
+                if line.find(INP_FILE_ELEM_LOOKUP_STR) >= 0:
+                    node_end = curr_line - 1
+                    elem_start = curr_line
+                if line.find(INP_FILE_ELEM_END_LOOKUP_STR) >= 0:
+                    elem_end = curr_line - 1
+
+        node_end = curr_line - node_end
+        elem_end = curr_line - elem_end
+
+        inp_file.close()
+
+        # extract nodal point data for
+        # node id, x coord, y coord, z coord, S33
+        node_data = np.genfromtxt(file_name, skip_header=node_start, skip_footer=node_end, \
+                                    delimiter=',', dtype=NP_VAR_TYPE)
+
+        #element_data = np.genfromtxt(file_name, skip_header=elem_start, skip_footer=elem_end, \
+        #                            delimiter=',', dtype=EL_VAR_TYPE)
+
+        # numpy provides a structured array which is not useful for our purposes
+        # we need a 2d array
+        node_data = node_data.view().reshape(len(node_data), -1)
+        return node_data
+    
+    def get_quadrature_data(self, file_name):
+        """
+        Reads the quadrature point coordinates and stress values. Returns a numpy array.
+        """
+
+        # initialize
+        curr_line = 0
+        read_flag = False
+        feed_flag = False
+        num_steps = 0
+        row_start = 0
+        row_end = 1
+
+        # locate the start and end line of the quadrature block
+        with open(file_name) as dat_file:
+            p_lines = dat_file.readlines()
+            for line in p_lines:
+                num_steps = num_steps + 1
+                if line.rstrip() and not feed_flag:
+                    line = line.strip()
+                    # find the element output section
+                    if line.find(DAT_FILE_LOOKUP_STR) >= 0:
+                        read_flag = True
+                    # we can read the quadrature point data
+                    # but we need to skip 3 lines
+                    if read_flag:
+                        curr_line = curr_line + 1
+                        # coordinate and stress data reached
+                        if curr_line == 5:
+                            feed_flag = True
+                            row_start = num_steps - 1
+                            curr_line = 0
+                else:
+                    if not line.rstrip():
+                        if read_flag is True and curr_line is 0:
+                            # count the number of lines at the end of the .dat file
+                            row_end = row_end + 1
+        dat_file.close()
+
+        # extract quadrature data for
+        # node id, quadrature id, x coord, y coord, z coord, S33
+        element_data = np.genfromtxt(file_name, skip_header=row_start, skip_footer=11, \
+                                    usecols=(0, 2, 3, 4, 7), autostrip=True,             \
+                                    dtype=QP_VAR_TYPE)
+        return element_data
 
     def vtk_elem_12_quadrature_points(self):
         """
@@ -266,7 +381,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         # natural coordinates of the nodal points
         nat_coord_nodal_points = np.array[[-1, -1, -1], \
                                         [1, -1, -1], \
-                                        []1, 1, -1], \
+                                        [1, 1, -1], \
                                         [-1, 1, -1], \
                                         [-1, -1, 1], \
                                         [1, -1, 1], \
