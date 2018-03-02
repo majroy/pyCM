@@ -25,10 +25,11 @@ ver 0.1 17-10-20
 """
 
 import sys
-import numpy as np
 import vtk
+import pandas
+import numpy as np
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtGui, QtWidgets
 from pkg_resources import Requirement, resource_filename
 from .pyCMcommon import *
 
@@ -39,16 +40,9 @@ __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2018"
 
 DAT_FILE_LOOKUP_STR = "E L E M E N T   O U T P U T"
-INP_FILE_NODE_LOOKUP_STR = "*NODE"
-INP_FILE_ELEM_LOOKUP_STR = "*ELEMENT, TYPE=C3D8"
-INP_FILE_ELEM_END_LOOKUP_STR = "*ELSET, ELSET=DOMAIN, GENERATE"
-# numpy data types for the quadrature point extraction
-# the columns are: node id, quadrature id, x coord, y coord, z coord, S33
-QP_VAR_TYPE = "int32, float64, float64, float64, float64"
-# numpy data types for nodal point extraction
-NP_VAR_TYPE = "int32, float64, float64, float64"
-# numpy data types for elements extraction
-EL_VAR_TYPE = "int32, int32, int32, int32, int32, int32, int32, int32, int32"
+INP_FILE_NODE_LOOKUP_STR = "*Node"
+INP_FILE_ELEM_LOOKUP_STR = "*Element, type=C3D8"
+INP_FILE_ELEM_END_LOOKUP_STR = "*Nset, nset=Part-1-1_SURFACE, generate"
 
 def post_process_tool():
     """
@@ -188,7 +182,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         mesh_source = vtk.vtkUnstructuredGridReader()
         mesh_source.SetFileName(self.vtk_file)
 
-        # vtk will only read the first scalar
+        # read scalar to vtk
         mesh_source.SetScalarsName("S33")
         mesh_source.Update()
         mesh_reader_output = mesh_source.GetOutput()
@@ -259,17 +253,165 @@ class MeshInteractor(QtWidgets.QMainWindow):
         """
         QtWidgets.QApplication.processEvents()
 
+        # load input files
+        # use the original *.inp file, not *.abq.inp
         dat_file,_=get_file("*.dat")
         inp_file,_=get_file("*.inp")
 
-        # we default to vtk element 12 only for now
+        # default ABAQUS C3D8 elements only for now
         quadrature_data = self.get_quadrature_data(dat_file)
-        node_data = self.get_node_data(inp_file)
-        print(quadrature_data)
-        print(node_data)
+        node_data, element_data = self.get_node_data(inp_file)
+
+        # obtain a matrix of node number, x, y, z, stress
+        stress_array = self.calculate_quadrature_stress_C3D8(quadrature_data, element_data, node_data)
+
+        # nodes will duplicate in elements
+        # sum the contributions from each node
+        stress_data_frame = pandas.DataFrame(stress_array)
+        stress_data_frame[5] = stress_data_frame.groupby([0])[4].transform('sum')
+
+        # remove the individual stress at nodes
+        del stress_data_frame[4]
+
+        # drop the duplicates
+        stress_data_frame = pandas.DataFrame(stress_data_frame).drop_duplicates()
+        stress_data_frame = pandas.DataFrame(stress_data_frame).values
+        stress_data_frame = pandas.DataFrame(stress_data_frame)
+
+        # get *.vtk file
+        vtk_file,_=get_file("*.vtk")
+
+        # append at the end of the vtk file
+        self.append_postprocess_data(vtk_file, stress_data_frame)
+
+    def append_postprocess_data(self, vtk_file, stress_data_frame):
+        """
+        Append the postprocessed data to the end of the *.vtk file
+        """
+
+        # sort the dataframe since the nodes are by connectivity from elements
+        # vtk requires them by numbering from 0
+        stress_data_frame = stress_data_frame.sort_values(by=[0])
+
+        # open the *.vtk file in append mode
+        file_handle = open(vtk_file, 'ab')
+
+        # add vtk headers
+        #vtk_header_text = "SCALARS S33 \nLOOKUP_ TABLE default\n"
+        file_handle.write(str.encode('POINT_DATA %i\nSCALARS S33 DOUBLE\nLOOKUP_TABLE default\n' % stress_data_frame[4].count()))
+
+        # add the dataframe
+        np.savetxt(file_handle, stress_data_frame[4].values, fmt='%.6f')
+        file_handle.close()
+
+    def calculate_quadrature_stress_C3D8(self, quadrature_data, element_data, node_data):
+        """
+        Calculate the stress values from quadrature and element data
+        for element C3D8.
+        """
+
+        # default step for the C3D8 element -> number of nodes
+        element_step = 8
+
+        # define the element counter
+        element_index = 0
+
+        # define the counter for the shape matrix
+        shape_matrix_index = 0
+
+        # define nodal coordinates and stress storage
+        stress_array = np.zeros(shape=(len(quadrature_data) - 1, 5))
+
+        for row_index in range(0, len(quadrature_data) - 1, element_step):
+        #for row_index in range(0, 1, element_step):
+            # extract the stresses at the quadrature points
+            quadrature_point_1 = quadrature_data[row_index, 4]
+            quadrature_point_2 = quadrature_data[row_index + 1, 4]
+            quadrature_point_3 = quadrature_data[row_index + 2, 4]
+            quadrature_point_4 = quadrature_data[row_index + 3, 4]
+            quadrature_point_5 = quadrature_data[row_index + 4, 4]
+            quadrature_point_6 = quadrature_data[row_index + 5, 4]
+            quadrature_point_7 = quadrature_data[row_index + 6, 4]
+            quadrature_point_8 = quadrature_data[row_index + 7, 4]
+
+            # construct the quadrature stress matrix
+            quadrature_stress = np.array([quadrature_point_1,
+                                          quadrature_point_2,
+                                          quadrature_point_3,
+                                          quadrature_point_4,
+                                          quadrature_point_5,
+                                          quadrature_point_6,
+                                          quadrature_point_7,
+                                          quadrature_point_8])
+
+            # extract element row
+            element_row = element_data[element_index, :]
+            element_index = element_index + 1
+
+            # find the nodal points in the element
+            # the int conversion could be done so much better
+            # in the future i have to extract this as a structured array
+            # and set as int
+            nodal_point_1 = node_data[int(element_row[1]) - 1, :]
+            nodal_point_2 = node_data[int(element_row[2]) - 1, :]
+            nodal_point_3 = node_data[int(element_row[3]) - 1, :]
+            nodal_point_4 = node_data[int(element_row[4]) - 1, :]
+            nodal_point_5 = node_data[int(element_row[5]) - 1, :]
+            nodal_point_6 = node_data[int(element_row[6]) - 1, :]
+            nodal_point_7 = node_data[int(element_row[7]) - 1, :]
+            nodal_point_8 = node_data[int(element_row[8]) - 1, :]
+
+            # create the square shape function matrix for C3D8
+            shape_function_matrix = np.zeros(shape=(8,8))
+
+            # obtain the natural coordinates of the gauss points
+            C3D8_qp_natural_coord = self.C3D8_quadrature_points()
+
+            for shape_matrix_index in range(0, 8):
+                shape_function_matrix[shape_matrix_index, 0] = self.C3D8_shape_function1( \
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+                shape_function_matrix[shape_matrix_index, 1] = self.C3D8_shape_function2( \
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+                shape_function_matrix[shape_matrix_index, 2] = self.C3D8_shape_function3( \
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+                shape_function_matrix[shape_matrix_index, 3] = self.C3D8_shape_function4( \
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+                shape_function_matrix[shape_matrix_index, 4] = self.C3D8_shape_function5( \
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+                shape_function_matrix[shape_matrix_index, 5] = self.C3D8_shape_function6( \
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+                shape_function_matrix[shape_matrix_index, 6] = self.C3D8_shape_function7( \
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+                shape_function_matrix[shape_matrix_index, 7] = self.C3D8_shape_function8( \
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+
+            # calculate the nodal stresses
+            nodal_stress = shape_function_matrix.dot(quadrature_stress)
+
+            # create an array with nodal coordinates and stress
+            nodal_data1 = np.array([[nodal_point_1[0], nodal_point_1[1], nodal_point_1[2], nodal_point_1[3], nodal_stress[0]]])
+            nodal_data2 = np.array([[nodal_point_2[0], nodal_point_2[1], nodal_point_2[2], nodal_point_2[3], nodal_stress[1]]])
+            nodal_data3 = np.array([[nodal_point_3[0], nodal_point_3[1], nodal_point_3[2], nodal_point_3[3], nodal_stress[2]]])
+            nodal_data4 = np.array([[nodal_point_4[0], nodal_point_4[1], nodal_point_4[2], nodal_point_4[3], nodal_stress[3]]])
+            nodal_data5 = np.array([[nodal_point_5[0], nodal_point_5[1], nodal_point_5[2], nodal_point_5[3], nodal_stress[4]]])
+            nodal_data6 = np.array([[nodal_point_6[0], nodal_point_6[1], nodal_point_6[2], nodal_point_6[3], nodal_stress[5]]])
+            nodal_data7 = np.array([[nodal_point_7[0], nodal_point_7[1], nodal_point_7[2], nodal_point_7[3], nodal_stress[6]]])
+            nodal_data8 = np.array([[nodal_point_8[0], nodal_point_8[1], nodal_point_8[2], nodal_point_8[3], nodal_stress[7]]])
+
+            # collate the data from all nodes
+            stress_array[row_index, :] = nodal_data1
+            stress_array[row_index + 1, :] = nodal_data2
+            stress_array[row_index + 2, :] = nodal_data3
+            stress_array[row_index + 3, :] = nodal_data4
+            stress_array[row_index + 4, :] = nodal_data5
+            stress_array[row_index + 5, :] = nodal_data6
+            stress_array[row_index + 6, :] = nodal_data7
+            stress_array[row_index + 7, :] = nodal_data8
+
+        return stress_array
 
     def get_node_data(self, file_name):
-        """ 
+        """
         Reads the nodal point coordinates. Returns a numpy array.
         """
 
@@ -300,16 +442,15 @@ class MeshInteractor(QtWidgets.QMainWindow):
         # extract nodal point data for
         # node id, x coord, y coord, z coord, S33
         node_data = np.genfromtxt(file_name, skip_header=node_start, skip_footer=node_end, \
-                                    delimiter=',', dtype=NP_VAR_TYPE)
+                                    delimiter=',')
 
-        #element_data = np.genfromtxt(file_name, skip_header=elem_start, skip_footer=elem_end, \
-        #                            delimiter=',', dtype=EL_VAR_TYPE)
+        element_data = np.genfromtxt(file_name, skip_header=elem_start, skip_footer=elem_end, \
+                                    delimiter=',')
 
-        # numpy provides a structured array which is not useful for our purposes
-        # we need a 2d array
         node_data = node_data.view().reshape(len(node_data), -1)
-        return node_data
-    
+        element_data = element_data.view().reshape(len(element_data), -1)
+        return node_data, element_data
+
     def get_quadrature_data(self, file_name):
         """
         Reads the quadrature point coordinates and stress values. Returns a numpy array.
@@ -351,31 +492,30 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # extract quadrature data for
         # node id, quadrature id, x coord, y coord, z coord, S33
-        element_data = np.genfromtxt(file_name, skip_header=row_start, skip_footer=11, \
-                                    usecols=(0, 2, 3, 4, 7), autostrip=True,             \
-                                    dtype=QP_VAR_TYPE)
-        return element_data
+        quadrature_data = np.genfromtxt(file_name, skip_header=row_start, skip_footer=11, \
+                                    usecols=(0, 2, 3, 4, 7), autostrip=True)
+        return quadrature_data
 
-    def vtk_elem_12_quadrature_points(self):
+    def C3D8_quadrature_points(self):
         """
-        Define the natural coordinates of the quadrature points for hexahedral shape - 12 in vtk.
+        Define the natural coordinates of the quadrature points for C3D8.
         The element is a full integration brick with 8 nodes and 8 quadrature points.
         """
 
         # natural coordinates of the quadrature points
-        nat_coord_quadrature_points = np.array[[-1/3**(0.5), -1/3**(0.5), -1/3**(0.5)], \
+        nat_coord_quadrature_points = np.array([[-1/3**(0.5), -1/3**(0.5), -1/3**(0.5)], \
                                                 [-1/3**(0.5), -1/3**(0.5), 1/3**(0.5)], \
                                                 [-1/3**(0.5), 1/3**(0.5), -1/3**(0.5)], \
                                                 [-1/3**(0.5), 1/3**(0.5), 1/3**(0.5)], \
                                                 [1/3**(0.5), -1/3**(0.5), -1/3**(0.5)], \
                                                 [1/3**(0.5), -1/3**(0.5), 1/3**(0.5)], \
                                                 [1/3**(0.5), 1/3**(0.5), -1/3**(0.5)], \
-                                                [1/3**(0.5), 1/3**(0.5), 1/3**(0.5)]]
+                                                [1/3**(0.5), 1/3**(0.5), 1/3**(0.5)]])
         return nat_coord_quadrature_points
 
-    def vtk_elem_12_nodal_points(self):
+    def C3D8_nodal_points(self):
         """
-        Define the natural coordinates for the nodal points for hexahedral shape - 12 in vtk.
+        Define the natural coordinates for the nodal points for C3D8.
         """
 
         # natural coordinates of the nodal points
@@ -388,53 +528,54 @@ class MeshInteractor(QtWidgets.QMainWindow):
                                         [1, 1, 1], \
                                         [-1, 1, 1]]
         return nat_coord_nodal_points
-    def vtk_elem_12_shape_function1(coord1, coord2, coord3):
+
+    def C3D8_shape_function1(self, coords):
         """
         Calculate the shape function for the first point
         """
-        return 0.125 * (1 - coord1) * ( 1 - coord2) * (1 - coord3)
-    
-    def vtk_elem_12_shape_function2(coord1, coord2, coord3):
+        return 0.125 * (1 - coords[0]) * (1 - coords[1]) * (1 - coords[2])
+
+    def C3D8_shape_function2(self, coords):
         """
         Calculate the shape function for the second point
         """
-        return 0.125 * (1 + coord1) * ( 1 - coord2) * (1 - coord3)
-    
-    def vtk_elem_12_shape_function3(coord1, coord2, coord3):
+        return 0.125 * (1 + coords[0]) * (1 - coords[1]) * (1 - coords[2])
+
+    def C3D8_shape_function3(self, coords):
         """
         Calculate the shape function for the third point
         """
-        return 0.125 * (1 + coord1) * ( 1 + coord2) * (1 - coord3)
-    
-    def vtk_elem_12_shape_function4(coord1, coord2, coord3):
+        return 0.125 * (1 + coords[0]) * (1 + coords[1]) * (1 - coords[2])
+
+    def C3D8_shape_function4(self, coords):
         """
         Calculate the shape function for the fourth point
         """
-        return 0.125 * (1 - coord1) * ( 1 + coord2) * (1 - coord3)
-    def vtk_elem_12_shape_function5(coord1, coord2, coord3):
+        return 0.125 * (1 - coords[0]) * (1 + coords[1]) * (1 - coords[2])
+    def C3D8_shape_function5(self, coords):
         """
         Calculate the shape function for the fifth point
         """
-        return 0.125 * (1 - coord1) * ( 1 - coord2) * (1 + coord3)
-    
-    def vtk_elem_12_shape_function6(coord1, coord2, coord3):
+        return 0.125 * (1 - coords[0]) * (1 - coords[1]) * (1 + coords[2])
+
+    def C3D8_shape_function6(self, coords):
         """
         Calculate the shape function for the sixth point
         """
-        return 0.125 * (1 + coord1) * ( 1 - coord2) * (1 + coord3)
-    
-    def vtk_elem_12_shape_function7(coord1, coord2, coord3):
+        return 0.125 * (1 + coords[0]) * (1 - coords[1]) * (1 + coords[2])
+
+    def C3D8_shape_function7(self, coords):
         """
         Calculate the shape function for the seventh point
         """
-        return 0.125 * (1 + coord1) * ( 1 + coord2) * (1 + coord3)
-    
-    def vtk_elem_12_shape_function8(coord1, coord2, coord3):
+        return 0.125 * (1 + coords[0]) * (1 + coords[1]) * (1 + coords[2])
+
+    def C3D8_shape_function8(self, coords):
         """
         Calculate the shape function for the eight point
         """
-        return 0.125 * (1 - coord1) * ( 1 + coord2) * (1 + coord3)
-    
+        return 0.125 * (1 - coords[0]) * (1 + coords[1]) * (1 + coords[2])
+
     def load_scalar_bar(self, vtk_mesh):
         """
         Load the field data in the renderer
