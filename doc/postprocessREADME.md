@@ -20,8 +20,8 @@ pc.post_process_tool()
 ##  Interaction functionality
 The button "Extract S33" will start the process of asking the user for the relevant files. The button "Display S33" can then be used to visualize the *.vtk file.
 
-<span>![<span>Main Window</span>](images/postprocess.png)</span>
-*<a name="fig2"></a> Figure 1: Postprocess*
+<span>![<span>Main Window</span>](images/postprocess1.png)</span>
+*<a name="fig1"></a> Figure 1: Postprocess*
 
 ## Known issues
 - The vtk display seems to cut parts of the piece when rotating
