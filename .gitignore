@@ -4,3 +4,4 @@
 /data/*
 pyCM/pyCMconfig.yml
 pyCM/__pycache__/*
+run.py
