@@ -259,40 +259,44 @@ class MeshInteractor(QtWidgets.QMainWindow):
         quadrature_data = self.get_quadrature_data(dat_file)
         node_data, element_data = self.get_node_data(inp_file)
 
-        stress_array = self.calculate_C3D8(quadrature_data, element_data, node_data)
+        stress_array = self.calculate_quadrature_stress_C3D8(quadrature_data, element_data, node_data)
 
-    def calculate_C3D8(self, quadrature_data, element_data, node_data):
+    def calculate_quadrature_stress_C3D8(self, quadrature_data, element_data, node_data):
         """
         Calculate the stress values from quadrature and element data
         for element C3D8.
         """
 
-        # we have a linear map from element_data to quadrature_data
-        # take i*8 to (i+1)*8 from quadrature_data
-        # take i row from element_data
-        # find each column from i row from element_data in node_data
-        # DONE
-
-        # default step for the C3D8 element
+        # default step for the C3D8 element -> number of nodes
         element_step = 8
 
         # define the element counter
         element_index = 0
 
         # define the counter for the shape matrix
-        shape_matrix_index  = 0
+        shape_matrix_index = 0
 
         #for row_index in range(0, len(quadrature_data), element_step):
         for row_index in range(0, 1, element_step):
-            # extract quadrature points
-            quadrature_point_1 = quadrature_data[row_index, :]
-            quadrature_point_2 = quadrature_data[row_index + 1, :]
-            quadrature_point_3 = quadrature_data[row_index + 2, :]
-            quadrature_point_4 = quadrature_data[row_index + 3, :]
-            quadrature_point_5 = quadrature_data[row_index + 4, :]
-            quadrature_point_6 = quadrature_data[row_index + 5, :]
-            quadrature_point_7 = quadrature_data[row_index + 6, :]
-            quadrature_point_8 = quadrature_data[row_index + 7, :]
+            # extract the stresses at the quadrature points
+            quadrature_point_1 = quadrature_data[row_index, 4]
+            quadrature_point_2 = quadrature_data[row_index + 1, 4]
+            quadrature_point_3 = quadrature_data[row_index + 2, 4]
+            quadrature_point_4 = quadrature_data[row_index + 3, 4]
+            quadrature_point_5 = quadrature_data[row_index + 4, 4]
+            quadrature_point_6 = quadrature_data[row_index + 5, 4]
+            quadrature_point_7 = quadrature_data[row_index + 6, 4]
+            quadrature_point_8 = quadrature_data[row_index + 7, 4]
+
+            # construct the quadrature stress matrix
+            quadrature_stress = np.array([quadrature_point_1,
+                                          quadrature_point_2,
+                                          quadrature_point_3,
+                                          quadrature_point_4,
+                                          quadrature_point_5,
+                                          quadrature_point_6,
+                                          quadrature_point_7,
+                                          quadrature_point_8])
 
             # extract element row
             element_row = element_data[element_index, :]
@@ -311,52 +315,33 @@ class MeshInteractor(QtWidgets.QMainWindow):
             nodal_point_7 = node_data[int(element_row[7]) - 1, :]
             nodal_point_8 = node_data[int(element_row[8]) - 1, :]
 
-            print(quadrature_point_1)
-            print(quadrature_point_2)
-            print(quadrature_point_3)
-            print(quadrature_point_4)
-            print(quadrature_point_5)
-            print(quadrature_point_6)
-            print(quadrature_point_7)
-            print(quadrature_point_8)
-
-            print(nodal_point_1)
-            print(nodal_point_2)
-            print(nodal_point_3)
-            print(nodal_point_4)
-            print(nodal_point_5)
-            print(nodal_point_6)
-            print(nodal_point_7)
-            print(nodal_point_8)
-
             # create the square shape function matrix for C3D8
             shape_function_matrix = np.zeros(shape=(8,8))
 
             # obtain the natural coordinates of the gauss points
             C3D8_qp_natural_coord = self.C3D8_quadrature_points()
 
-            print(C3D8_qp_natural_coord.shape)
-            print(C3D8_qp_natural_coord)
-
-            for shape_matrix_index in range(0, 7):
+            for shape_matrix_index in range(0, 8):
                 shape_function_matrix[shape_matrix_index, 0] = self.C3D8_shape_function1( \
-                                                                C3D8_qp_natural_coord[0, :])
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
                 shape_function_matrix[shape_matrix_index, 1] = self.C3D8_shape_function2( \
-                                                                C3D8_qp_natural_coord[1, :])
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
                 shape_function_matrix[shape_matrix_index, 2] = self.C3D8_shape_function3( \
-                                                                C3D8_qp_natural_coord[2, :])
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
                 shape_function_matrix[shape_matrix_index, 3] = self.C3D8_shape_function4( \
-                                                                C3D8_qp_natural_coord[3, :])
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
                 shape_function_matrix[shape_matrix_index, 4] = self.C3D8_shape_function5( \
-                                                                C3D8_qp_natural_coord[4, :])
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
                 shape_function_matrix[shape_matrix_index, 5] = self.C3D8_shape_function6( \
-                                                                C3D8_qp_natural_coord[5, :])
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
                 shape_function_matrix[shape_matrix_index, 6] = self.C3D8_shape_function7( \
-                                                                C3D8_qp_natural_coord[6, :])
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
                 shape_function_matrix[shape_matrix_index, 7] = self.C3D8_shape_function8( \
-                                                                C3D8_qp_natural_coord[7, :])
-            print (shape_function_matrix)
-            return 1
+                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+
+            # calculate the nodal stresses
+            nodal_stress = shape_function_matrix.dot(quadrature_stress)
+        return 1
     def get_node_data(self, file_name):
         """
         Reads the nodal point coordinates. Returns a numpy array.
