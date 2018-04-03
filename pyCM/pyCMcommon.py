@@ -23,7 +23,6 @@ def get_file(*args):
 	'''
 	ext=args[0]
 	ftypeName={}
-	ftypeName['*.dat']=["Select the point cloud data file:", "*.dat", "DAT File"]
 	ftypeName['*.txt']=["Select the point cloud data file:", "*.txt", "TXT File"]
 	ftypeName['*.mat']=["Select MAT data file:", "*.mat", "MAT File"]
 	ftypeName['*.vtk']=["Select the legacy VTK file:", "*.vtk", "VTK File"]
@@ -45,13 +44,14 @@ def get_file(*args):
 	if filer == '':
 		filer = None
 		startdir = None
+		return filer, startdir
 		
 	else:
 		filer=str(filer)
 		startdir=os.path.dirname(filer)
 	
-	#Hacky, but resolves the Qstring that gets returned by QfileDialog
-	return filer.split(",")[0].strip("'('"), startdir.strip("('")
+		#Hacky, but resolves the Qstring that gets returned by QfileDialog
+		return filer.split(",")[0].strip("'('"), startdir.strip("('")
 				
 	
 def get_open_file(ext,outputd):
