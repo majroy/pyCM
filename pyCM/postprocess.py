@@ -73,7 +73,7 @@ def post_process_tool():
         return window
 
 
-class QtMainWindow:
+class QtMainWindow(object):
     """
     Setup and handle VTK and QT interaction
     """
@@ -110,6 +110,27 @@ class QtMainWindow:
         self.read_sim_data_button = QtWidgets.QPushButton('Extract S33')
         self.display_vtk_button = QtWidgets.QPushButton('Display S33')
 
+        self.horiz_line3 = QtWidgets.QFrame()
+        self.horiz_line3.setFrameStyle(QtWidgets.QFrame.HLine)
+        self.stress_label = QtWidgets.QLabel("Input min/max S33")
+        self.stress_label.setWordWrap(True)
+        self.stress_label.setFont(QtGui.QFont("Helvetica"))
+        self.stress_label.setMinimumWidth(50)
+
+        # enter minimum stress to update the display
+        self.inp_min_stress = QtWidgets.QLabel("Min S33:")
+        self.inp_min_stress = QtWidgets.QLineEdit()
+        self.inp_min_stress.setMinimumWidth(50)
+
+        # enter maximum stress to update the display
+        self.inp_max_stress = QtWidgets.QLabel("Max S33:")
+        self.inp_max_stress = QtWidgets.QLineEdit()
+        self.inp_max_stress.setMinimumWidth(50)
+
+        # stress update button
+        self.updateButton = QtWidgets.QPushButton('Update')
+        self.updateButton.setMinimumWidth(50)
+
         self.horiz_line2 = QtWidgets.QFrame()
         self.horiz_line2.setFrameStyle(QtWidgets.QFrame.HLine)
         self.stat_label = QtWidgets.QLabel("Idle")
@@ -118,6 +139,11 @@ class QtMainWindow:
         self.stat_label.setMinimumWidth(50)
 
         self.main_ui_box.addRow(self.read_sim_data_button, self.display_vtk_button)
+        self.main_ui_box.addRow(self.horiz_line3)
+        self.main_ui_box.addRow(self.stress_label)
+        self.main_ui_box.addRow(self.inp_min_stress)
+        self.main_ui_box.addRow(self.inp_max_stress)
+        self.main_ui_box.addRow(self.updateButton)
         self.main_ui_box.addRow(self.horiz_line2)
         self.main_ui_box.addRow(self.stat_label)
         self.box_layout.addLayout(self.main_ui_box)
@@ -159,11 +185,26 @@ class MeshInteractor(QtWidgets.QMainWindow):
         self.scalar_bar_actor = vtk.vtkScalarBarActor()
 
         self.vtk_file = None
+        self.mesh_mapper = vtk.vtkDataSetMapper()
 
         #self.interactor_ui_box.AddObserver("KeyPressEvent", self.Keypress)
 
         self.main_ui_box.read_sim_data_button.clicked.connect(lambda: self.load_integration_points())
         self.main_ui_box.display_vtk_button.clicked.connect(lambda: self.load_vtk_legacy_file())
+        self.main_ui_box.updateButton.clicked.connect(lambda: self.update_stress_display())
+
+    def update_stress_display(self):
+        """
+        Updates the display to reflect the input of min/max stress
+        """
+        QtWidgets.QApplication.processEvents()
+
+        min_stress = float(self.main_ui_box.inp_min_stress.text())
+        max_stress = float(self.main_ui_box.inp_max_stress.text())
+
+        self.mesh_mapper.SetScalarRange(min_stress, max_stress)
+        self.main_ui_box.vtk_widget.update()
+        self.stat_label = QtWidgets.QLabel("Updated!")
 
     def load_vtk_legacy_file(self):
         """
@@ -178,7 +219,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
             self.main_renderer.RemoveActor(self.scalar_bar_actor)
 
         # load vtk file
-        self.vtk_file,_=get_file("*.vtk")
+        self.vtk_file,_ = get_file("*.vtk")
         mesh_source = vtk.vtkUnstructuredGridReader()
         mesh_source.SetFileName(self.vtk_file)
 
@@ -211,13 +252,13 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         scalar_range = mesh_reader_output.GetScalarRange()
 
-        #mesh data set
-        mesh_mapper = vtk.vtkDataSetMapper()
-        mesh_mapper.SetInputData(mesh_reader_output)
-        mesh_mapper.SetScalarRange(scalar_range)
-        mesh_mapper.SetLookupTable(mesh_lookup_table)
+        # mesh data set
+        #self.mesh_mapper = vtk.vtkDataSetMapper()
+        self.mesh_mapper.SetInputData(mesh_reader_output)
+        self.mesh_mapper.SetScalarRange(scalar_range)
+        self.mesh_mapper.SetLookupTable(mesh_lookup_table)
 
-        #define scalar bar actor
+        # define scalar bar actor
         self.scalar_bar_actor.SetOrientationToVertical()
         self.scalar_bar_actor.SetLookupTable(mesh_lookup_table)
 
@@ -228,10 +269,10 @@ class MeshInteractor(QtWidgets.QMainWindow):
         scalar_bar_widget.On()
 
         #define the mesh actor properties
-        self.mesh_actor.SetMapper(mesh_mapper)
+        self.mesh_actor.SetMapper(self.mesh_mapper)
         self.mesh_actor.GetProperty().SetLineWidth(1)
-        self.mesh_actor.GetProperty().SetColor(0, 0.9020, 0.9020)
-        self.mesh_actor.GetProperty().SetEdgeColor([0.8, 0.8, 0.8])
+        #self.mesh_actor.GetProperty().SetColor(0, 0.9020, 0.9020)
+        #self.mesh_actor.GetProperty().SetEdgeColor([0.8, 0.8, 0.8])
         self.mesh_actor.GetProperty().EdgeVisibilityOn()
 
         #display the actors
@@ -248,15 +289,15 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
     def load_integration_points(self):
         """
-        Writes the the FE output data - gaussian integration points
+        Writes the FE output data - gaussian integration points
         to the legacy vtk file. The FE data is stored in the .dat file for ABAQUS.
         """
         QtWidgets.QApplication.processEvents()
 
         # load input files
         # use the original *.inp file, not *.abq.inp
-        dat_file,_=get_file("*.dat")
-        inp_file,_=get_file("*.inp")
+        dat_file,_ = get_file("*.dat")
+        inp_file,_ = get_file("*.inp")
 
         # default ABAQUS C3D8 elements only for now
         quadrature_data = self.get_quadrature_data(dat_file)
@@ -267,6 +308,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # nodes will duplicate in elements
         # sum the contributions from each node
+        # does abaqus sum or average?
         stress_data_frame = pandas.DataFrame(stress_array)
         stress_data_frame[5] = stress_data_frame.groupby([0])[4].transform('sum')
 
@@ -279,7 +321,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         stress_data_frame = pandas.DataFrame(stress_data_frame)
 
         # get *.vtk file
-        vtk_file,_=get_file("*.vtk")
+        vtk_file, _ = get_file("*.vtk")
 
         # append at the end of the vtk file
         self.append_postprocess_data(vtk_file, stress_data_frame)
@@ -298,7 +340,8 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # add vtk headers
         #vtk_header_text = "SCALARS S33 \nLOOKUP_ TABLE default\n"
-        file_handle.write(str.encode('POINT_DATA %i\nSCALARS S33 DOUBLE\nLOOKUP_TABLE default\n' % stress_data_frame[4].count()))
+        file_handle.write(str.encode('POINT_DATA %i\nSCALARS S33 DOUBLE\nLOOKUP_TABLE default\n' % \
+                                     stress_data_frame[4].count()))
 
         # add the dataframe
         np.savetxt(file_handle, stress_data_frame[4].values, fmt='%.6f')
@@ -323,7 +366,6 @@ class MeshInteractor(QtWidgets.QMainWindow):
         stress_array = np.zeros(shape=(len(quadrature_data) - 1, 5))
 
         for row_index in range(0, len(quadrature_data) - 1, element_step):
-        #for row_index in range(0, 1, element_step):
             # extract the stresses at the quadrature points
             quadrature_point_1 = quadrature_data[row_index, 4]
             quadrature_point_2 = quadrature_data[row_index + 1, 4]
