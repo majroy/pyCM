@@ -316,7 +316,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         del stress_data_frame[4]
 
         # drop the duplicates
-        stress_data_frame = pandas.DataFrame(stress_data_frame).drop_duplicates()
+        stress_data_frame = pandas.DataFrame(stress_data_frame).drop_duplicates(subset=[0], keep=False)
         stress_data_frame = pandas.DataFrame(stress_data_frame).values
         stress_data_frame = pandas.DataFrame(stress_data_frame)
 
@@ -534,7 +534,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # extract quadrature data for
         # node id, quadrature id, x coord, y coord, z coord, S33
-        quadrature_data = np.genfromtxt(file_name, skip_header=row_start, skip_footer=11, \
+        quadrature_data = np.genfromtxt(file_name, skip_header=row_start, skip_footer=row_end, \
                                     usecols=(0, 2, 3, 4, 7), autostrip=True)
         return quadrature_data
 
