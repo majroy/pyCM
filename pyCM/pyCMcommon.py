@@ -26,6 +26,8 @@ def get_file(*args):
 	ftypeName['*.txt']=["Select the point cloud data file:", "*.txt", "TXT File"]
 	ftypeName['*.mat']=["Select MAT data file:", "*.mat", "MAT File"]
 	ftypeName['*.vtk']=["Select the legacy VTK file:", "*.vtk", "VTK File"]
+	ftypeName['*.dat']=["Select FEA results file:", "*.dat", "DAT File"]
+	ftypeName['*.inp']=["Select FEA input file:", "*.inp", "INP File"]
 
 	if len(args)==2:
 		ftypeName[ext][0] = args[1]
@@ -35,7 +37,7 @@ def get_file(*args):
 		lapp = QtWidgetsQApplication([])
 	if ext=='*.txt':
 		filer = QtWidgets.QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
-         os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;'+ftypeName['*.dat'][2]+' ('+ftypeName['*.dat'][1]+');;'+ftypeName['*.mat'][2]+' ('+ftypeName['*.mat'][1]+');;All Files (*.*)'))
+         os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;'+ftypeName['*.mat'][2]+' ('+ftypeName['*.mat'][1]+');;All Files (*.*)'))
 	else:
 		filer = QtWidgets.QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
          os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;All Files (*.*)'))
@@ -47,11 +49,12 @@ def get_file(*args):
 		return filer, startdir
 		
 	else:
-		filer=str(filer)
-		startdir=os.path.dirname(filer)
-	
+		# filer=str(filer)
+		# startdir=os.path.dirname(filer)
+		print(filer[0])
+		return filer[0], os.path.dirname(filer[0])
 		#Hacky, but resolves the Qstring that gets returned by QfileDialog
-		return filer.split(",")[0].strip("'('"), startdir.strip("('")
+		# return filer.split(",")[0].strip("'('"), startdir.strip("('")
 				
 	
 def get_open_file(ext,outputd):
@@ -253,6 +256,52 @@ def read_uom_mat(file):
 		print("Couldn't data from %s."%file)
 		return
 		
+def set_size_policy(target_widget):
+	sizePolicy=QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+	sizePolicy.setHorizontalStretch(0)
+	sizePolicy.setVerticalStretch(0)
+	sizePolicy.setHeightForWidth(target_widget.sizePolicy().hasHeightForWidth())
+	target_widget.setSizePolicy(sizePolicy)
+	target_widget.setMinimumSize(1080, 600); #leave 100 px on the size for i/o
+
+def read_abq_dat(infile):
+	"""
+	Reads an output dat file from Abaqus to recover information written by EL PRINT
+	"""
+	#string that identifies start of EL PRINT and one line after the end of the output
+	keyword =['    ELEMENT  PT FOOT-',' MAXIMUM']  
+	
+	#create counter for all lines in the file & number of blank lines
+	i,blanklines=0,0
+	#read file and find both where keyword occurs
+	fid = open(infile)
+	lineFlag=[]
+	while 1:
+		lines = fid.readlines(100000)
+		if not lines:
+			break
+		for line in lines:
+			i+=1
+			#look for keywords
+			for j in keyword:
+				if line[0:len(j)]==j:
+					lineFlag.append(i)
+			#start counting blank lines after the second keyword
+			if (len(lineFlag)>=1) and (line in ['\n', '\r\n']):
+				blanklines+=1
+				
+	lineFlag.append(i)
+	s_h=lineFlag[0]+1 #line after lineFlag
+	s_f=lineFlag[2]-lineFlag[1]-blanklines+3 #line no of lineFlag(s) and immediately before/after respective keyword(s)
+
+	fid.close()
+
+	#pass element no, integration pnt coordinates (x,y,z) & S33 stresses into np matrix
+	return np.genfromtxt(infile, skip_header=s_h,
+								skip_footer=s_f,
+								usecols=(0, 2, 3, 4, 7), 
+								autostrip=True)
+
 class Ui_getFEAconfigDialog(object):
 	def setupUi(self, getFEAconfigDialog):
 		getFEAconfigDialog.setObjectName("getFEAconfigDialog")
@@ -316,6 +365,7 @@ class Ui_getFEAconfigDialog(object):
 		self.ConfigFileLabel.setText(_translate("getFEAconfigDialog", "Current config file:",None))
 		self.ConfigFileLoc.setText(_translate("getFEAconfigDialog", "Undefined", None))
 		self.pushButton.setText(_translate("getFEAconfigDialog", "Set"))
+
 
 
 	def makeConfigChange(self, getFEAconfigDialog):
