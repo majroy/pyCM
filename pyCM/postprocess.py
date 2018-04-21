@@ -307,8 +307,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         stress_array = self.calculate_quadrature_stress_C3D8(quadrature_data, element_data, node_data)
 
         # nodes will duplicate in elements
-        # sum the contributions from each node
-        # does abaqus sum or average?
+        # sum contributions from nodes
         stress_data_frame = pandas.DataFrame(stress_array)
         stress_data_frame[5] = stress_data_frame.groupby([0])[4].transform('sum')
 
