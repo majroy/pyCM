@@ -38,17 +38,17 @@ def post_process_tool():
     if app is None:
         app = QtWidgets.QApplication(sys.argv)
 
-    #spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
-    #splash_pix = QtGui.QPixmap(spl_fname,'PNG')
-    #splash = QtWidgets.QSplashScreen(splash_pix)
-    #splash.setMask(splash_pix.mask())
+    spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
+    splash_pix = QtGui.QPixmap(spl_fname,'PNG')
+    splash = QtWidgets.QSplashScreen(splash_pix)
+    splash.setMask(splash_pix.mask())
 
-    #splash.show()
+    splash.show()
     app.processEvents()
 
     window = MeshInteractor()
     window.show()
-    #splash.finish(window)
+    splash.finish(window)
     window.interactor_ui_box.Initialize()
 
     ret = app.exec_()
