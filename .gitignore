@@ -2,4 +2,6 @@
 /.vscode/*
 # exclude test data specific to me
 /data/*
-/__pycache__/*
+pyCM/pyCMconfig.yml
+pyCM/__pycache__/*
+run.py
