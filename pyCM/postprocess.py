@@ -217,15 +217,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # make scalar red = max; blue = min
         self.draw_color_range(mesh_lookup_table)
-
-        # additional post processing work to be added
-        # grayscale to amplify structural detail
-        #self.draw_grayscale(mesh_lookup_table)
-        # draw contours
-        #self.draw_iso_surface()
-
         mesh_lookup_table.Build()
-
         scalar_range = mesh_reader_output.GetScalarRange()
 
         # mesh data set
@@ -267,7 +259,6 @@ class MeshInteractor(QtWidgets.QMainWindow):
         inp_file,_ = get_file("*.inp")
 
         # default ABAQUS C3D8 elements only for now
-        #quadrature_data = self.get_quadrature_data(dat_file)
         quadrature_data = read_abq_dat(dat_file)
         node_data, element_data = self.get_node_data(inp_file)
 
@@ -370,29 +361,12 @@ class MeshInteractor(QtWidgets.QMainWindow):
             nodal_point_7 = node_data[int(element_row[7]) - 1, :]
             nodal_point_8 = node_data[int(element_row[8]) - 1, :]
 
-            # create the square shape function matrix for C3D8
-            shape_function_matrix = np.zeros(shape=(8,8))
+            # create the square shape function matrix
+            #shape_function_matrix = np.zeros(shape=(8,8))
 
             # obtain the natural coordinates of the gauss points
-            C3D8_qp_natural_coord = self.C3D8_quadrature_points()
-
-            for shape_matrix_index in range(0, 8):
-                shape_function_matrix[shape_matrix_index, 0] = self.C3D8_shape_function1( \
-                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
-                shape_function_matrix[shape_matrix_index, 1] = self.C3D8_shape_function2( \
-                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
-                shape_function_matrix[shape_matrix_index, 2] = self.C3D8_shape_function3( \
-                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
-                shape_function_matrix[shape_matrix_index, 3] = self.C3D8_shape_function4( \
-                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
-                shape_function_matrix[shape_matrix_index, 4] = self.C3D8_shape_function5( \
-                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
-                shape_function_matrix[shape_matrix_index, 5] = self.C3D8_shape_function6( \
-                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
-                shape_function_matrix[shape_matrix_index, 6] = self.C3D8_shape_function7( \
-                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
-                shape_function_matrix[shape_matrix_index, 7] = self.C3D8_shape_function8( \
-                                                                C3D8_qp_natural_coord[shape_matrix_index, :])
+            # and apply the shape functions
+            shape_function_matrix = self.C3D8_quadrature_points()
 
             # extrapolate from quadrature points to nodal points
             nodal_stress = shape_function_matrix.dot(quadrature_stress)
@@ -466,6 +440,9 @@ class MeshInteractor(QtWidgets.QMainWindow):
         The element is a full integration brick with 8 nodes and 8 quadrature points.
         """
 
+        # create the square shape function matrix
+        shape_function_matrix = np.zeros(shape=(8,8))
+
         # natural coordinates of the quadrature points
         nat_coord_quadrature_points = np.array([[-1/3**(0.5), -1/3**(0.5), -1/3**(0.5)], \
                                                 [-1/3**(0.5), -1/3**(0.5), 1/3**(0.5)], \
@@ -475,54 +452,36 @@ class MeshInteractor(QtWidgets.QMainWindow):
                                                 [1/3**(0.5), -1/3**(0.5), 1/3**(0.5)], \
                                                 [1/3**(0.5), 1/3**(0.5), -1/3**(0.5)], \
                                                 [1/3**(0.5), 1/3**(0.5), 1/3**(0.5)]])
-        return nat_coord_quadrature_points
 
-    def C3D8_shape_function1(self, coords):
-        """
-        Calculate the shape function for the first point
-        """
-        return 0.125 * (1 - coords[0]) * (1 - coords[1]) * (1 - coords[2])
+        # apply the shape functions to the natural coordinates
+        # and built the matrix
+        for shape_matrix_index in range(0, 8):
+            shape_function_matrix[shape_matrix_index, 0] = 0.125 * (1 - nat_coord_quadrature_points[shape_matrix_index, 0]) \
+                                                                 * (1 - nat_coord_quadrature_points[shape_matrix_index, 1]) \
+                                                                 * (1 - nat_coord_quadrature_points[shape_matrix_index, 2])
+            shape_function_matrix[shape_matrix_index, 1] = 0.125 * (1 + nat_coord_quadrature_points[shape_matrix_index, 0]) \
+                                                                 * (1 - nat_coord_quadrature_points[shape_matrix_index, 1]) \
+                                                                 * (1 - nat_coord_quadrature_points[shape_matrix_index, 2])
+            shape_function_matrix[shape_matrix_index, 2] = 0.125 * (1 + nat_coord_quadrature_points[shape_matrix_index, 0]) \
+                                                                 * (1 + nat_coord_quadrature_points[shape_matrix_index, 1]) \
+                                                                 * (1 - nat_coord_quadrature_points[shape_matrix_index, 2])
+            shape_function_matrix[shape_matrix_index, 3] = 0.125 * (1 - nat_coord_quadrature_points[shape_matrix_index, 0]) \
+                                                                 * (1 + nat_coord_quadrature_points[shape_matrix_index, 1]) \
+                                                                 * (1 - nat_coord_quadrature_points[shape_matrix_index, 2])
+            shape_function_matrix[shape_matrix_index, 4] = 0.125 * (1 - nat_coord_quadrature_points[shape_matrix_index, 0]) \
+                                                                 * (1 - nat_coord_quadrature_points[shape_matrix_index, 1]) \
+                                                                 * (1 + nat_coord_quadrature_points[shape_matrix_index, 2])
+            shape_function_matrix[shape_matrix_index, 5] = 0.125 * (1 + nat_coord_quadrature_points[shape_matrix_index, 0]) \
+                                                                 * (1 - nat_coord_quadrature_points[shape_matrix_index, 1]) \
+                                                                 * (1 + nat_coord_quadrature_points[shape_matrix_index, 2])
+            shape_function_matrix[shape_matrix_index, 6] = 0.125 * (1 + nat_coord_quadrature_points[shape_matrix_index, 0]) \
+                                                                 * (1 + nat_coord_quadrature_points[shape_matrix_index, 1]) \
+                                                                 * (1 + nat_coord_quadrature_points[shape_matrix_index, 2])
+            shape_function_matrix[shape_matrix_index, 7] = 0.125 * (1 - nat_coord_quadrature_points[shape_matrix_index, 0]) \
+                                                                 * (1 + nat_coord_quadrature_points[shape_matrix_index, 1]) \
+                                                                 * (1 + nat_coord_quadrature_points[shape_matrix_index, 2])
 
-    def C3D8_shape_function2(self, coords):
-        """
-        Calculate the shape function for the second point
-        """
-        return 0.125 * (1 + coords[0]) * (1 - coords[1]) * (1 - coords[2])
-
-    def C3D8_shape_function3(self, coords):
-        """
-        Calculate the shape function for the third point
-        """
-        return 0.125 * (1 + coords[0]) * (1 + coords[1]) * (1 - coords[2])
-
-    def C3D8_shape_function4(self, coords):
-        """
-        Calculate the shape function for the fourth point
-        """
-        return 0.125 * (1 - coords[0]) * (1 + coords[1]) * (1 - coords[2])
-    def C3D8_shape_function5(self, coords):
-        """
-        Calculate the shape function for the fifth point
-        """
-        return 0.125 * (1 - coords[0]) * (1 - coords[1]) * (1 + coords[2])
-
-    def C3D8_shape_function6(self, coords):
-        """
-        Calculate the shape function for the sixth point
-        """
-        return 0.125 * (1 + coords[0]) * (1 - coords[1]) * (1 + coords[2])
-
-    def C3D8_shape_function7(self, coords):
-        """
-        Calculate the shape function for the seventh point
-        """
-        return 0.125 * (1 + coords[0]) * (1 + coords[1]) * (1 + coords[2])
-
-    def C3D8_shape_function8(self, coords):
-        """
-        Calculate the shape function for the eight point
-        """
-        return 0.125 * (1 - coords[0]) * (1 + coords[1]) * (1 + coords[2])
+        return shape_function_matrix
 
     def draw_color_range(self, mesh_lookup_table):
         """
