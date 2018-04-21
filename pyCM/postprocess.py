@@ -286,7 +286,8 @@ class MeshInteractor(QtWidgets.QMainWindow):
         inp_file,_ = get_file("*.inp")
 
         # default ABAQUS C3D8 elements only for now
-        quadrature_data = self.get_quadrature_data(dat_file)
+        #quadrature_data = self.get_quadrature_data(dat_file)
+        quadrature_data = read_abq_dat(dat_file)
         node_data, element_data = self.get_node_data(inp_file)
 
         # obtain a matrix of node number, x, y, z, stress
@@ -301,7 +302,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         del stress_data_frame[4]
 
         # drop the duplicates
-        stress_data_frame = pandas.DataFrame(stress_data_frame).drop_duplicates(subset=[0], keep=False)
+        stress_data_frame = pandas.DataFrame(stress_data_frame).drop_duplicates(subset=[0])
         stress_data_frame = pandas.DataFrame(stress_data_frame).values
         stress_data_frame = pandas.DataFrame(stress_data_frame)
 
@@ -348,9 +349,9 @@ class MeshInteractor(QtWidgets.QMainWindow):
         shape_matrix_index = 0
 
         # define nodal coordinates and stress storage
-        stress_array = np.zeros(shape=(len(quadrature_data) - 1, 5))
+        stress_array = np.zeros(shape=(len(quadrature_data), 5))
 
-        for row_index in range(0, len(quadrature_data) - 1, element_step):
+        for row_index in range(0, len(quadrature_data)-1, element_step):
             # extract the stresses at the quadrature points
             quadrature_point_1 = quadrature_data[row_index, 4]
             quadrature_point_2 = quadrature_data[row_index + 1, 4]
@@ -477,11 +478,11 @@ class MeshInteractor(QtWidgets.QMainWindow):
         node_data = node_data.view().reshape(len(node_data), -1)
         element_data = element_data.view().reshape(len(element_data), -1)
         return node_data, element_data
-
+    """
     def get_quadrature_data(self, file_name):
-        """
+        ""
         Reads the quadrature point coordinates and stress values. Returns a numpy array.
-        """
+        ""
 
         # initialize
         curr_line = 0
@@ -522,7 +523,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         quadrature_data = np.genfromtxt(file_name, skip_header=row_start, skip_footer=row_end, \
                                     usecols=(0, 2, 3, 4, 7), autostrip=True)
         return quadrature_data
-
+    """
     def C3D8_quadrature_points(self):
         """
         Define the natural coordinates of the quadrature points for C3D8.
