@@ -25,11 +25,6 @@ __email__ = "nikola.stoyanov@postgrad.manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2018"
 
-DAT_FILE_LOOKUP_STR = "E L E M E N T   O U T P U T"
-INP_FILE_NODE_LOOKUP_STR = "*Node"
-INP_FILE_ELEM_LOOKUP_STR = "*Element, type=C3D8"
-INP_FILE_ELEM_END_LOOKUP_STR = "*Nset, nset=Part-1-1_SURFACE, generate"
-
 def post_process_tool():
     """
     Build QT interaction
@@ -397,6 +392,11 @@ class MeshInteractor(QtWidgets.QMainWindow):
         """
         Reads the nodal point coordinates. Returns a numpy array.
         """
+
+        # set parser keywords
+        INP_FILE_NODE_LOOKUP_STR = "*Node"
+        INP_FILE_ELEM_LOOKUP_STR = "*Element, type=C3D8"
+        INP_FILE_ELEM_END_LOOKUP_STR = "*Nset, nset=Part-1-1_SURFACE, generate"
 
         # initialize
         curr_line = 0
