@@ -27,26 +27,24 @@ ver 0.1 17-10-20
 import sys
 import numpy as np
 import vtk
-from vtk.Qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt5 import QtGui
-from PyQt5.QtGui import QApplication
-import pyCMcommon
+from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from PyQt5 import QtCore, QtGui, QtWidgets
+from .pyCMcommon import *
 
 __author__ = "M.J. Roy"
 __version__ = "0.1"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-__copyright__ = "(c) M. J. Roy, 2014-2017"
+__copyright__ = "(c) M. J. Roy, 2014-2018"
 
 
 def post_process_tool():
     """
     Build QT interaction
     """
-    app = QtGui.QApplication.instance()
-
+    app = QtWidgets.QApplication.instance()
     if app is None:
-        app = QApplication(sys.argv)
+        app = QtWidgets.QApplication(sys.argv)
 
     app.processEvents()
     window = MeshInteractor()
@@ -77,31 +75,31 @@ class QtMainWindow:
         main_window.setWindowTitle("pyCM - FEA postprocessing v%s" %__version__)
         main_window.resize(1280, 720)
 
-        self.central_widget = QtGui.QWidget(main_window)
-        self.box_layout = QtGui.QHBoxLayout(self.central_widget)
-        self.main_ui_box = QtGui.QFormLayout()
+        self.central_widget = QtWidgets.QWidget(main_window)
+        self.box_layout = QtWidgets.QHBoxLayout(self.central_widget)
+        self.main_ui_box = QtWidgets.QFormLayout()
 
         self.vtk_widget = QVTKRenderWindowInteractor(self.central_widget)
-        self.vtk_widget.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.vtk_widget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.vtk_widget.setMinimumSize(1150, 640)
 
         self.box_layout.addWidget(self.vtk_widget)
         self.box_layout.addStretch(1)
         main_window.setCentralWidget(self.central_widget)
 
-        self.horiz_line1 = QtGui.QFrame()
-        self.horiz_line1.setFrameStyle(QtGui.QFrame.HLine)
-        self.outline_label = QtGui.QLabel("Outline modification")
-        self.head_font = QtGui.QFont("Helvetica [Cronyx]", weight=QtGui.QFont.Bold)
+        self.horiz_line1 = QtWidgets.QFrame()
+        self.horiz_line1.setFrameStyle(QtWidgets.QFrame.HLine)
+        self.outline_label = QtWidgets.QLabel("Outline modification")
+        self.head_font=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
         self.outline_label.setFont(self.head_font)
 
-        self.read_mesh_button = QtGui.QPushButton('Read Mesh')
-        self.read_data_button = QtGui.QPushButton('Read Dat')
+        self.read_mesh_button = QtWidgets.QPushButton('Read Mesh')
+        self.read_data_button = QtWidgets.QPushButton('Read Dat')
 
         self.main_ui_box.addRow(self.read_mesh_button, self.read_data_button)
         self.box_layout.addLayout(self.main_ui_box)
 
-class MeshInteractor(QtGui.QMainWindow):
+class MeshInteractor(QtWidgets.QMainWindow):
     """
     Sets up the main VTK window
     reads .mat file and sets connection between UI and interactor
@@ -109,7 +107,7 @@ class MeshInteractor(QtGui.QMainWindow):
 
     def __init__(self, parent = None):
         #read config file and setup code to be inserted here
-        QtGui.QMainWindow.__init__(self, parent)
+        QtWidgets.QMainWindow.__init__(self, parent)
         self.main_ui_box = QtMainWindow(self)
 
         self.main_renderer = vtk.vtkRenderer()
@@ -145,114 +143,26 @@ class MeshInteractor(QtGui.QMainWindow):
         self.main_ui_box.read_data_button.clicked.connect(lambda: self.load_integration_points())
         self.main_ui_box.read_data_button.clicked.connect(lambda: self.load_visualization())
 
-    def load_vtk_xml_file(self, vtkFileAcquired = False):
+    def load_vtk_legacy_file(self):
         """
         Loads the vtk mesh and displays the scalar data in a color map.
         Allows further postprocessing to be done, such as grayscale and contour plots.
         """
 
-        # to remove existing actors
+        QtWidgets.QApplication.processEvents()
+
         if hasattr(self, "mesh_actor"):
             self.main_renderer.RemoveActor(self.mesh_actor)
             self.main_renderer.RemoveActor(self.scalar_bar_actor)
 
-        if vtkFileAcquired == False:
-            self.vtk_file, startdir = pyCMcommon.get_file('*.vtk')
-
-        # only xml files in vtk support integration points
-        # no more legacy
-        mesh_source = vtk.vtkXMLUnstructuredGridReader()
-
-        mesh_source.SetFileName(self.vtk_file)
-
-        # vtk will only read the first scalar. If there is more than one we need to specify it
-        # in case the field is empty vtk will not display a scalar field
-        # this is convevient since we can call the same function after adding the scalar data
-        #mesh_source.SetScalarsName("T")
-        #mesh_source.Update()
-        mesh_reader_output = mesh_source.GetOutput()
-
-        # bounds for axis
-        bounds = mesh_reader_output.GetBounds()
-
-        # show element edges
-        edges = vtk.vtkExtractEdges()
-        edges.SetInputConnection(mesh_source.GetOutputPort())
-        edges.Update()
-
-        # lookup table and scalar range for a vtk file
-        mesh_lookup_table = vtk.vtkLookupTable()
-
-        # make scalar red = max; blue = min
-        self.draw_color_range(mesh_lookup_table)
-
-        # grayscale to amplify structural detail
-        #self.draw_grayscale(mesh_lookup_table)
-
-        # draw contours
-        #self.draw_iso_surface()
-
-        mesh_lookup_table.Build()
-
-        scalar_range = mesh_reader_output.GetScalarRange()
-
-        #mesh data set
-        mesh_mapper = vtk.vtkDataSetMapper()
-        mesh_mapper.SetInputData(mesh_reader_output)
-        mesh_mapper.SetScalarRange(scalar_range)
-        mesh_mapper.SetLookupTable(mesh_lookup_table)
-
-        #define scalar bar actor
-        self.scalar_bar_actor.SetOrientationToVertical()
-        self.scalar_bar_actor.SetLookupTable(mesh_lookup_table)
-
-        #the scalar bar widget is associated with the qt interactor box
-        scalar_bar_widget = vtk.vtkScalarBarWidget()
-        scalar_bar_widget.SetInteractor(self.interactor_ui_box)
-        scalar_bar_widget.SetScalarBarActor(self.scalar_bar_actor)
-        scalar_bar_widget.On()
-
-        #define the mesh actor properties
-        self.mesh_actor.SetMapper(mesh_mapper)
-        self.mesh_actor.GetProperty().SetLineWidth(1)
-        self.mesh_actor.GetProperty().SetColor(0, 0.9020, 0.9020)
-        self.mesh_actor.GetProperty().SetEdgeColor([0.8, 0.8, 0.8])
-        self.mesh_actor.GetProperty().EdgeVisibilityOn()
-
-        #display the actors
-        self.main_renderer.AddActor(self.mesh_actor)
-        self.main_renderer.AddActor(self.scalar_bar_actor)
-
-        #self.limits[4] = bounds[4]
-        #self.limits[5] = bounds[5]
-
-        #add axis code - causes a crash???!
-        #self.AddAxis(self.limits, 1)
-
-        self.main_ui_box.vtk_widget.update()
-
-    def load_vtk_legacy_file(self, vtkFileAcquired = False):
-        """
-        Loads the vtk mesh and displays the scalar data in a color map.
-        Allows further postprocessing to be done, such as grayscale and contour plots.
-        """
-        #ConvertInptoVTK("")
-        # to remove existing actors
-        if hasattr(self, "mesh_actor"):
-            self.main_renderer.RemoveActor(self.mesh_actor)
-            self.main_renderer.RemoveActor(self.scalar_bar_actor)
-
-        if vtkFileAcquired == False:
-            self.vtk_file, startdir = pyCMcommon.get_file('*.vtk')
-
+        self.vtk_file,_=get_file("*.vtk")
         mesh_source = vtk.vtkUnstructuredGridReader()
-
         mesh_source.SetFileName(self.vtk_file)
 
         # vtk will only read the first scalar. If there is more than one we need to specify it
         # in case the field is empty vtk will not display a scalar field
         # this is convevient since we can call the same function after adding the scalar data
-        mesh_source.SetScalarsName("Stress2")
+        mesh_source.SetScalarsName("S33")
         mesh_source.Update()
         mesh_reader_output = mesh_source.GetOutput()
 
