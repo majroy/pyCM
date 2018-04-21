@@ -27,12 +27,8 @@ def get_file(*args):
 	ftypeName['*.txt']=["Select the point cloud data file:", "*.txt", "TXT File"]
 	ftypeName['*.mat']=["Select MAT data file:", "*.mat", "MAT File"]
 	ftypeName['*.vtk']=["Select the legacy VTK file:", "*.vtk", "VTK File"]
-<<<<<<< a12a38ee63816f604f939e4b031682a7f4428023
 	ftypeName['*.dat']=["Select FEA results file:", "*.dat", "DAT File"]
 	ftypeName['*.inp']=["Select FEA input file:", "*.inp", "INP File"]
-=======
-	ftypeName['*.inp']=["Select simulation input file:", "*.inp", "INP File"]
->>>>>>> Added read methods for integration and nodal points
 
 	if len(args)==2:
 		ftypeName[ext][0] = args[1]

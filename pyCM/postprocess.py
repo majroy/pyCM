@@ -6,22 +6,8 @@ Current mapping is as follows:
 LMB   - rotate about point cloud centroid.
 MMB   - pan
 RMB   - zoom
-1     - view 1, default, looks down z axis onto xy plane
-2     - view 2, looks down x axis onto zy plane
-3     - view 3, looks down y axis onto zx plane
-z     - increase z-aspect ratio of displacement BC
-x     - decrease z-aspect ratio of displacement BC
-c     - return to default z-aspect
-f     - flip colors from white on dark to dark on white
-i     - save output to .png in current working directory
-r     - remove/reinstate compass/axes
-o     - remove/reinstate outline
-LMB+p - The p button with the Left mouse button allow
-        for selecting rigid body boundary conditions.
-        Click first and then press p to select.
-e     - allows the user to change their FEA exec location
 -------------------------------------------------------------------------------
-ver 0.1 17-10-20
+ver 0.1 21 April 2018
 """
 
 import sys
@@ -33,9 +19,9 @@ from PyQt5 import QtGui, QtWidgets
 from pkg_resources import Requirement, resource_filename
 from .pyCMcommon import *
 
-__author__ = "M.J. Roy"
+__author__ = "N. Stoyanov"
 __version__ = "0.1"
-__email__ = "matthew.roy@manchester.ac.uk"
+__email__ = "nikola.stoyanov@postgrad.manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2018"
 
