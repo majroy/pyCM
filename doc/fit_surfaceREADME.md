@@ -1,28 +1,29 @@
 # fit_surface
 
 ## Background
-Reads data from the align & average step and provides a GUI which is essentially a wrapper for scipy's FITPACK bivariate spline fitting function. Writes to a results *.mat file containing the spline fit both from FITPACK as well as attempting to match MATLAB's spline objects.
-
-Import via `from pyCM import fit_surface`.
+Reads data from the align & average step and provides a GUI which is essentially a wrapper for [Scipy's FITPACK bivariate spline fitting function](https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.interpolate.bisplrep.html#scipy.interpolate.bisplrep). Writes to a results *.mat file containing the spline fit both from FITPACK as well as attempting to match [MATLAB's spline objects](https://uk.mathworks.com/matlabcentral/linkexchange/links/116-mathworks-spline-toolbox).
 
 ## Initializing
-GUI based. There is one main GUI-enabled function, called `sf_interactor`.
 
 **Input and output descriptors**
 Input | Description
 ---  |---
-Input file	| A *.mat file with a *ref* structure containing x_out: N×3 matrix of the points that comprise the outline, and a matrix *aa*, which is an N×3 matrix of points comprising the aligned and averaged data.
+Input file	| A *.mat file with a `ref` structure containing an `x_out` field, see [point_cloud](point_cloudREADME.md): Nx3 matrix of the points that comprise the outline, and a matrix `aa`, which is an Nx3 matrix of points comprising the aligned and averaged data -  see [align_average](align_averageREADME.md).
 
 Output | Description
 ---  |---
-Spline data structure | A *spline_x* structure written to the *.mat results file which contains the following fields:<ul><li>knots: N×2 cell arrays of knots in the x & y directions, respectively.</li><li>dim: dimension of the spline (required for MATLAB interoperability)</li><li>form: form of the spline - defaults to 'B-' (required for MATLAB interoperability)</li><li>number: N×2 the number of knots in x and y, respectively (required for MATLAB interoperability)</li><li>tck: FITPACK generated spline information, a list that contains the knots, coefficients and order.</li><li>coefs: matrix of coefficients with dimensions of dim×N×M, according to the dimension, x and y directions (required for MATLAB interoperability)</li></ul> 
+Spline data structure | A `spline_x` structure written to the *.mat results file which contains the following fields:<ul><li>`knots`: Nx2 cell arrays of knots in the x & y directions, respectively.</li><li>`dim`: dimension of the spline (required for MATLAB interoperability)</li><li>`form`: form of the spline - defaults to 'B-' (required for MATLAB interoperability)</li><li>`number`: Nx2 the number of knots in x and y, respectively (required for MATLAB interoperability)</li><li>`tck`: FITPACK generated spline information, a list that contains the knots, coefficients and order.</li><li>`coefs`: matrix of coefficients with dimensions of dimxNxM, according to the dimension, x and y directions (required for MATLAB interoperability)</li></ul> 
 
-The function can be called from interactive Python according to:
+Called from Python according to:
 ~~~
->from pyCM import fit_surface
->sf_interactor()
+from pyCM import fit_surface as fs
+fs.sf_def()
 ~~~
-which will provide a GUI to locate the *.mat file with the floating and reference point cloud data, according to the description above.
+which will provide a GUI to locate the *.mat file with the floating and reference point cloud data, according to the description above. Alternatively, the path to the target *.mat file can be specified directly:
+~~~
+from pyCM import fit_surface as fs
+fs.sf_def('PathToMatFile.mat')
+~~~
 
 ##  Interaction functionality
 On launching, a custom interactor is generated ([Fig. 1](#fig1)) which permits the same types of manipulation as other pyCM tools in terms of view manipulation. The **z**, **x** and **c** keys only affect the aspect in the z direction, however.

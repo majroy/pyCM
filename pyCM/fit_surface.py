@@ -23,17 +23,18 @@ o - remove/reinstate outline
 e - write output
 -------------------------------------------------------------------------------
 ver 1.1 17-17-03
+1.1 - Initial release
+1.2 - Refactored for PyQt5 & Python 3.x
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.1"
+__version__ = "1.2"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 
 import os,sys,time
 import vtk
-from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtGui import QApplication
+from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from PyQt5 import QtCore, QtGui, QtWidgets
 import numpy as np
 import scipy.io as sio
 from scipy.interpolate import griddata,bisplrep,bisplev
@@ -41,15 +42,15 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.spatial import Delaunay
 from matplotlib import path
 from pkg_resources import Requirement, resource_filename
-from pyCMcommon import *
+from .pyCMcommon import *
 
 
-def sf_interactor(*args, **kwargs):
-	app = QApplication(sys.argv)
+def sf_def(*args, **kwargs):
+	app = QtWidgets.QApplication(sys.argv)
 	
 	spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
 	splash_pix = QtGui.QPixmap(spl_fname,'PNG')
-	splash = QtGui.QSplashScreen(splash_pix)
+	splash = QtWidgets.QSplashScreen(splash_pix)
 	splash.setMask(splash_pix.mask())
 
 	splash.show()
@@ -79,19 +80,19 @@ class sf_MainWindow(object):
 		MainWindow.setObjectName("MainWindow")
 		MainWindow.setWindowTitle("pyCM - surface fitting v%s" %__version__)
 		MainWindow.resize(1280, 720)
-		self.centralWidget = QtGui.QWidget(MainWindow)
-		self.Boxlayout = QtGui.QHBoxLayout(self.centralWidget)
-		self.Subtendlayout=QtGui.QVBoxLayout()
-		splineBox = QtGui.QFormLayout()
-		sectionBox = QtGui.QGridLayout()
+		self.centralWidget = QtWidgets.QWidget(MainWindow)
+		self.Boxlayout = QtWidgets.QHBoxLayout(self.centralWidget)
+		self.Subtendlayout=QtWidgets.QVBoxLayout()
+		splineBox = QtWidgets.QFormLayout()
+		sectionBox = QtWidgets.QGridLayout()
 
 
 		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
-		self.vtkWidget.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+		self.vtkWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.vtkWidget.setMinimumSize(1150, 700); #leave 100 px on the size for i/o
 
 		self.Subtendlayout.addWidget(self.vtkWidget)
-		self.activeFileLabel=QtGui.QLabel("Idle")
+		self.activeFileLabel=QtWidgets.QLabel("Idle")
 		self.activeFileLabel.setWordWrap(True)
 		self.activeFileLabel.setFont(QtGui.QFont("Helvetica",italic=True))
 		self.activeFileLabel.setMinimumWidth(100)
@@ -106,84 +107,84 @@ class sf_MainWindow(object):
 		# self.Boxlayout.addWidget(self.vtkWidget)
 		# self.Boxlayout.addStretch()
 		# MainWindow.setCentralWidget(self.centralWidget)
-		self.reloadButton = QtGui.QPushButton('Load')
-		splineLabel=QtGui.QLabel("Bivariate spline fitting")
+		self.reloadButton = QtWidgets.QPushButton('Load')
+		splineLabel=QtWidgets.QLabel("Bivariate spline fitting")
 		splineLabel.setFont(QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold))
-		self.numLabel1=QtGui.QLabel("Knot spacing (x)")
-		self.numEdit1 = QtGui.QLineEdit()
+		self.numLabel1=QtWidgets.QLabel("Knot spacing (x)")
+		self.numEdit1 = QtWidgets.QLineEdit()
 		self.numEdit1.setText('4')
 		self.numEdit1.setMinimumWidth(50)
 		
-		self.numLabel2=QtGui.QLabel("Knot spacing (y)")
-		self.numEdit2 = QtGui.QLineEdit()
+		self.numLabel2=QtWidgets.QLabel("Knot spacing (y)")
+		self.numEdit2 = QtWidgets.QLineEdit()
 		self.numEdit2.setText('4')
 		self.numEdit2.setMinimumWidth(50)
 		
-		self.numLabel3=QtGui.QLabel("Spline order (x)")
-		self.numEdit3 = QtGui.QSpinBox()
+		self.numLabel3=QtWidgets.QLabel("Spline order (x)")
+		self.numEdit3 = QtWidgets.QSpinBox()
 		self.numEdit3.setValue(3)
 		self.numEdit3.setMinimum(1)
 		self.numEdit3.setMaximum(5)
 		self.numEdit3.setMinimumWidth(50)
 		
-		self.numLabel4=QtGui.QLabel("Spline order (y)")
-		self.numEdit4 = QtGui.QSpinBox()
+		self.numLabel4=QtWidgets.QLabel("Spline order (y)")
+		self.numEdit4 = QtWidgets.QSpinBox()
 		self.numEdit4.setValue(3)
 		self.numEdit4.setMinimum(1)
 		self.numEdit4.setMaximum(5)
 		self.numEdit4.setMinimumWidth(50)
 		
-		self.numLabel5=QtGui.QLabel("Smoothing:")
-		self.numEdit5 = QtGui.QLineEdit()
+		self.numLabel5=QtWidgets.QLabel("Smoothing:")
+		self.numEdit5 = QtWidgets.QLineEdit()
 		self.numEdit5.setText('0')
 		self.numEdit5.setMinimumWidth(50)
 		
-		self.numLabel6=QtGui.QLabel("Display resolution:")
-		self.drx=QtGui.QLineEdit()
-		drx_label=QtGui.QLabel("x")
+		self.numLabel6=QtWidgets.QLabel("Display resolution:")
+		self.drx=QtWidgets.QLineEdit()
+		drx_label=QtWidgets.QLabel("x")
 
-		self.yMin=QtGui.QLineEdit()
-		self.dry=QtGui.QLineEdit()
-		dry_label=QtGui.QLabel("y")
+		self.yMin=QtWidgets.QLineEdit()
+		self.dry=QtWidgets.QLineEdit()
+		dry_label=QtWidgets.QLabel("y")
 		
 		
-		self.updateButton = QtGui.QPushButton('Update')
+		self.updateButton = QtWidgets.QPushButton('Update')
 		self.updateButton.setMinimumWidth(50)
 		
-		self.statusLabel=QtGui.QLabel("Idle")
+		self.statusLabel=QtWidgets.QLabel("Idle")
 		self.statusLabel.setWordWrap(True)
 		self.statusLabel.setFont(QtGui.QFont("Helvetica",italic=True))
 		self.statusLabel.setMinimumWidth(50)
-		horizLine1=QtGui.QFrame()
-		horizLine1.setFrameStyle(QtGui.QFrame.HLine)
-		horizLine2=QtGui.QFrame()
-		horizLine2.setFrameStyle(QtGui.QFrame.HLine)
-		horizLine3=QtGui.QFrame()
-		horizLine3.setFrameStyle(QtGui.QFrame.HLine)
-		horizLine4=QtGui.QFrame()
-		horizLine4.setFrameStyle(QtGui.QFrame.HLine)		
+		horizLine1=QtWidgets.QFrame()
+		horizLine1.setFrameStyle(QtWidgets.QFrame.HLine)
+		horizLine2=QtWidgets.QFrame()
+		horizLine2.setFrameStyle(QtWidgets.QFrame.HLine)
+		horizLine3=QtWidgets.QFrame()
+		horizLine3.setFrameStyle(QtWidgets.QFrame.HLine)
+		horizLine4=QtWidgets.QFrame()
+		horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)		
 
-		sectionLabel=QtGui.QLabel("Data sectioning")
+		sectionLabel=QtWidgets.QLabel("Data sectioning")
 		sectionLabel.setFont(QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold))
 		sectionIntList=[]
-		self.xMin=QtGui.QLineEdit()
+		self.xMin=QtWidgets.QLineEdit()
 		sectionIntList.append(self.xMin)
-		x0_label=QtGui.QLabel("x0")
+		x0_label=QtWidgets.QLabel("x0")
 
-		self.xMax=QtGui.QLineEdit()
+		self.xMax=QtWidgets.QLineEdit()
 		sectionIntList.append(self.xMax)
-		x1_label=QtGui.QLabel("x1")
+		x1_label=QtWidgets.QLabel("x1")
 
-		self.yMin=QtGui.QLineEdit()
-		y0_label=QtGui.QLabel("y0")
+		self.yMin=QtWidgets.QLineEdit()
+		y0_label=QtWidgets.QLabel("y0")
 		sectionIntList.append(self.yMin)
 		
-		self.yMax=QtGui.QLineEdit()
-		y1_label=QtGui.QLabel("y1")
+		self.yMax=QtWidgets.QLineEdit()
+		y1_label=QtWidgets.QLabel("y1")
 		sectionIntList.append(self.yMax)
-		self.sectionButton = QtGui.QPushButton('Section')
-		self.revertButton = QtGui.QPushButton('Revert')
-		self.writeButton = QtGui.QPushButton('Write')
+		self.sectionButton = QtWidgets.QPushButton('Section')
+		self.revertButton = QtWidgets.QPushButton('Revert')
+		self.writeButton = QtWidgets.QPushButton('Write')
 		self.writeButton.setMinimumWidth(50)
 
 		#splineBox is the main container, the sectionBox is nested within
@@ -226,10 +227,10 @@ class sf_MainWindow(object):
 		self.vtkWidget.start()
 
 
-class surf_int(QtGui.QMainWindow):
+class surf_int(QtWidgets.QMainWindow):
 
 	def __init__(self, parent = None):
-		QtGui.QMainWindow.__init__(self, parent)
+		QtWidgets.QMainWindow.__init__(self, parent)
 		self.ui = sf_MainWindow()
 		self.ui.setupUi(self)
 		self.ren = vtk.vtkRenderer()
@@ -299,10 +300,10 @@ class surf_int(QtGui.QMainWindow):
 				
 			except: #Exception as e: print str(e)
 				
-				print "Couldn't read in both sets of data."
+				print("Couldn't read in both sets of data.")
 			
 		else:
-			print 'Invalid *.mat file'
+			print("Invalid *.mat file")
 			return
 		
 		#update
@@ -315,7 +316,7 @@ class surf_int(QtGui.QMainWindow):
 	def onUpdateSpline(self):
 		p,ro,rmin,rmax=self.pts,self.RefOutline,self.RefMin,self.RefMax
 		self.ui.statusLabel.setText("Fitting . . .")
-		QtGui.qApp.processEvents()
+		QtWidgets.qApp.processEvents()
 		#read input parameters
 		gx=float(self.ui.numEdit1.text())
 		gy=float(self.ui.numEdit2.text())
@@ -406,7 +407,7 @@ class surf_int(QtGui.QMainWindow):
 			self.ui.statusLabel.setText("RSME: %2.2f micron . . . Idle"%(RSME*1000))
 
 		except ValueError as ve:
-			print ve
+			print(ve)
 			splineFail= True
 			self.ui.statusLabel.setText("Last fit failed . . . Idle")
 		
@@ -626,7 +627,7 @@ class surf_int(QtGui.QMainWindow):
 			writer.SetInputConnection(im.GetOutputPort())
 			writer.SetFileName("spline_fit.png")
 			writer.Write()
-			print 'Screen output saved to %s' %os.path.join(currentdir,'spline_fit.png')
+			print("Screen output saved to %s" %os.path.join(currentdir,'spline_fit.png'))
 		
 		elif key=="r":
 			FlipVisible(self.ax3D)
@@ -662,7 +663,7 @@ class surf_int(QtGui.QMainWindow):
 			if sys.stdin.isatty():
 				sys.exit("Surface fitting complete.")
 			else:
-				print 'Surface fitting completed.'
+				print("Surface fitting completed.")
 				return
 
 		self.ui.vtkWidget.update()
@@ -723,7 +724,7 @@ def GetFile():
 		if sys.stdin.isatty() and not hasattr(sys,'ps1'):
 			sys.exit("No file selected; exiting.")
 		else:
-			print 'No file selected; exiting.'
+			print("No file selected; exiting.")
 			filer = None
 			startdir = None
 		
@@ -822,6 +823,6 @@ def FlipColors(ren,actor,contrast):
 
 if __name__ == "__main__":
 	if len(sys.argv)>2:
-		sf_interactor(sys.argv[1])
+		sf_def(sys.argv[1])
 	else:
-		sf_interactor()
+		sf_def()

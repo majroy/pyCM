@@ -8,50 +8,56 @@ __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2017"
 
-import os,sys
-from PyQt4.QtGui import QApplication, QFileDialog
+import os,sys,yaml
+from PyQt5 import QtCore, QtGui, QtWidgets
 import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 import numpy as np
 import scipy.io as sio
+import h5py
 
 
 def get_file(*args):
 	'''
-	Returns absolute path to filename and the directory it is located in from a PyQt4 filedialog. First value is file extension, second is a string which overwrites the window message.
+	Returns absolute path to filename and the directory it is located in from a PyQt5 filedialog. First value is file extension, second is a string which overwrites the window message.
 	'''
 	ext=args[0]
 	ftypeName={}
-	ftypeName['*.dat']=["Select the point cloud data file:", "*.dat", "DAT File"]
+	ftypeName['*.dat']=["Select the integration point data file:", "*.dat", "DAT File"]
 	ftypeName['*.txt']=["Select the point cloud data file:", "*.txt", "TXT File"]
 	ftypeName['*.mat']=["Select MAT data file:", "*.mat", "MAT File"]
 	ftypeName['*.vtk']=["Select the legacy VTK file:", "*.vtk", "VTK File"]
+	ftypeName['*.dat']=["Select FEA results file:", "*.dat", "DAT File"]
+	ftypeName['*.inp']=["Select FEA input file:", "*.inp", "INP File"]
 
 	if len(args)==2:
 		ftypeName[ext][0] = args[1]
-		
-	lapp = QApplication.instance()
+
+	lapp = QtWidgets.QApplication.instance()
 	if lapp is None:
-		lapp = QApplication([])
+		lapp = QtWidgetsQApplication([])
 	if ext=='*.txt':
-		filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
-         os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;'+ftypeName['*.dat'][2]+' ('+ftypeName['*.dat'][1]+');;'+ftypeName['*.mat'][2]+' ('+ftypeName['*.mat'][1]+');;All Files (*.*)'))
+		filer = QtWidgets.QFileDialog.getOpenFileName(None, ftypeName[ext][0],
+         os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;'+ftypeName['*.mat'][2]+' ('+ftypeName['*.mat'][1]+');;All Files (*.*)'))
 	else:
-		filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
+		filer = QtWidgets.QFileDialog.getOpenFileName(None, ftypeName[ext][0],
          os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;All Files (*.*)'))
 
-	
+
 	if filer == '':
 		filer = None
 		startdir = None
-		
+		return filer, startdir
+
 	else:
-		filer=str(filer)
-		startdir=os.path.dirname(filer)
-		
-	return filer, startdir
-				
-	
+		# filer=str(filer)
+		# startdir=os.path.dirname(filer)
+		print(filer[0])
+		return filer[0], os.path.dirname(filer[0])
+		#Hacky, but resolves the Qstring that gets returned by QfileDialog
+		# return filer.split(",")[0].strip("'('"), startdir.strip("('")
+
+
 def get_open_file(ext,outputd):
 	'''
 	Returns a the complete path to the file name with ext, starting in outputd. Checks extensions and if an extension is not imposed, it will write the appropriate extension based on ext.
@@ -62,20 +68,20 @@ def get_open_file(ext,outputd):
 	ftypeName['*.geo']='Gmsh geometry file'
 	ftypeName['*.dxf']='Drawing eXchange Format'
 	ftypeName['*.py']='Abaqus Python script'
-	ftypeName['*_ccx.inp']='Calculix input file'
-	ftypeName['*_abq.inp']='Abaqus input file'
-	
+	ftypeName['*.ccx.inp']='Calculix input file'
+	ftypeName['*.abq.inp']='Abaqus input file'
+
 	if outputd==None: id=os.getcwd()
 	else: id=outputd
-	lapp = QApplication.instance()
+	lapp = QtWidgets.QApplication.instance()
 	if lapp is None:
-		lapp = QApplication([])
-	filer = QFileDialog.getSaveFileName(None, 'Select the save location:', id,(ftypeName[ext]+' ('+ext+')'))
-	
+		lapp = QtWidgets.QApplication([])
+	filer = QtWidgets.QFileDialog.getSaveFileName(None, 'Select the save location:', id,(ftypeName[ext]+' ('+ext+')'))
+
 	if filer == '':
 		filer = None
 		startdir = None
-		
+
 
 	if filer:
 		filer=str(filer)
@@ -83,9 +89,10 @@ def get_open_file(ext,outputd):
 			filer=filer[:-4]+ext.split('*')[-1]
 
 		startdir=os.path.dirname(filer)
-		
-	return filer, startdir
-		
+
+	#Hacky, but resolves the Qstring that gets returned by QfileDialog
+
+	return filer.split(",")[0].strip("'('"), startdir.strip("('")
 
 def gen_point_cloud(pts,color,size):
 	'''
@@ -94,7 +101,7 @@ def gen_point_cloud(pts,color,size):
 
 	vtkPnts = vtk.vtkPoints()
 	vtkVerts = vtk.vtkCellArray()
-	
+
 	if color[0]<=1:
 		color=(int(color[0]*255),int(color[1]*255),int(color[2]*255))
 
@@ -102,8 +109,8 @@ def gen_point_cloud(pts,color,size):
 	colors=vtk.vtkUnsignedCharArray()
 	colors.SetNumberOfComponents(3)
 	colors.SetName("color")
-	
-	
+
+
 	#load up points
 	for i in pts:
 		pId= vtkPnts.InsertNextPoint(i)
@@ -111,13 +118,13 @@ def gen_point_cloud(pts,color,size):
 		vtkVerts.InsertCellPoint(pId)
 		colors.InsertNextTuple(color)
 
-		
-	
+
+
 	pC = vtk.vtkPolyData()
 	pC.SetPoints(vtkPnts)
 	pC.SetVerts(vtkVerts)
 	pC.GetPointData().SetScalars(colors)
-	
+
 	vtkPntMapper = vtk.vtkDataSetMapper()
 	vtkPntMapper.SetInputData(pC)
 
@@ -126,7 +133,7 @@ def gen_point_cloud(pts,color,size):
 
 	actor.GetProperty().SetPointSize(size)
 	return pC, actor, colors
-	
+
 def gen_outline(pts,color,size):
 	'''
 	Returns an outline actor with specified pts, color and size. Incoming pnts should be ordered.
@@ -183,7 +190,7 @@ def xzview(renderer,camera,cp,fp):
 	camera.OrthogonalizeViewUp()
 	camera.ParallelProjectionOn()
 	renderer.ResetCamera()
-	
+
 def flip_visible(actor):
 	'''
 	Convenience function for changing the visibility of actors
@@ -191,9 +198,9 @@ def flip_visible(actor):
 	if actor.GetVisibility():
 		actor.VisibilityOff()
 	else:
-		actor.VisibilityOn()	
+		actor.VisibilityOn()
 
-		
+
 def flip_colors(ren,actor):
 	if ren.GetBackground()==(0.1, 0.2, 0.4):
 		if hasattr(actor,'GetXAxesLinesProperty'):
@@ -201,7 +208,7 @@ def flip_colors(ren,actor):
 			actor.GetLabelTextProperty(0).SetColor(0,0,0)
 			actor.GetXAxesLinesProperty().SetColor(0,0,0)
 			actor.SetXTitle('x') #there's a vtk bug here . . .
-			
+
 			actor.GetTitleTextProperty(1).SetColor(0,0,0)
 			actor.GetLabelTextProperty(1).SetColor(0,0,0)
 			actor.GetYAxesLinesProperty().SetColor(0,0,0)
@@ -216,18 +223,18 @@ def flip_colors(ren,actor):
 			actor.GetLabelTextProperty(0).SetColor(1,1,1)
 			actor.GetXAxesLinesProperty().SetColor(1,1,1)
 			actor.SetXTitle('X')
-			
+
 			actor.GetTitleTextProperty(1).SetColor(1,1,1)
 			actor.GetLabelTextProperty(1).SetColor(1,1,1)
 			actor.GetYAxesLinesProperty().SetColor(1,1,1)
 			actor.SetYTitle('Y')
-			
+
 			actor.GetTitleTextProperty(2).SetColor(1,1,1)
 			actor.GetLabelTextProperty(2).SetColor(1,1,1)
 			actor.GetZAxesLinesProperty().SetColor(1,1,1)
 			ren.SetBackground(0.1, 0.2, 0.4)
-			
-			
+
+
 def update_point_size(actor,NewPointSize):
 	'''
 	Updates the incoming actor's pointsize and returns the new one.
@@ -236,7 +243,7 @@ def update_point_size(actor,NewPointSize):
 	actor.Modified()
 	renWin.Render()
 	return NewPointSize
-	
+
 def read_uom_mat(file):
 	'''
 	Reads a .mat file from UoM's MATLAB routine outliner.m which preprocesses NanoFocus .dat file (Origin format). Returns points and an outline in numpy arrays.
@@ -249,3 +256,133 @@ def read_uom_mat(file):
 	except:
 		print("Couldn't data from %s."%file)
 		return
+
+def set_size_policy(target_widget):
+	sizePolicy=QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+	sizePolicy.setHorizontalStretch(0)
+	sizePolicy.setVerticalStretch(0)
+	sizePolicy.setHeightForWidth(target_widget.sizePolicy().hasHeightForWidth())
+	target_widget.setSizePolicy(sizePolicy)
+	target_widget.setMinimumSize(1080, 600); #leave 100 px on the size for i/o
+
+def read_abq_dat(infile):
+	"""
+	Reads an output dat file from Abaqus to recover information written by EL PRINT
+	"""
+	#string that identifies start of EL PRINT and one line after the end of the output
+	keyword =['    ELEMENT  PT FOOT-',' MAXIMUM']
+
+	#create counter for all lines in the file & number of blank lines
+	i,blanklines=0,0
+	#read file and find both where keyword occurs
+	fid = open(infile)
+	lineFlag=[]
+	while 1:
+		lines = fid.readlines(100000)
+		if not lines:
+			break
+		for line in lines:
+			i+=1
+			#look for keywords
+			for j in keyword:
+				if line[0:len(j)]==j:
+					lineFlag.append(i)
+			#start counting blank lines after the second keyword
+			if (len(lineFlag)>=1) and (line in ['\n', '\r\n']):
+				blanklines+=1
+
+	lineFlag.append(i)
+	s_h=lineFlag[0]+1 #line after lineFlag
+	s_f=lineFlag[2]-lineFlag[1]-blanklines+3 #line no of lineFlag(s) and immediately before/after respective keyword(s)
+
+	fid.close()
+
+	#pass element no, integration pnt coordinates (x,y,z) & S33 stresses into np matrix
+	return np.genfromtxt(infile, skip_header=s_h,
+								skip_footer=s_f,
+								usecols=(0, 2, 3, 4, 7),
+								autostrip=True)
+
+class Ui_getFEAconfigDialog(object):
+	def setupUi(self, getFEAconfigDialog):
+		getFEAconfigDialog.setObjectName("getFEAconfigDialog")
+		getFEAconfigDialog.resize(630, 201)
+		self.verticalLayout = QtWidgets.QVBoxLayout(getFEAconfigDialog)
+		self.verticalLayout.setObjectName("verticalLayout")
+
+		self.horizontalLayout_3 = QtWidgets.QHBoxLayout()
+		self.horizontalLayout_3.setObjectName("horizontalLayout_3")
+		self.dialoglabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_3.addWidget(self.dialoglabel)
+		self.verticalLayout.addLayout(self.horizontalLayout_3)
+
+		self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
+		self.abaExec = QtWidgets.QLineEdit(getFEAconfigDialog)
+		self.abaLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_2.addWidget(self.abaLabel)
+		self.horizontalLayout_2.addWidget(self.abaExec)
+		self.verticalLayout.addLayout(self.horizontalLayout_2)
+
+		self.horizontalLayout_1 = QtWidgets.QHBoxLayout()
+		self.gmshExec = QtWidgets.QLineEdit(getFEAconfigDialog)
+		self.gmshLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_1.addWidget(self.gmshLabel)
+		self.horizontalLayout_1.addWidget(self.gmshExec)
+		self.verticalLayout.addLayout(self.horizontalLayout_1)
+
+		self.horizontalLayout_0 = QtWidgets.QHBoxLayout()
+		self.ccxExec = QtWidgets.QLineEdit(getFEAconfigDialog)
+		self.ccxLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_0.addWidget(self.ccxLabel)
+		self.horizontalLayout_0.addWidget(self.ccxExec)
+		self.verticalLayout.addLayout(self.horizontalLayout_0)
+
+
+		self.horizontalLayout = QtWidgets.QHBoxLayout()
+		self.ConfigFileLoc = QtWidgets.QLabel(getFEAconfigDialog)
+		self.ConfigFileLoc.setFont(QtGui.QFont("Helvetica",italic=True))
+		self.ConfigFileLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.pushButton = QtWidgets.QPushButton(getFEAconfigDialog)
+		self.horizontalLayout.addWidget(self.ConfigFileLabel)
+		self.horizontalLayout.addWidget(self.ConfigFileLoc)
+		self.horizontalLayout.addWidget(self.pushButton)
+		self.verticalLayout.addLayout(self.horizontalLayout)
+
+		self.retranslateUi(getFEAconfigDialog)
+		QtCore.QMetaObject.connectSlotsByName(getFEAconfigDialog)
+
+		# connect the two functions
+		self.pushButton.clicked.connect(lambda: self.makeConfigChange(getFEAconfigDialog))
+		# self.pushButton_2.clicked.connect(self.return_cancel)
+
+	def retranslateUi(self, getFEAconfigDialog):
+		_translate = QtCore.QCoreApplication.translate
+		getFEAconfigDialog.setWindowTitle(_translate("getFEAconfigDialog", "pyCM FEA configuration settings"))
+		self.dialoglabel.setText(_translate("getFEAconfigDialog", "Please specify the full path to relevant executable, or leave blank if not relevant."))
+		self.abaLabel.setText(_translate("getFEAconfigDialog", "Abaqus executable"))
+		self.gmshLabel.setText(_translate("getFEAconfigDialog", "Gmsh executable"))
+		self.ccxLabel.setText(_translate("getFEAconfigDialog", "Calculix executable"))
+		# self.pushButton_2.setText(_translate("getFEAconfigDialog", "Acept"))
+		self.ConfigFileLabel.setText(_translate("getFEAconfigDialog", "Current config file:",None))
+		self.ConfigFileLoc.setText(_translate("getFEAconfigDialog", "Undefined", None))
+		self.pushButton.setText(_translate("getFEAconfigDialog", "Set"))
+
+
+
+	def makeConfigChange(self, getFEAconfigDialog):
+		try:
+			data= dict(FEA =
+			dict(
+			abaqusExec = str(self.abaExec.text()),
+			gmshExec = str(self.gmshExec.text()),
+			ccxExec = str(self.ccxExec.text()),
+			)
+			)
+			with open(str(self.ConfigFileLoc.text()), 'w') as outfile:
+				yaml.dump(data, outfile, default_flow_style=False)
+		except:
+			print("Configuration change failed.")
+
+
+		getFEAconfigDialog.close()
+

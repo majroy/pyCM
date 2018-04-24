@@ -20,7 +20,7 @@ Analysis starts with loading the perimeter and point cloud for each surface.
 Input | Description
 ---  |---
 Perimeter file |	*Optional*. Only text files are supported. If not specified directly, location is acquired via GUI.
-Point cloud file |	Text, data and MAT-files are supported. Path dependencies are the same as the perimeter file. If not specified directly, location is acquired via GUI.
+Point cloud file |	Text and MAT-files are supported. Path dependencies are the same as the perimeter file. If not specified directly, location is acquired via GUI. **UoM users should employ the MAT-file route for loading NanoFocus-generated data.** This file is in the form of a *_clean.mat file containing the following:<ul><li>x, y, z: arrays containing corresponding coordinate values of the point cloud.</li><li>x_out: a Nx3 matrix of coordinates of the outline ordered clockwise around the periphery of the surface in the form of [x1 y1 z1; x2 y2 z2; ...] where x_out is in {x, y, z}</li></ul>
 Output directory |	Specification of where the results *.mat file is written. If not specified, the location is acquired via GUI.
 
 Output | Description

@@ -7,7 +7,9 @@ The contour method for measuring residual stress is a cost effective, robust tec
 For more information on the contour method:
 * Michael Prime's website containing an extensive background and literature overview: http://www.lanl.gov/contour/
 * Hill Engineering http://hill-engineering.com/contour-method/
+
 * StressMap, UK provider of contour method measurements based at the Open University http://www.stressmap.co.uk/
+
 * VEQTER, expertise in a wide range of residual stress measurement techniques http://www.veqter.co.uk/residual-stress-measurement/contour
 
 ## Analysis code
@@ -29,30 +31,27 @@ It is for these reasons the overall aim is to future proof the analysis code by 
 
 # Requirements
 
-1. Python 2.7.x (last tested on 2.7.11)
+1. Python 3.x (last tested on 3.6.0)
 2. Numpy
 3. Scipy
 4. VTK
 5. Matplotlib
 6. pyYaml
-7. PyQt4
+7. PyQt5
 
 
-Once Python is installed, the setup script provided should find the remainder of the packages from PyPI repositories. However, it is recommended on Windows machines to get binaries from Christoph Gohlke’s [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/). Note that URLs on this site are blocked, you will have to manually select the distribution that you will need. Install them via:
+Once Python is installed, it is recommended on Windows machines to get numpy, scipy and VTK binaries from Christoph Gohlke’s [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/). Note that URLs on this site are blocked, you will have to manually select the distribution that you will need. Install them via:
 
 ~~~
 python -m pip install <pkg_prefix>.whl
 ~~~
 
-Note that you may need to use `py -2` instead of `python` if you also have Python 3.x installed.
-
 # Installation
 
 These instructions cover the steps needed to install all dependencies and then add the pyCM components to your Python PATH. This permits calling the pyCM components anywhere on a host machine.
 
-1. Install PyQt4 - recommended to use Cristoph Gohlke's [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/).
 1. Clone this repository to a location on the host machine.
-2. Change directory to this location and from the command line, run `pip install pyCM-*` from the `dist` where you've cloned the repository. Aside from PyQt4, the remainder of the packages will be installed from PyPI.
+2. Change directory to this location and from the command line, run `pip install pyCM-*` where `pyCM-*` is the most recent tarball from the `dist` directory where you've cloned the repository. The remainder of the requisite packages will be installed from PyPI.
 3. Check if it installed properly by trying to import the pyCM library from any working directory at the Python prompt/IDLE:
 ~~~
 from pyCM import *
