@@ -5,7 +5,9 @@ setup.py
 pyCM/__init__.py
 pyCM/align_average.py
 pyCM/fit_surface.py
+pyCM/main.py
 pyCM/point_cloud.py
+pyCM/postprocess.py
 pyCM/preprocess.py
 pyCM/pyCMcommon.py
 pyCM.egg-info/PKG-INFO

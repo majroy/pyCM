@@ -41,7 +41,8 @@ import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCMcommon import *
+from .pyCMcommon import *
+from pprint import pprint
 
 
 nosio=False
@@ -62,7 +63,7 @@ def mask_def(*args,**kwargs):
 	splash.show()
 	app.processEvents()
 	
-	window = pnt_interactor()
+	window = pnt_interactor(None)
 	if len(args)==2: 
 		pnt_interactor.get_input_data(window,args[0],args[1])
 	elif len(args)==1: 
@@ -82,40 +83,49 @@ def mask_def(*args,**kwargs):
 	else:
 		return window
 
+		
 class pt_main_window(object):
 	"""
 	Class to build qt interaction, including VTK widget
 	setupUi builds, initialize starts VTK widget
 	"""
-	
+
 	def setupUi(self, MainWindow):
-		MainWindow.setObjectName("MainWindow")
-		MainWindow.setWindowTitle("pyCM - Point editor v%s" %__version__)
-		MainWindow.resize(1280, 720)
+		MainWindow.setWindowTitle(("pyCM - Point editor v%s" %__version__))
 		self.centralWidget = QtWidgets.QWidget(MainWindow)
-		self.Boxlayout = QtWidgets.QHBoxLayout(self.centralWidget)
-		self.Subtendlayout=QtWidgets.QVBoxLayout()
-		mainUiBox = QtWidgets.QFormLayout()
+		if hasattr(MainWindow,'setCentralWidget'):
+			MainWindow.setCentralWidget(self.centralWidget)
+		else:
+			self.centralWidget=MainWindow
+		self.mainlayout=QtWidgets.QGridLayout(self.centralWidget)
 
 		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
-		self.vtkWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-		self.vtkWidget.setMinimumSize(1150, 700); #leave 100 px on the size for i/o
+		
+		mainUiBox = QtWidgets.QGridLayout()
 
-		self.Subtendlayout.addWidget(self.vtkWidget)
+		self.vtkWidget.setMinimumSize(QtCore.QSize(1050, 600))
+		sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+		sizePolicy.setHorizontalStretch(10)
+		sizePolicy.setVerticalStretch(10)
+		sizePolicy.setHeightForWidth(self.vtkWidget.sizePolicy().hasHeightForWidth())
+		self.vtkWidget.setSizePolicy(sizePolicy)
+
+
 		self.statLabel=QtWidgets.QLabel("Idle")
 		self.statLabel.setWordWrap(True)
 		self.statLabel.setFont(QtGui.QFont("Helvetica",italic=True))
 		self.statLabel.setMinimumWidth(100)
-		self.Subtendlayout.addWidget(self.statLabel)
-		self.Subtendlayout.addStretch(1)
-		self.Boxlayout.addLayout(self.Subtendlayout)
-		self.Boxlayout.addStretch(1)
-		
-		MainWindow.setCentralWidget(self.centralWidget)
+		sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+		sizePolicy.setHorizontalStretch(0)
+		sizePolicy.setVerticalStretch(0)
+		sizePolicy.setHeightForWidth(self.statLabel.sizePolicy().hasHeightForWidth())
+		self.statLabel.setSizePolicy(sizePolicy)
+
 		headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
 		
+		
 		#define buttons/widgets
-		self.reloadButton = QtWidgets.QPushButton('Load')
+		self.reloadButton = QtWidgets.QPushButton('New profile')
 		scalingLabel=QtWidgets.QLabel("Active axis for scaling")
 		scalingLabel.setFont(headFont)
 		self.xsButton=QtWidgets.QRadioButton("x")
@@ -134,23 +144,20 @@ class pt_main_window(object):
 		self.reduce = QtWidgets.QSpinBox()
 		self.reduce.setValue(0)
 		self.reduceButton = QtWidgets.QPushButton('Reduce')
-		self.revertButton = QtWidgets.QPushButton('Reload source')
+		self.revertButton = QtWidgets.QPushButton('Undo all/reload')
 
 		reduceBoxlayout= QtWidgets.QGridLayout()
 		reduceBoxlayout.addWidget(self.reduce,1,1)
 		reduceBoxlayout.addWidget(self.reduceButton,1,2)
 		
-		
-		# self.reloadButton.setMaximumWidth(50)
 		horizLine1=QtWidgets.QFrame()
 		horizLine1.setFrameStyle(QtWidgets.QFrame.HLine)
 		pickLabel=QtWidgets.QLabel("Pick options")
 		pickLabel.setFont(headFont)
-		# self.pickerButton = QtWidgets.QPushButton('Picker')
-		# self.pickerButton.setMaximumWidth(50)
+
 		self.pickHelpLabel=QtWidgets.QLabel("Press R to activate")
 		self.pickActiveLabel=QtWidgets.QLabel("Pick active")
-		self.pickActiveLabel.setStyleSheet("QLabel { background-color : gray; color : darkGray; }");
+		self.pickActiveLabel.setStyleSheet("QLabel { background-color : gray; color : darkGray; }")
 		self.pickActiveLabel.setFont(QtGui.QFont("Helvetica",italic=True))
 		self.undoLastPickButton=QtWidgets.QPushButton('Undo last pick')
 		horizLine2=QtWidgets.QFrame()
@@ -158,52 +165,75 @@ class pt_main_window(object):
 		outputLabel=QtWidgets.QLabel("Write output")
 		outputLabel.setFont(headFont)
 		self.refButton=QtWidgets.QRadioButton("Reference")
+		
 		self.floatButton=QtWidgets.QRadioButton("Floating")
+		
 		self.refButton.setChecked(True)
 		self.writeButtonGroup = QtWidgets.QButtonGroup()
 		self.writeButtonGroup.addButton(self.floatButton)
 		self.writeButtonGroup.addButton(self.refButton)
 		self.writeButtonGroup.setExclusive(True)
 		self.writeButton=QtWidgets.QPushButton('Write')
-		self.releaseButton=QtWidgets.QPushButton('Release')
-		self.releaseButton.setEnabled(False)
 		horizLine3=QtWidgets.QFrame()
 		horizLine3.setFrameStyle(QtWidgets.QFrame.HLine)
-		self.loadMatButton=QtWidgets.QPushButton('Load *.mat')
+		showLabel=QtWidgets.QLabel("Load result")
+		showLabel.setFont(headFont)
+		self.showRefButton=QtWidgets.QRadioButton("Reference")
+		self.showRefButton.setChecked(True)
+		self.showFloatButton=QtWidgets.QRadioButton("Floating")
+		self.showButtonGroup = QtWidgets.QButtonGroup()
+		self.showButtonGroup.addButton(self.showFloatButton)
+		self.showButtonGroup.addButton(self.showRefButton)
+		self.showButtonGroup.setExclusive(True)
+		
+		self.showButton=QtWidgets.QPushButton("View")
+		horizLine4=QtWidgets.QFrame()
+		horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)
 
-		#add to formlayout
-		mainUiBox.addRow(self.reloadButton)
-		mainUiBox.addRow(scalingLabel)
-		mainUiBox.addRow(scaleBoxlayout)
-		mainUiBox.addRow(horizLine1)
-		mainUiBox.addRow(pickLabel)
-		mainUiBox.addRow(reduceBoxlayout)
-		# mainUiBox.addRow(self.pickerButton,self.pickActiveLabel)
-		mainUiBox.addRow(self.pickHelpLabel,self.pickActiveLabel)
-		mainUiBox.addRow(self.undoLastPickButton)
-		
-		mainUiBox.addRow(self.revertButton)
-		#add formlayout to main ui
-		
-		mainUiBox.addRow(horizLine2)
-		mainUiBox.addRow(outputLabel)
-		mainUiBox.addRow(self.refButton,self.floatButton)
-		mainUiBox.addRow(self.writeButton,self.releaseButton)
-		mainUiBox.addRow(horizLine3)
-		mainUiBox.addRow(self.loadMatButton)
+		# self.loadMatButton=QtWidgets.QPushButton('Load current')
 
+		#add widgets to ui
+		mainUiBox.addWidget(self.reloadButton,0,0,1,2)
+		mainUiBox.addWidget(scalingLabel,1,0,1,2)
+		mainUiBox.addLayout(scaleBoxlayout,2,0,1,2)
+		mainUiBox.addWidget(horizLine1,3,0,1,2)
+		mainUiBox.addWidget(pickLabel,4,0,1,2)
+		mainUiBox.addLayout(reduceBoxlayout,5,0,1,2)
+		mainUiBox.addWidget(self.pickHelpLabel,6,0,1,1)
+		mainUiBox.addWidget(self.pickActiveLabel,6,1,1,1)
+		mainUiBox.addWidget(self.undoLastPickButton,7,0,1,2)
+		mainUiBox.addWidget(self.revertButton,8,0,1,2)
+		mainUiBox.addWidget(horizLine2,9,0,1,2)
+		mainUiBox.addWidget(outputLabel,10,0,1,2)
+		mainUiBox.addWidget(self.refButton,11,0,1,1)
+		mainUiBox.addWidget(self.floatButton,11,1,1,1)
+		mainUiBox.addWidget(self.writeButton,12,0,1,2)
+		mainUiBox.addWidget(horizLine3,13,0,1,2)
+		mainUiBox.addWidget(showLabel,14,0,1,2)
+		mainUiBox.addWidget(self.showRefButton,15,0,1,1)
+		mainUiBox.addWidget(self.showFloatButton,15,1,1,1)
+		mainUiBox.addWidget(self.showButton,16,0,1,2)
+		mainUiBox.addWidget(horizLine4,17,0,1,2)
+		# mainUiBox.addWidget(self.loadMatButton,14,0,1,2)
+
+		lvLayout=QtWidgets.QVBoxLayout()
+		lvLayout.addLayout(mainUiBox)
+		lvLayout.addStretch(1)
+	
 		
-		self.Boxlayout.addLayout(mainUiBox)
+		self.mainlayout.addWidget(self.vtkWidget,0,0,1,1)
+		self.mainlayout.addLayout(lvLayout,0,1,1,1)
+		self.mainlayout.addWidget(self.statLabel,1,0,1,2)
 		
 	def initialize(self):
 		self.vtkWidget.start()
 
-class pnt_interactor(QtWidgets.QMainWindow):
-	"""
-	Sets up the main VTK window, reads file and sets connections between UI and interactor
-	"""
-	def __init__(self, parent = None):
-		QtWidgets.QMainWindow.__init__(self, parent)
+
+
+class pnt_interactor(QtWidgets.QWidget):
+
+	def __init__(self, parent):
+		super(pnt_interactor,self).__init__(parent)
 		self.ui = pt_main_window()
 		self.ui.setupUi(self)
 		self.ren = vtk.vtkRenderer()
@@ -225,25 +255,45 @@ class pnt_interactor(QtWidgets.QMainWindow):
 		self.picking=False
 
 		self.ui.reloadButton.clicked.connect(lambda: self.get_input_data(None,None))
-		# self.ui.pickerButton.clicked.connect(lambda: self.start_pick())
 		self.ui.undoLastPickButton.clicked.connect(lambda: self.undo_pick())
 		self.ui.writeButton.clicked.connect(lambda: self.write_new())
-		self.ui.releaseButton.clicked.connect(lambda: self.release_mat())
-		self.ui.loadMatButton.clicked.connect(lambda: self.load_mat())
 		self.ui.revertButton.clicked.connect(lambda: self.undo_revert())
 		self.ui.reduceButton.clicked.connect(lambda: self.reduce_pnts())
+		self.ui.showButton.clicked.connect(lambda: self.load_mat())
 	
 	def undo_revert(self):
 		'''
-		Reloads all data based on filec & filep (if it exists)
+		Reloads all data based on filec & filep (if it exists), will re-initialize data read in from results file to be unmasked.
 		'''
-		if hasattr(self,'filep'):
+
+		try:
 			self.get_input_data(self.filep,self.filec)
-		else:
-			self.get_input_data(None,self.filec)
-		self.ui.vtkWidget.update()
-		self.ui.vtkWidget.setFocus()
-			
+			self.unsaved_changes=True
+		except: #its been loaded from an existing results file
+			ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
+			"Existing mask of profile will be lost, continue?", \
+			QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+			if ret == QtWidgets.QMessageBox.No: #don't overwrite
+				return
+			else:
+				#flip all values in bool_pnt & update color
+				localind=np.asarray(range(len(self.bool_pnt)))
+				localind=localind[np.where(np.logical_not(self.bool_pnt))]
+				
+				for i in localind:
+					#show them as being unmasked
+					self.colors.SetTuple(i,(70, 171, 176))
+				self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
+				self.vtkPntsPolyData.Modified()
+				self.ui.vtkWidget.update()
+				self.ui.vtkWidget.setFocus()
+				
+				#re-initialise the mask
+				self.bool_pnt=np.ones(self.bool_pnt.shape,dtype='bool')
+				#set flag on ui to show that data has been modified
+				self.unsaved_changes=True
+
+					
 	def reduce_pnts(self):
 		'''
 		Reduces the number of points according to the percentage of what's in the spinbox
@@ -278,59 +328,78 @@ class pnt_interactor(QtWidgets.QMainWindow):
 		Loads the content of a *.mat file pertaining to this particular step
 		"""
 		
+		color=(70, 171, 176)
+		
+		if self.ui.showRefButton.isChecked():
+			str_d='ref'
+
+		if self.ui.showFloatButton.isChecked():
+			str_d='float'
+		
 		if hasattr(self,'pointActor'):
 			self.ren.RemoveActor(self.pointActor)
 		if hasattr(self,'outlineActor'):
 			self.ren.RemoveActor(self.outlineActor)
 		
-		filem, _, =get_file('*.mat')
-		
-		if filem: #check variables
-			mat_contents = sio.loadmat(filem)
+		if hasattr(self,'fileo'): #check variables
+			mat_contents = sio.loadmat(self.fileo)
+			#check contents
+			if 'ref' in mat_contents: 	
+				self.ui.refButton.setStyleSheet("background-color :rgb(77, 209, 97);")
+			if 'float' in mat_contents: 	
+				self.ui.floatButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 			try:
-				rp=mat_contents['ref']['rawPnts'][0][0]
-				ind=mat_contents['ref']['mask'][0][0][0]
+				self.rawPnts=mat_contents[str_d]['rawPnts'][0][0]
+				self.bool_pnt=mat_contents[str_d]['mask'][0][0][0]
+				self.Outline=mat_contents[str_d]['x_out'][0][0]
 				
-				rp=rp[np.where(ind)]
-				
-				color=(242, 101, 34)
-				_, self.rActor, _, = gen_point_cloud(rp,color,self.PointSize)
-				self.ren.AddActor(self.rActor)
-				
-				#do other one
-				fp=mat_contents['float']['rawPnts'][0][0]
-				ind=mat_contents['float']['mask'][0][0][0]
-				
-				fp=fp[np.where(ind)]
-
-				
-				color=(255, 205, 52)
-				_, self.fActor, _, = gen_point_cloud(fp,color,self.PointSize)
-				self.ren.AddActor(self.fActor)
+				self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
+				self.ren.AddActor(self.outlineActor)
 			
-				# update status
-				self.ui.statLabel.setText("Current file:%s"%filem)
+				self.vtkPntsPolyData, \
+				self.pointActor, self.colors = \
+				gen_point_cloud(self.rawPnts,color,self.PointSize)
 				
-				RefMin=np.amin(np.vstack((fp,rp)),axis=0)
-				RefMax=np.amax(np.vstack((fp,rp)),axis=0)
+				#find points to be painted red
+				localind=np.asarray(range(len(self.bool_pnt)))
+				localind=localind[np.where(np.logical_not(self.bool_pnt))]
+				
+				for i in localind:
+					#turn them red
+					self.colors.SetTuple(i,(255,0,0))
 
-				extents=RefMax-RefMin #extents
-				rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
-				self.limits=[RefMin[0]-rl, \
-				RefMax[0]+rl, \
-				RefMin[1]-rl, \
-				RefMax[1]+rl, \
-				RefMin[2],RefMax[2]]
-
-				#add axes
-				self.add_axis(self.limits,[1,1,1])
+				self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
+				self.vtkPntsPolyData.Modified()
+				
+				self.ren.AddActor(self.pointActor)
 				
 			except:
-				print("Couldn't read in both sets of data.")
+				QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
+				"The %s dataset could not be loaded."%(str_d))
 			
-		else:
-			print('Invalid *.mat file')
-			return
+			#get limits
+			try:
+				RefMin=np.amin(np.hstack((self.Outline,self.rawPnts)),axis=0)
+				RefMax=np.amax(np.hstack((self.Outline,self.rawPnts)),axis=0)
+			except:
+				RefMin=np.amin(self.rawPnts,axis=0)
+				RefMax=np.amax(self.rawPnts,axis=0)
+			
+			extents=RefMax-RefMin #extents
+			rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
+			self.limits=[RefMin[0]-rl, \
+			  RefMax[0]+rl, \
+			  RefMin[1]-rl, \
+			  RefMax[1]+rl, \
+			  RefMin[2],RefMax[2]]
+
+			#add axes
+			self.add_axis(self.limits,[1,1,1])
+			
+			#since this is a fresh load, initialize as false
+			self.unsaved_changes=False
+			
+
 		
 		#update
 		self.ren.ResetCamera()
@@ -342,27 +411,37 @@ class pnt_interactor(QtWidgets.QMainWindow):
 		
 		if self.ui.refButton.isChecked():
 			str_d='ref'
-			
+
 		if self.ui.floatButton.isChecked():
 			str_d='float'
+
 		
 		if not hasattr(self,'fileo'):
 			self.fileo, _, = get_open_file('*.mat',os.getcwd())
-			self.ui.releaseButton.setEnabled(True)
 			if self.fileo:
 				x_o=self.rawPnts[self.bool_pnt,0]
 				y_o=self.rawPnts[self.bool_pnt,1]
 				z_o=self.rawPnts[self.bool_pnt,2]
 				sio.savemat(self.fileo,{str_d : {'x_out':self.Outline,'rawPnts':self.rawPnts,'mask': self.bool_pnt,'x':x_o,'y':y_o,'z':z_o,'fname':self.filec}})
-				print('Wrote %s data to %s'%(str_d,self.fileo))
+				if self.ui.refButton.isChecked():
+					self.ui.refButton.setStyleSheet("background-color :rgb(77, 209, 97);")
+			
+				if self.ui.floatButton.isChecked():
+					self.ui.floatButton.setStyleSheet("background-color : rgb(77, 209, 97);")
+				#reset flag on ui to show that data has been modified
+				self.unsaved_changes=False
 		else:
+			if not self.fileo:
+				self.fileo, _, = get_open_file('*.mat',os.getcwd())
+
 			mat_vars=sio.whosmat(self.fileo)
-			if str_d in mat_vars[0]: #tell the user that they might overwrite their data
+			if str_d in [item for sublist in mat_vars for item in sublist]: #tell the user that they might overwrite their data
 				ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
-				"The %s dataset has already been written. Overwrite?"%(str_d), \
-				QtWidgets.QMessageBox.No,QtWidgets.QMessageBox.Yes,QtWidgets.QMessageBox.NoButton)
+				"The %s dataset has already been written, and will delete all further analysis steps. Continue?"%(str_d), \
+				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
 				if ret == QtWidgets.QMessageBox.No: #don't overwrite
 					return
+			
 			
 			mat_contents=sio.loadmat(self.fileo)
 			
@@ -370,12 +449,21 @@ class pnt_interactor(QtWidgets.QMainWindow):
 			y_o=self.rawPnts[self.bool_pnt,1]
 			z_o=self.rawPnts[self.bool_pnt,2]
 			
-			new={str_d : {'x_out':self.Outline,'rawPnts':self.rawPnts,'mask': self.bool_pnt,'x':x_o,'y':y_o,'z':z_o,'fname':self.filec}}
+			new={str_d : {'x_out':self.Outline,'rawPnts':self.rawPnts,'mask': self.bool_pnt,'x':x_o,'y':y_o,'z':z_o}}
 			
 			mat_contents.update(new) #update the dictionary
-				
+			if self.ui.refButton.isChecked():
+				self.ui.refButton.setStyleSheet("background-color : rgb(77, 209, 97);")
+			
+			if self.ui.floatButton.isChecked():
+				self.ui.floatButton.setStyleSheet("background-color : rgb(77, 209, 97);")
 			sio.savemat(self.fileo,mat_contents)	
-			print('Wrote %s data'%(str_d))
+			#update status
+			self.ui.statLabel.setText("Wrote %s data to output file %s."%(str_d,self.fileo))
+			
+			#reset flag on ui to show that data has been modified
+			self.unsaved_changes=False
+
 			
 	def undo_pick(self):
 		if hasattr(self,"lastSelectedIds"):
@@ -386,6 +474,8 @@ class pnt_interactor(QtWidgets.QMainWindow):
 			self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
 			self.vtkPntsPolyData.Modified()
 			self.ui.vtkWidget.update()
+		else:
+			self.ui.statLabel.setText("No picked selection to revert.")
 			
 	def picker_callback(self,obj,event):
 		
@@ -430,7 +520,9 @@ class pnt_interactor(QtWidgets.QMainWindow):
 			self.vtkPntsPolyData.Modified()
 		
 		
-		self.ui.vtkWidget.update()		
+		self.ui.vtkWidget.update()
+		#set flag on ui to show that data has been modified
+		self.unsaved_changes=True
 			
 	def show_picking(self):
 		#Updates when the 'r' button is pressed to provide a link between VTK & Qt hooks
@@ -473,13 +565,12 @@ class pnt_interactor(QtWidgets.QMainWindow):
 		
 		#catch if cancel was pressed on file dialog or if a bad path was specified
 		if filec == None or (filec != None and not(os.path.isfile(filec))):
-			print(filec)
 			if hasattr(self,'vtkPntsPolyData'):
 				print('No file selected, retaining current data.')
 			else:
-				print('No file selected; exiting.')
-				exit()
-		
+				return
+
+
 		if filep != '': #because filediag can be cancelled
 			self.Outline=np.genfromtxt(filep)
 			self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
@@ -488,16 +579,15 @@ class pnt_interactor(QtWidgets.QMainWindow):
 			
 		_, ext = os.path.splitext(filec)
 		
-
-		elif ext == '.txt':
+		if ext == '.txt':
 			self.rawPnts=np.genfromtxt(filec)
 		elif ext == '.mat':
 			try:
-				self.rawPnts, self.Outline = read_uom_mat(filec)
+				self.rawPnts, self.Outline = read_mat(filec)
 				self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
 				self.ren.AddActor(self.outlineActor)
 			except:
-				exit()
+				print('Could not add actors to visualisation.')
 		
 		
 		self.vtkPntsPolyData, \
@@ -647,10 +737,7 @@ class pnt_interactor(QtWidgets.QMainWindow):
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
 	
-	def release_mat(self):
-		if hasattr(self,'fileo'):
-			print('Releasing focus on %s . . .'%self.fileo)
-			del self.fileo
+
 	
 	def add_axis(self,limits,scale):
 		if hasattr(self,"ax3D"):

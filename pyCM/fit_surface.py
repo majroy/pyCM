@@ -56,7 +56,7 @@ def sf_def(*args, **kwargs):
 	splash.show()
 	app.processEvents()
 	
-	window = surf_int()
+	window = surf_int(None)
 
 	if len(args)==1:
 		surf_int.get_input_data(window,args[0])
@@ -74,71 +74,75 @@ def sf_def(*args, **kwargs):
 	else:
 		return window
 
-class sf_MainWindow(object):
+class sf_main_window(object):
 
 	def setupUi(self, MainWindow):
-		MainWindow.setObjectName("MainWindow")
 		MainWindow.setWindowTitle("pyCM - surface fitting v%s" %__version__)
-		MainWindow.resize(1280, 720)
-		self.centralWidget = QtWidgets.QWidget(MainWindow)
-		self.Boxlayout = QtWidgets.QHBoxLayout(self.centralWidget)
-		self.Subtendlayout=QtWidgets.QVBoxLayout()
-		splineBox = QtWidgets.QFormLayout()
-		sectionBox = QtWidgets.QGridLayout()
-
+		if hasattr(MainWindow,'setCentralWidget'):
+			MainWindow.setCentralWidget(self.centralWidget)
+		else:
+			self.centralWidget=MainWindow
+		self.mainlayout=QtWidgets.QGridLayout(self.centralWidget)
 
 		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
-		self.vtkWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-		self.vtkWidget.setMinimumSize(1150, 700); #leave 100 px on the size for i/o
+		mainUiBox = QtWidgets.QGridLayout()
+		sectionBox = QtWidgets.QGridLayout()
 
-		self.Subtendlayout.addWidget(self.vtkWidget)
-		self.activeFileLabel=QtWidgets.QLabel("Idle")
-		self.activeFileLabel.setWordWrap(True)
-		self.activeFileLabel.setFont(QtGui.QFont("Helvetica",italic=True))
-		self.activeFileLabel.setMinimumWidth(100)
-		self.Subtendlayout.addWidget(self.activeFileLabel)
-		self.Subtendlayout.addStretch(1)
-		self.Boxlayout.addLayout(self.Subtendlayout)
-		self.Boxlayout.addStretch(1)
-		
-		MainWindow.setCentralWidget(self.centralWidget)
+		self.vtkWidget.setMinimumSize(QtCore.QSize(1050, 600))
+		sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+		sizePolicy.setHorizontalStretch(10)
+		sizePolicy.setVerticalStretch(10)
+		sizePolicy.setHeightForWidth(self.vtkWidget.sizePolicy().hasHeightForWidth())
+		self.vtkWidget.setSizePolicy(sizePolicy)
+
+		self.statLabel=QtWidgets.QLabel("Idle")
+		self.statLabel.setWordWrap(True)
+		self.statLabel.setFont(QtGui.QFont("Helvetica",italic=True))
+		self.statLabel.setMinimumWidth(100)
+		sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+		sizePolicy.setHorizontalStretch(0)
+		sizePolicy.setVerticalStretch(0)
+		sizePolicy.setHeightForWidth(self.statLabel.sizePolicy().hasHeightForWidth())
+		self.statLabel.setSizePolicy(sizePolicy)
+
 		headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
-		
-		# self.Boxlayout.addWidget(self.vtkWidget)
-		# self.Boxlayout.addStretch()
-		# MainWindow.setCentralWidget(self.centralWidget)
-		self.reloadButton = QtWidgets.QPushButton('Load')
+
+		self.pickLabel=QtWidgets.QLabel("Remove points")
+		self.pickLabel.setFont(headFont)
+		self.pickHelpLabel=QtWidgets.QLabel("Press R to activate")
+		self.pickActiveLabel=QtWidgets.QLabel("Pick active")
+		self.pickActiveLabel.setStyleSheet("QLabel { background-color : gray; color : darkGray; }");
+		self.pickActiveLabel.setFont(QtGui.QFont("Helvetica",italic=True))
+		self.undoLastPickButton=QtWidgets.QPushButton('Undo last pick')
+		self.reloadButton = QtWidgets.QPushButton('Undo all/reload')
+
 		splineLabel=QtWidgets.QLabel("Bivariate spline fitting")
 		splineLabel.setFont(QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold))
 		self.numLabel1=QtWidgets.QLabel("Knot spacing (x)")
 		self.numEdit1 = QtWidgets.QLineEdit()
 		self.numEdit1.setText('4')
-		self.numEdit1.setMinimumWidth(50)
+		# self.numEdit1.setMinimumWidth(50)
 		
 		self.numLabel2=QtWidgets.QLabel("Knot spacing (y)")
 		self.numEdit2 = QtWidgets.QLineEdit()
 		self.numEdit2.setText('4')
-		self.numEdit2.setMinimumWidth(50)
+		# self.numEdit2.setMinimumWidth(50)
 		
 		self.numLabel3=QtWidgets.QLabel("Spline order (x)")
 		self.numEdit3 = QtWidgets.QSpinBox()
 		self.numEdit3.setValue(3)
 		self.numEdit3.setMinimum(1)
 		self.numEdit3.setMaximum(5)
-		self.numEdit3.setMinimumWidth(50)
+		# self.numEdit3.setMinimumWidth(50)
 		
 		self.numLabel4=QtWidgets.QLabel("Spline order (y)")
 		self.numEdit4 = QtWidgets.QSpinBox()
 		self.numEdit4.setValue(3)
 		self.numEdit4.setMinimum(1)
 		self.numEdit4.setMaximum(5)
-		self.numEdit4.setMinimumWidth(50)
+		# self.numEdit4.setMinimumWidth(50)
 		
-		self.numLabel5=QtWidgets.QLabel("Smoothing:")
-		self.numEdit5 = QtWidgets.QLineEdit()
-		self.numEdit5.setText('0')
-		self.numEdit5.setMinimumWidth(50)
-		
+
 		self.numLabel6=QtWidgets.QLabel("Display resolution:")
 		self.drx=QtWidgets.QLineEdit()
 		drx_label=QtWidgets.QLabel("x")
@@ -147,16 +151,16 @@ class sf_MainWindow(object):
 		self.dry=QtWidgets.QLineEdit()
 		dry_label=QtWidgets.QLabel("y")
 		
-		
-		self.updateButton = QtWidgets.QPushButton('Update')
-		self.updateButton.setMinimumWidth(50)
-		
-		self.statusLabel=QtWidgets.QLabel("Idle")
-		self.statusLabel.setWordWrap(True)
-		self.statusLabel.setFont(QtGui.QFont("Helvetica",italic=True))
-		self.statusLabel.setMinimumWidth(50)
+		self.updateButton = QtWidgets.QPushButton('Fit')
+
+		#statLabel is what the ui is doing, not to be confused with statLabel
+		self.statLabel=QtWidgets.QLabel("Idle")
+		self.statLabel.setWordWrap(True)
+		self.statLabel.setFont(QtGui.QFont("Helvetica",italic=True))
+
 		horizLine1=QtWidgets.QFrame()
 		horizLine1.setFrameStyle(QtWidgets.QFrame.HLine)
+		#set size of line
 		horizLine2=QtWidgets.QFrame()
 		horizLine2.setFrameStyle(QtWidgets.QFrame.HLine)
 		horizLine3=QtWidgets.QFrame()
@@ -185,53 +189,70 @@ class sf_MainWindow(object):
 		self.sectionButton = QtWidgets.QPushButton('Section')
 		self.revertButton = QtWidgets.QPushButton('Revert')
 		self.writeButton = QtWidgets.QPushButton('Write')
-		self.writeButton.setMinimumWidth(50)
+		# self.writeButton.setMinimumWidth(50)
 
-		#splineBox is the main container, the sectionBox is nested within
-		splineBox.addRow(self.reloadButton)
-		splineBox.addRow(horizLine1)
-		splineBox.addRow(splineLabel)
-		splineBox.addRow(self.numLabel1,self.numEdit1)
-		splineBox.addRow(self.numLabel2,self.numEdit2)
-		splineBox.addRow(self.numLabel3,self.numEdit3)
-		splineBox.addRow(self.numLabel4,self.numEdit4)
-		splineBox.addRow(self.numLabel5,self.numEdit5)
-		splineBox.addRow(self.numLabel6)
-		splineBox.addRow(drx_label,self.drx)
-		splineBox.addRow(dry_label,self.dry)
-		splineBox.addRow(self.updateButton)
+		#mainUiBox is the main container, the sectionBox is nested within
+		mainUiBox.addWidget(horizLine1,0,0,1,2)
+		mainUiBox.addWidget(self.pickLabel,1,0,1,2)
+		mainUiBox.addWidget(self.pickHelpLabel,2,0,1,1)
+		mainUiBox.addWidget(self.pickActiveLabel,2,1,1,1)
+		mainUiBox.addWidget(self.undoLastPickButton,3,0,1,2)
+		mainUiBox.addWidget(self.reloadButton,4,0,1,2)
+		mainUiBox.addWidget(horizLine2,5,0,1,2)
+
+		mainUiBox.addWidget(splineLabel,6,0,1,2)
+		mainUiBox.addWidget(self.numLabel1,7,0,1,1)
+		mainUiBox.addWidget(self.numEdit1,7,1,1,1)
+		mainUiBox.addWidget(self.numLabel2,8,0,1,1)
+		mainUiBox.addWidget(self.numEdit2,8,1,1,1)
+		mainUiBox.addWidget(self.numLabel3,9,0,1,1)
+		mainUiBox.addWidget(self.numEdit3,9,1,1,1)
+		mainUiBox.addWidget(self.numLabel4,10,0,1,1)
+		mainUiBox.addWidget(self.numEdit4,10,1,1,1)
+		mainUiBox.addWidget(self.numLabel6,11,0,1,2)
+		mainUiBox.addWidget(drx_label,12,0,1,1)
+		mainUiBox.addWidget(self.drx,12,1,1,1)
+		mainUiBox.addWidget(dry_label,13,0,1,1)
+		mainUiBox.addWidget(self.dry,13,1,1,1)
+		mainUiBox.addWidget(self.updateButton,14,0,1,2)
 		
-		splineBox.addRow(horizLine2)
-		splineBox.addRow(sectionBox)
-		splineBox.addRow(horizLine3)
-		splineBox.addRow(self.writeButton)
-		splineBox.addRow(horizLine4)
-		splineBox.addRow(self.statusLabel)
+		mainUiBox.addWidget(horizLine2,15,0,1,2)
+		mainUiBox.addLayout(sectionBox,16,0,5,2)
+		mainUiBox.addWidget(horizLine3,22,0,1,2)
+		mainUiBox.addWidget(self.writeButton,23,0,1,2)
+		mainUiBox.addWidget(horizLine4,24,0,1,2)
 
 		
-		sectionBox.addWidget(sectionLabel,1,1,1,4)
-		sectionBox.addWidget(x0_label,2,1)
-		sectionBox.addWidget(sectionIntList[0],2,2)
-		sectionBox.addWidget(x1_label,2,3)
-		sectionBox.addWidget(sectionIntList[1],2,4)
-		sectionBox.addWidget(y0_label,3,1)
-		sectionBox.addWidget(sectionIntList[2],3,2)
-		sectionBox.addWidget(y1_label,3,3)
-		sectionBox.addWidget(sectionIntList[3],3,4)
-		sectionBox.addWidget(self.sectionButton,5,1,1,2)
-		sectionBox.addWidget(self.revertButton,5,3,1,2)
-		self.Boxlayout.addLayout(splineBox)
+		sectionBox.addWidget(sectionLabel,0,0,1,4)
+		sectionBox.addWidget(x0_label,1,0,1,1)
+		sectionBox.addWidget(sectionIntList[0],1,1,1,1)
+		sectionBox.addWidget(x1_label,1,2,1,1)
+		sectionBox.addWidget(sectionIntList[1],1,3,1,1)
+		sectionBox.addWidget(y0_label,2,0,1,1)
+		sectionBox.addWidget(sectionIntList[2],2,1,1,1)
+		sectionBox.addWidget(y1_label,2,2,1,1)
+		sectionBox.addWidget(sectionIntList[3],2,3,1,1)
+		sectionBox.addWidget(self.sectionButton,3,0,1,2)
+		sectionBox.addWidget(self.revertButton,3,2,1,2)
+
+		lvLayout=QtWidgets.QVBoxLayout()
+		lvLayout.addLayout(mainUiBox)
+		lvLayout.addStretch(1)
+	
+		self.mainlayout.addWidget(self.vtkWidget,0,0,1,1)
+		self.mainlayout.addLayout(lvLayout,0,1,1,1)
+		self.mainlayout.addWidget(self.statLabel,1,0,1,2)
 
 	
 	def initialize(self):
 		self.vtkWidget.start()
 
 
-class surf_int(QtWidgets.QMainWindow):
+class surf_int(QtWidgets.QWidget):
 
-	def __init__(self, parent = None):
-		QtWidgets.QMainWindow.__init__(self, parent)
-		self.ui = sf_MainWindow()
+	def __init__(self, parent):
+		super(surf_int,self).__init__(parent)
+		self.ui = sf_main_window()
 		self.ui.setupUi(self)
 		self.ren = vtk.vtkRenderer()
 		self.ren.SetBackground(0.1, 0.2, 0.4)
@@ -247,15 +268,26 @@ class surf_int(QtWidgets.QMainWindow):
 		self.LineWidth=1
 		self.Zaspect=1.0
 		self.limits=np.empty(6)
+		self.picking=False
+		self.unsaved_changes=False
 
-		self.ui.reloadButton.clicked.connect(lambda: self.get_input_data(None))
 		self.ui.updateButton.clicked.connect(lambda: self.onUpdateSpline())
 		self.ui.sectionButton.clicked.connect(lambda: self.Cut())
 		self.ui.revertButton.clicked.connect(lambda: self.RemoveCut())
-		self.ui.writeButton.clicked.connect(lambda: self.WriteOutput())
+		self.ui.writeButton.clicked.connect(lambda: self.write())
+		self.ui.reloadButton.clicked.connect(lambda: self.get_input_data())
+		self.ui.undoLastPickButton.clicked.connect(lambda: self.undo_pick())
+		self.ui.numEdit1.textChanged.connect(self.changeUpdateBackground)
+		self.ui.numEdit2.textChanged.connect(self.changeUpdateBackground)
+		self.ui.numEdit3.valueChanged.connect(self.changeUpdateBackground)
+		self.ui.numEdit4.valueChanged.connect(self.changeUpdateBackground)
+		self.ui.drx.textChanged.connect(self.changeUpdateBackground)
+		self.ui.dry.textChanged.connect(self.changeUpdateBackground)
+		
+	def changeUpdateBackground(self):
+		self.ui.updateButton.setStyleSheet("background-color : None")
 
-
-	def get_input_data(self,filer):
+	def get_input_data(self,filem):
 		"""
 		Loads the content of a *.mat file pertaining to this particular step
 		"""
@@ -268,12 +300,13 @@ class surf_int(QtWidgets.QMainWindow):
 			self.ren.RemoveActor(self.splineActor)
 
 		
-		if filer == None:
-			filer, _, =get_file('*.mat')
-		
-		if filer: #check variables
-			mat_contents = sio.loadmat(filer)
-			self.fileo=filer
+		if filem == None:
+			filem, _, =get_file('*.mat')
+			
+		if filem:
+			mat_contents = sio.loadmat(filem)
+			self.fileo=filem
+			
 			try:
 				pts=mat_contents['aa']
 
@@ -287,49 +320,83 @@ class surf_int(QtWidgets.QMainWindow):
 				self.ui.xMax.setText('%.3f'%self.limits[1])
 				self.ui.yMin.setText('%.3f'%self.limits[2])
 				self.ui.yMax.setText('%.3f'%self.limits[3])
-			
+				
+				self.bool_pnt=np.ones(len(self.pts), dtype=bool) #initialize mask
+				
 				#Generate actors
 				color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
-				_, self.pointActor, _, = gen_point_cloud(self.pts,color,self.PointSize)
+				self.vtkPntsPolyData, self.pointActor, self.colors, = gen_point_cloud(self.pts,color,self.PointSize)
+				
+
+				
 				self.ren.AddActor(self.pointActor)
 				self.outlineActor, _, = gen_outline(self.RefOutline,color,self.PointSize)
+				
 				self.ren.AddActor(self.outlineActor)
 
 				#add axes
 				self.add_axis(self.limits,[1,1,1])
 				
-			except: #Exception as e: print str(e)
+				if 'spline_x' in mat_contents: #then it can be displayed & settings displayed
+					bsplinerep=mat_contents['spline_x']['tck'][0][0]
+					#recast tck as a tuple
+					self.tck=tuple()
+					for j in range(5):
+						self.tck=self.tck+tuple(bsplinerep[0,j])
+					spacing=mat_contents['spline_x']['kspacing'][0][0][0]
+					order=mat_contents['spline_x']['order'][0][0][0]
+					# smoothing=mat_contents['spline_x']['smooth'][0][0]
+					self.gx,self.gy=spacing[0],spacing[1]
+					self.ui.numEdit1.setText('%.3f'%(self.gx))
+					self.ui.numEdit2.setText('%.3f'%(self.gy))
+					self.ui.numEdit3.setValue(int(order[0]))
+					self.ui.numEdit4.setValue(int(order[1]))
+					self.bool_pnt=mat_contents['aa_mask'][0]
+
+					#find points to be painted red
+					localind=np.asarray(range(len(self.bool_pnt)))
+					localind=localind[np.where(np.logical_not(self.bool_pnt))]
+					
+					for i in localind:
+						#turn them red
+						self.colors.SetTuple(i,(255,0,0))
+
+					self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
+					self.vtkPntsPolyData.Modified()
+					
+					
+					self.DisplayFit()
 				
-				print("Couldn't read in both sets of data.")
+			except Exception as e: 
+				print(str(e))
+				
+				
 			
 		else:
-			print("Invalid *.mat file")
+			self.ui.statLabel.setText("Invalid file.")
 			return
 		
 		#update
 		self.ren.ResetCamera()
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
-		# update status
-		self.ui.activeFileLabel.setText("Current analysis file:%s"%filer)
 			
 	def onUpdateSpline(self):
-		p,ro,rmin,rmax=self.pts,self.RefOutline,self.RefMin,self.RefMax
-		self.ui.statusLabel.setText("Fitting . . .")
+		p,ro,rmin,rmax=self.pts[np.where(self.bool_pnt)],self.RefOutline,self.RefMin,self.RefMax
+		self.ui.statLabel.setText("Fitting . . .")
 		QtWidgets.qApp.processEvents()
 		#read input parameters
-		gx=float(self.ui.numEdit1.text())
-		gy=float(self.ui.numEdit2.text())
+		self.gx=float(self.ui.numEdit1.text())
+		self.gy=float(self.ui.numEdit2.text())
 		kx=self.ui.numEdit3.value()
 		ky=self.ui.numEdit4.value()
-		s=float(self.ui.numEdit5.text())
 
-		tx=np.linspace(rmin[0],rmax[0],int((rmax[0]-rmin[0])/gx))
-		ty=np.linspace(rmin[1],rmax[1],int((rmax[1]-rmin[1])/gy))
+		tx=np.linspace(rmin[0],rmax[0],int((rmax[0]-rmin[0])/self.gx))
+		ty=np.linspace(rmin[1],rmax[1],int((rmax[1]-rmin[1])/self.gy))
 
 		#make sure both x & y have enough values in either direction
 		if len(tx)<3 or len(ty)<3:
-			self.ui.statusLabel.setText("Grid too large . . .")
+			self.ui.statLabel.setText("Grid too large . . .")
 			self.ui.updateButton.setEnabled(True)
 			return
 		tx=np.insert(tx,0,[rmin[0]] * kx) #to make sure knots are repeated at edges
@@ -337,21 +404,29 @@ class surf_int(QtWidgets.QMainWindow):
 		ty=np.insert(ty,0,[rmin[1]] * ky) #to make sure knots are repeated at edges
 		ty=np.insert(ty,-1,[rmax[1]] * ky)
 		
-		#try spline fitting
+
 		try:
 			self.tck = bisplrep(p[:,0], p[:,1], p[:,2], kx=kx, ky=ky, tx=tx, ty=ty, task=-1) #get spline representation
+		except ValueError as ve:
+			self.ui.statLabel.setText("Last fit failed.")
+			return
+		
+		self.DisplayFit()
+			
+	def DisplayFit(self):
 
+		try:
 			#now evaluate for show
 			if not hasattr(self,'dryval'): #then it won't have drxval
-				rx=np.linspace(rmin[0],rmax[0],int((rmax[0]-rmin[0])/(gx/2)))
-				ry=np.linspace(rmin[1],rmax[1],int((rmax[1]-rmin[1])/(gy/2)))
+				rx=np.linspace(self.RefMin[0],self.RefMax[0],int((self.RefMax[0]-self.RefMin[0])/(self.gx/2)))
+				ry=np.linspace(self.RefMin[1],self.RefMax[1],int((self.RefMax[1]-self.RefMin[1])/(self.gy/2)))
 				self.drxval,self.dryval=rx[1]-rx[0],ry[1]-ry[0]
 				self.ui.drx.setText('%.3f'%(self.drxval))
 				self.ui.dry.setText('%.3f'%(self.dryval))
 			else: #read the res directly from UI, apply and update
 				self.drxval,self.dryval=float(self.ui.drx.text()),float(self.ui.dry.text())
-				rx=np.linspace(rmin[0],rmax[0],int((rmax[0]-rmin[0])/(self.drxval)))
-				ry=np.linspace(rmin[1],rmax[1],int((rmax[1]-rmin[1])/(self.dryval)))
+				rx=np.linspace(self.RefMin[0],self.RefMax[0],int((self.RefMax[0]-self.RefMin[0])/(self.drxval)))
+				ry=np.linspace(self.RefMin[1],self.RefMax[1],int((self.RefMax[1]-self.RefMin[1])/(self.dryval)))
 				self.drxval,self.dryval=rx[1]-rx[0],ry[1]-ry[0]
 				self.ui.drx.setText('%.3f'%(self.drxval))
 				self.ui.dry.setText('%.3f'%(self.dryval))
@@ -370,15 +445,15 @@ class surf_int(QtWidgets.QMainWindow):
 			
 			#crop according to what's in the outline
 			#temporarily move the outline to the first quadrant
-			t_offset=np.array([0.1*rmin[0],0.1*rmin[1]])
+			t_offset=np.array([0.1*self.RefMin[0],0.1*self.RefMin[1]])
 			
 			for j in range(0,2):
 				if t_offset[j]<0:
 					points3D[:,j]=points3D[:,j]-t_offset[j]
-					ro[:,j]=ro[:,j]-t_offset[j]
+					self.RefOutline[:,j]=self.RefOutline[:,j]-t_offset[j]
 
 
-			pth=path.Path(ro[:,:2])
+			pth=path.Path(self.RefOutline[:,:2])
 			inOutline=pth.contains_points(points3D[:,:2])
 
 			ind=np.array(range(0,len(inOutline)))
@@ -392,26 +467,26 @@ class surf_int(QtWidgets.QMainWindow):
 			for j in range(0,2):
 				if t_offset[j]<0:
 					points3D[:,j]=points3D[:,j]+t_offset[j]
-					ro[:,j]=ro[:,j]+t_offset[j]
+					self.RefOutline[:,j]=self.RefOutline[:,j]+t_offset[j]
 
-			self.ui.statusLabel.setText("Rendering . . .")
+			self.ui.statLabel.setText("Rendering . . .")
 			self.DisplaySplineFit(points3D,tri)
 
-			zeval = np.empty(np.size(p[:,2]))
+			zeval = np.empty(np.size(self.pts[:,2]))
 			for i in range(len(zeval)):
-				zeval[i] = bisplev(p[i,0], p[i,1], self.tck)
+				zeval[i] = bisplev(self.pts[i,0], self.pts[i,1], self.tck)
 
-			a=(zeval-p[:,2])
+			a=(zeval-self.pts[:,2])
 			RSME=(np.sum(a*a)/len(a))**0.5
 
-			self.ui.statusLabel.setText("RSME: %2.2f micron . . . Idle"%(RSME*1000))
-
-		except ValueError as ve:
-			print(ve)
-			splineFail= True
-			self.ui.statusLabel.setText("Last fit failed . . . Idle")
+			self.ui.statLabel.setText("RSME: %2.2f micron."%(RSME*1000))
+			
+		except Exception as e:
+			print(str(e))
+			self.ui.statLabel.setText("Failed to show fit.")
 		
 		self.ui.updateButton.setEnabled(True)
+		self.ui.updateButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 
 	def DisplaySplineFit(self,p,t):
 
@@ -515,61 +590,6 @@ class surf_int(QtWidgets.QMainWindow):
 		self.ren.ResetCamera()
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
-	
-	def DisplayPointCloud(self,pts,min,max):
-
-		self.p = vtk.vtkPoints()
-		vertices = vtk.vtkCellArray()
-
-
-		#load up points
-		for i in pts:
-			pId= self.p.InsertNextPoint(i)
-			vertices.InsertNextCell(1)
-			vertices.InsertCellPoint(pId)
-			
-		pC = vtk.vtkPolyData()
-		pC.SetPoints(self.p)
-		pC.SetVerts(vertices)
-		
-		
-		self.Pmapper = vtk.vtkDataSetMapper()
-		self.Pmapper.SetInputData(pC)
-
-		self.pointCloud = vtk.vtkCleanPolyData()
-		self.pointCloud.SetInputData(pC)
-		self.Pmapper.SetInputConnection(self.pointCloud.GetOutputPort())
-		self.pointActor=vtk.vtkActor()
-		self.pointActor.SetMapper(self.Pmapper)
-
-		self.pointActor.GetProperty().SetColor(0.2784,0.6745,0.6941)
-		
-		self.ren.AddActor(self.pointActor)
-		limits=np.array([min[0],max[0],min[1],max[1],min[2],max[2]])
-		self.AddAxis(limits,1)
-		self.ui.vtkWidget.update()
-		self.ren.ResetCamera()
-
-	def DisplayOutline(self,pts):
-		points=vtk.vtkPoints()
-		for i in pts:
-			points.InsertNextPoint(i)
-		lineseg=vtk.vtkPolygon()
-		lineseg.GetPointIds().SetNumberOfIds(len(pts))
-		for i in range(len(pts)):
-			lineseg.GetPointIds().SetId(i,i)
-		linesegcells=vtk.vtkCellArray()
-		linesegcells.InsertNextCell(lineseg)
-		outline=vtk.vtkPolyData()
-		outline.SetPoints(points)
-		outline.SetLines(linesegcells)
-		self.Omapper=vtk.vtkPolyDataMapper()
-		self.Omapper.SetInputData(outline)
-		self.outlineActor=vtk.vtkActor()
-		self.outlineActor.SetMapper(self.Omapper)
-		self.outlineActor.GetProperty().SetColor(0.2784,0.6745,0.6941)
-		self.ren.AddActor(self.outlineActor)
-		self.ui.vtkWidget.update()
 
 
 	def keypress(self,obj,event):
@@ -629,7 +649,7 @@ class surf_int(QtWidgets.QMainWindow):
 			writer.Write()
 			print("Screen output saved to %s" %os.path.join(currentdir,'spline_fit.png'))
 		
-		elif key=="r":
+		elif key=="a":
 			FlipVisible(self.ax3D)
 			
 		elif key =="f": #flip color scheme for printing
@@ -657,7 +677,7 @@ class surf_int(QtWidgets.QMainWindow):
 				self.LineWidth=updateLineWidth(self.splineActor,1)
 
 		elif key == "e":
-			self.WriteOutput()
+			self.write()
 		
 		elif key == "q":
 			if sys.stdin.isatty():
@@ -665,26 +685,120 @@ class surf_int(QtWidgets.QMainWindow):
 			else:
 				print("Surface fitting completed.")
 				return
+				
+		elif key=="l":
+			self.get_input_data(None)
+			
+			
+		elif key == "r":
+			if self.picking == True:
+				self.picking =False
+				self.show_picking()
+			else:
+				self.picking =True
+				self.show_picking()
+				self.start_pick()
 
 		self.ui.vtkWidget.update()
 
-	def WriteOutput(self):
+	def show_picking(self):
+		#Updates when the 'r' button is pressed to provide a link between VTK & Qt hooks
+		if self.picking == True:
+			self.ui.pickActiveLabel.setStyleSheet("QLabel { background-color : red; color : white; }");
+		else:
+			self.ui.pickActiveLabel.setStyleSheet("QLabel { background-color : gray; color : darkGray; }");
+	
+	def start_pick(self):
+		#Required to change interactor
+		style=vtk.vtkInteractorStyleRubberBandPick()
+		self.iren.SetInteractorStyle(style)
+		picker = vtk.vtkAreaPicker()
+		self.iren.SetPicker(picker)
+		picker.AddObserver("EndPickEvent", self.picker_callback)
+	
+	def picker_callback(self,obj,event):
 		
-		if hasattr(self,'splineActor'): #then spline fitting has been done
-			mat_contents=sio.loadmat(self.fileo)
+		extract = vtk.vtkExtractSelectedFrustum()
+	
+		fPlanes=obj.GetFrustum() #collection of planes based on unscaled display
+	
+		#scale frustum to account for the zaspect
+		scaledPlanes=vtk.vtkPlanes()
+		scaledNormals=vtk.vtkDoubleArray()
+		scaledNormals.SetNumberOfComponents(3)
+		scaledNormals.SetNumberOfTuples(6)
+		scaledOrigins=vtk.vtkPoints()
+		for j in range(6):
+			i=fPlanes.GetPlane(j)
+			k=i.GetOrigin()
+			q=i.GetNormal()
+			scaledOrigins.InsertNextPoint(k[0],k[1],k[2]/float(self.Zaspect))
+			scaledNormals.SetTuple(j,(q[0],q[1],q[2]*float(self.Zaspect)))
+		scaledPlanes.SetNormals(scaledNormals)
+		scaledPlanes.SetPoints(scaledOrigins)
 			
+		
+		extract.SetFrustum(scaledPlanes)
+		extract.SetInputData(self.vtkPntsPolyData)
+		extract.Update()
+		extracted = extract.GetOutput()
+		
+		ids = vtk.vtkIdTypeArray()
+		ids = extracted.GetPointData().GetArray("vtkOriginalPointIds")
+
+		
+		if ids:
+			#store them in an array for an undo operation
+			self.lastSelectedIds=ids
+			for i in range(ids.GetNumberOfTuples()):
+				#turn them red
+				self.colors.SetTuple(ids.GetValue(i),(255,0,0))
+				self.bool_pnt[ids.GetValue(i)]=False
+		
+			self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
+			self.vtkPntsPolyData.Modified()
+		
+		
+		self.ui.vtkWidget.update()
+		#set flag on ui to show that data has been modified
+		self.unsaved_changes=True
+
+	def undo_pick(self):
+		if hasattr(self,"lastSelectedIds"):
+			for i in range(self.lastSelectedIds.GetNumberOfTuples()):
+				#turn them from red to starting color
+				self.colors.SetTuple(self.lastSelectedIds.GetValue(i),(70, 171, 176))
+				self.bool_pnt[self.lastSelectedIds.GetValue(i)]=True
+			self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
+			self.vtkPntsPolyData.Modified()
+			self.ui.vtkWidget.update()
+		else:
+			self.ui.statLabel.setText("No picked selection to revert.")
+			
+	def write(self):
+		
+		mat_vars=sio.whosmat(self.fileo)
+		if not set(['spline_x']).isdisjoint([item for sublist in mat_vars for item in sublist]): #tell the user that they might overwrite their data
+			ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
+				"There is already data associated with this analysis step saved. Overwrite and invalidate subsequent steps?", \
+				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+			if ret == QtWidgets.QMessageBox.No: #don't overwrite
+				return
+		
+		if hasattr(self,'tck'): #then spline fitting has been done
+			mat_contents=sio.loadmat(self.fileo)
 			coefs=[np.reshape(self.tck[2],(len(self.tck[0])-self.tck[3]-1,-1))]
 			number=np.array([len(self.tck[0]),len(self.tck[1])])
 			order=np.array([self.tck[3], self.tck[4]])
-			new={'spline_x': {'form': 'B-', 'knots': [self.tck[0], self.tck[1]], 'coefs': coefs, 'number': number, 'order':order, 'dim': 1, 'tck': self.tck},  'x_out':self.RefOutline}
+			new={'spline_x': {'form': 'B-', 'knots': [self.tck[0], self.tck[1]], 'kspacing': [self.gx, self.gy], 'coefs': coefs, 'number': number, 'order':order, 'dim': 1, 'tck': self.tck},  'x_out':self.RefOutline, 'aa_mask':self.bool_pnt}
 			
 			mat_contents.update(new)
 			
 			sio.savemat(self.fileo,mat_contents)
 			
-			self.ui.statusLabel.setText("Output written to %s. Idle." %self.fileo)
+			self.ui.statLabel.setText("Output written.")
 		else:
-			self.ui.statusLabel.setText("Nothing to write. Idle.")
+			self.ui.statLabel.setText("Nothing to write.")
 
 	def get_scale(self):
 		'''
@@ -713,24 +827,6 @@ class surf_int(QtWidgets.QMainWindow):
 		if not(self.ren.GetBackground()==(0.1, 0.2, 0.4)):
 			flip_colors(self.ren,self.ax3D)
 
-def GetFile():
-	root = tk.Tk()
-	root.withdraw()
-	filer = askopenfilename(title='Select the AVERAGED data file:',
-		initialdir=os.getcwd(),
-		filetypes =(("MAT File", "*.mat"),("All Files","*.*")))
-	
-	if filer == '':
-		if sys.stdin.isatty() and not hasattr(sys,'ps1'):
-			sys.exit("No file selected; exiting.")
-		else:
-			print("No file selected; exiting.")
-			filer = None
-			startdir = None
-		
-	else:
-		startdir = os.path.dirname(filer)
-	return filer, startdir
 
 
 def XYView(renderer, camera,cp,fp):

@@ -58,7 +58,7 @@ def aa_def(*args,**kwargs):
 	"""	
 	app = QtWidgets.QApplication.instance()
 	if app is None:
-		app = QApplication(sys.argv)
+		app = QtWidgets.QApplication(sys.argv)
 	
 	spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
 	splash_pix = QtGui.QPixmap(spl_fname,'PNG')
@@ -68,7 +68,7 @@ def aa_def(*args,**kwargs):
 	splash.show()
 	app.processEvents()
 	
-	window = aa_interactor()
+	window = aa_interactor(None)
 
 	if len(args)==1: 
 		aa_interactor.get_input_data(window,args[0])
@@ -93,33 +93,40 @@ class ali_avg(object):
 	"""
 	
 	def setupUi(self, MainWindow):
-		MainWindow.setObjectName("MainWindow")
 		MainWindow.setWindowTitle("pyCM - Alignment and averaging tool v%s" %__version__)
-		MainWindow.resize(1280, 720)
 		self.centralWidget = QtWidgets.QWidget(MainWindow)
-		self.Boxlayout = QtWidgets.QHBoxLayout(self.centralWidget)
-		self.Subtendlayout=QtWidgets.QVBoxLayout()
-		mainUiBox = QtWidgets.QFormLayout()
-
-		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
-		self.vtkWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-		self.vtkWidget.setMinimumSize(1150, 700); #leave 100 px on the size for i/o
-
-		self.Subtendlayout.addWidget(self.vtkWidget)
-		self.activeFileLabel=QtWidgets.QLabel("Idle")
-		self.activeFileLabel.setWordWrap(True)
-		self.activeFileLabel.setFont(QtGui.QFont("Helvetica",italic=True))
-		self.activeFileLabel.setMinimumWidth(100)
-		self.Subtendlayout.addWidget(self.activeFileLabel)
-		self.Subtendlayout.addStretch(1)
-		self.Boxlayout.addLayout(self.Subtendlayout)
-		self.Boxlayout.addStretch(1)
+		if hasattr(MainWindow,'setCentralWidget'):
+			MainWindow.setCentralWidget(self.centralWidget)
+		else:
+			self.centralWidget=MainWindow
+		self.mainlayout=QtWidgets.QGridLayout(self.centralWidget)
 		
-		MainWindow.setCentralWidget(self.centralWidget)
+		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
+		
+		mainUiBox = QtWidgets.QGridLayout()
+		
+		self.vtkWidget.setMinimumSize(QtCore.QSize(1050, 600))
+		sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+		sizePolicy.setHorizontalStretch(10)
+		sizePolicy.setVerticalStretch(10)
+		sizePolicy.setHeightForWidth(self.vtkWidget.sizePolicy().hasHeightForWidth())
+		self.vtkWidget.setSizePolicy(sizePolicy)
+		
+		self.statLabel=QtWidgets.QLabel("Idle")
+		self.statLabel.setWordWrap(True)
+		self.statLabel.setFont(QtGui.QFont("Helvetica",italic=True))
+		self.statLabel.setMinimumWidth(100)
+		sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+		sizePolicy.setHorizontalStretch(0)
+		sizePolicy.setVerticalStretch(0)
+		sizePolicy.setHeightForWidth(self.statLabel.sizePolicy().hasHeightForWidth())
+		self.statLabel.setSizePolicy(sizePolicy)
+
 		headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
+
 		
 		# #define buttons/widgets
-		self.reloadButton = QtWidgets.QPushButton('Load')
+		# self.reloadButton = QtWidgets.QPushButton('Load')
 		scalingLabel=QtWidgets.QLabel("Active axis for scaling")
 		scalingLabel.setFont(headFont)
 		self.xsButton=QtWidgets.QRadioButton("x")
@@ -150,11 +157,9 @@ class ali_avg(object):
 		self.transXlabel=QtWidgets.QLabel("Translate x:")
 		self.transX = QtWidgets.QLineEdit()
 		self.transX.setText('0')
-		self.transX.setMinimumWidth(50)
 		self.transYlabel=QtWidgets.QLabel("Translate y:")
 		self.transY = QtWidgets.QLineEdit()
 		self.transY.setText('0')
-		self.transY.setMinimumWidth(50)
 		self.transButton=QtWidgets.QPushButton('Translate floating')
 		
 		self.alignButtonGroup = QtWidgets.QButtonGroup()
@@ -165,12 +170,14 @@ class ali_avg(object):
 		self.alignButtonGroup.addButton(self.alignPointCloudButton)
 		self.alignButtonGroup.setExclusive(True)
 		self.alignButton = QtWidgets.QPushButton('Align')
+		self.alignButton.setStyleSheet("background-color : white;")
 		
 		horizLine3=QtWidgets.QFrame()
 		horizLine3.setFrameStyle(QtWidgets.QFrame.HLine)
 		averageLabel=QtWidgets.QLabel("Averaging")
 		averageLabel.setFont(headFont)
 		self.averageButton = QtWidgets.QPushButton('Average')
+		self.averageButton.setStyleSheet("background-color : white;")
 		
 		horizLine4=QtWidgets.QFrame()
 		horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)
@@ -178,44 +185,62 @@ class ali_avg(object):
 		
 		horizLine5=QtWidgets.QFrame()
 		horizLine5.setFrameStyle(QtWidgets.QFrame.HLine)
-		self.statusLabel=QtWidgets.QLabel("Idle")
-		self.statusLabel.setWordWrap(True)
-		self.statusLabel.setFont(QtGui.QFont("Helvetica",italic=True))
-		self.statusLabel.setMinimumWidth(50)
+		# self.statusLabel=QtWidgets.QLabel("Idle")
+		# self.statusLabel.setWordWrap(True)
+		# self.statusLabel.setFont(QtGui.QFont("Helvetica",italic=True))
 
-		# #add to formlayout
-		mainUiBox.addRow(self.reloadButton)
-		mainUiBox.addRow(scalingLabel)
-		mainUiBox.addRow(scaleBoxlayout)
-		mainUiBox.addRow(horizLine1)
-		mainUiBox.addRow(mirrorLabel)
-		mainUiBox.addRow(self.mirrorXbutton,self.mirrorYbutton)
-		mainUiBox.addRow(horizLine2)
-		mainUiBox.addRow(alignLabel)
-		mainUiBox.addRow(self.transXlabel,self.transX)
-		mainUiBox.addRow(self.transYlabel,self.transY)
-		mainUiBox.addRow(self.transButton)
-		mainUiBox.addRow(self.alignOutlineButton,self.alignPointCloudButton)
-		mainUiBox.addRow(self.alignButton)
-		mainUiBox.addRow(horizLine3)
-		mainUiBox.addRow(averageLabel)
-		mainUiBox.addRow(self.averageButton)
-		mainUiBox.addRow(horizLine4)
-		mainUiBox.addRow(self.writeButton)
-		mainUiBox.addRow(horizLine5)
-		mainUiBox.addRow(self.statusLabel)
+
+		#add widgets to ui
+		# mainUiBox.addWidget(self.reloadButton,0,0,1,2)
+		mainUiBox.addWidget(scalingLabel,0,0,1,2)
+		mainUiBox.addLayout(scaleBoxlayout,1,0,1,2)
+		mainUiBox.addWidget(horizLine1,2,0,1,2)
+		mainUiBox.addWidget(mirrorLabel,3,0,1,2)
+		mainUiBox.addWidget(self.mirrorXbutton,4,0,1,1)
+		mainUiBox.addWidget(self.mirrorYbutton,4,1,1,1)
+		mainUiBox.addWidget(horizLine2,5,0,1,2)
+		mainUiBox.addWidget(alignLabel,6,0,1,2)
+		mainUiBox.addWidget(self.transXlabel,7,0,1,1)
+		mainUiBox.addWidget(self.transX,7,1,1,1)
+		mainUiBox.addWidget(self.transYlabel,8,0,1,1)
+		mainUiBox.addWidget(self.transY,8,1,1,1)
+		mainUiBox.addWidget(self.transButton,9,0,1,2)
+		mainUiBox.addWidget(self.alignOutlineButton,10,0,1,1)
+		mainUiBox.addWidget(self.alignPointCloudButton,10,1,1,1)
+		mainUiBox.addWidget(self.alignButton,11,0,1,2)
+		mainUiBox.addWidget(horizLine3,12,0,1,2)
+		mainUiBox.addWidget(averageLabel,13,0,1,2)
+		mainUiBox.addWidget(self.averageButton,14,0,1,2)
+		mainUiBox.addWidget(horizLine4,15,0,1,2)
+		mainUiBox.addWidget(self.writeButton,16,0,1,2)
+		mainUiBox.addWidget(horizLine5,17,0,1,2)
+		# mainUiBox.addWidget(self.statusLabel,18,0,1,2)
+
+		mainUiBox.setColumnMinimumWidth(0,mainUiBox.columnMinimumWidth(0))
+		mainUiBox.setColumnMinimumWidth(1,mainUiBox.columnMinimumWidth(0))
 		
-		self.Boxlayout.addLayout(mainUiBox)
+		lvLayout=QtWidgets.QVBoxLayout()
+		lhLayout=QtWidgets.QHBoxLayout()
+		lvLayout.addLayout(mainUiBox)
+		lvLayout.addStretch(1)
+		lhLayout.addLayout(lvLayout)
+		lhLayout.addStretch(2)
+
+
+
+		self.mainlayout.addWidget(self.vtkWidget,0,0,1,1)
+		self.mainlayout.addLayout(lhLayout,0,1,1,1)
+		self.mainlayout.addWidget(self.statLabel,1,0,1,2)
 		
 	def initialize(self):
 		self.vtkWidget.start()
 
-class aa_interactor(QtWidgets.QMainWindow):
+class aa_interactor(QtWidgets.QWidget):
 	"""
 	Sets up the main VTK window, reads file and sets connections between UI and interactor
 	"""
-	def __init__(self, parent = None):
-		QtWidgets.QMainWindow.__init__(self, parent)
+	def __init__(self, parent):
+		super(aa_interactor,self).__init__(parent)
 		self.ui = ali_avg()
 		self.ui.setupUi(self)
 		self.ren = vtk.vtkRenderer()
@@ -239,7 +264,7 @@ class aa_interactor(QtWidgets.QMainWindow):
 		self.mirrored=False
 		self.aligned=False
 		
-		self.ui.reloadButton.clicked.connect(lambda: self.get_input_data(None))
+		# self.ui.reloadButton.clicked.connect(lambda: self.get_input_data(None))
 		self.ui.mirrorXbutton.clicked.connect(lambda: self.flipside('x'))
 		self.ui.mirrorYbutton.clicked.connect(lambda: self.flipside('y'))
 		self.ui.transButton.clicked.connect(lambda: self.shift())
@@ -248,6 +273,8 @@ class aa_interactor(QtWidgets.QMainWindow):
 		self.ui.writeButton.clicked.connect(lambda: self.write())
 	
 	def shift(self):
+	
+		self.unsaved_changes=True
 		if hasattr(self,'fActor'): #then remove this actor and the associated outline actor
 			self.ren.RemoveActor(self.fActor)
 			self.ren.RemoveActor(self.fOutlineActor)
@@ -255,11 +282,11 @@ class aa_interactor(QtWidgets.QMainWindow):
 		#get x and y tranformations
 		gx=float(self.ui.transX.text())
 		gy=float(self.ui.transY.text())
-		transl=np.array([gx, gy, 0]);
+		self.user_transl=np.array([gx, gy, 0]);
 		
 		#apply operation
-		self.flp=self.flp+transl
-		self.fO=self.fO+transl
+		self.flp=self.flp+self.user_transl
+		self.fO=self.fO+self.user_transl
 		
 		color=(255, 205, 52)
 		self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
@@ -295,22 +322,31 @@ class aa_interactor(QtWidgets.QMainWindow):
 		self.ui.vtkWidget.setFocus()	
 	
 	def write(self):
+		
+		mat_vars=sio.whosmat(self.fileo)
+		if not set(['transM', 'aa', 'mirror']).isdisjoint([item for sublist in mat_vars for item in sublist]): #tell the user that they might overwrite their data
+			ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
+				"There is already data associated with this analysis step saved. Overwrite and invalidate subsequent steps?", \
+				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+			if ret == QtWidgets.QMessageBox.No: #don't overwrite
+				return
+					
 		mat_contents=sio.loadmat(self.fileo)
 		
-		new={'transM':self.transM,'aa':self.ap}
+		new={'transM':self.transM,'aa':self.ap, 'mirror':self.mirror_plane}
 		
 		mat_contents.update(new) #update the dictionary
 			
 		sio.savemat(self.fileo,mat_contents)	
-		self.ui.statusLabel.setText("Wrote data. Idle.")
-	
-	def average(self):
-		# if not self.aligned:
-			# self.ui.statusLabel.setText("Align prior to averaging. Idle.")
-			# return
+		self.ui.statLabel.setText("Wrote data.")
+		self.unsaved_changes=False
 		
-		self.ui.statusLabel.setText("Averaging, applying grid . . .")
-		QtWidgets.qApp.processEvents()
+	def average(self):
+		
+		self.unsaved_changes=True
+		
+		self.ui.statLabel.setText("Averaging, applying grid . . .")
+		QtWidgets.QApplication.processEvents()
 		
 		#temporarily shift all data such that it appears in the first cartesian quadrant
 		tT=np.amin(self.rO,axis=0)
@@ -345,8 +381,8 @@ class aa_interactor(QtWidgets.QMainWindow):
 		#apply the grid to the aligned data
 		grid_Align=griddata(self.flp[:,:2],self.flp[:,-1],(grid_x,grid_y),method='linear')
 		
-		self.ui.statusLabel.setText("Averaging using grid . . .")
-		QtWidgets.qApp.processEvents()
+		self.ui.statLabel.setText("Averaging using grid . . .")
+		QtWidgets.QApplication.processEvents()
 		
 		#average z values
 		grid_Avg=(grid_Ref+grid_Align)/2
@@ -364,8 +400,8 @@ class aa_interactor(QtWidgets.QMainWindow):
 		self.rO, self.fO, self.rp, self.flp, self.ap = \
 		self.rO+tT, self.fO+tT, self.rp+tT, self.flp+tT, self.ap+tT
 		
-		self.ui.statusLabel.setText("Rendering . . .")
-		QtWidgets.qApp.processEvents()
+		self.ui.statLabel.setText("Rendering . . .")
+		QtWidgets.QApplication.processEvents()
 		
 		#show it
 		color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
@@ -380,25 +416,32 @@ class aa_interactor(QtWidgets.QMainWindow):
 		#update
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
-		self.ui.statusLabel.setText("Averaging complete. Idle.")
+		self.ui.statLabel.setText("Averaging complete.")
 		self.averaged=True
+		self.ui.averageButton.setStyleSheet("background-color :rgb(77, 209, 97);")
+		
 	
 	def flipside(self,flipDirection):
-		self.ui.statusLabel.setText("Starting mirroring . . .")
+		self.ui.statLabel.setText("Starting mirroring . . .")
 		self.ui.vtkWidget.update()
 		#delete the floating actor
 		if hasattr(self,'fActor'): #then remove this actor and the associated outline actor
 			self.ren.RemoveActor(self.fActor)
 			self.ren.RemoveActor(self.fOutlineActor)
-		else:
-			print("Need to have data loaded before manipulating . . .\n")
+
 
 		if flipDirection == "x":
 			self.flp[:,0]=-self.flp[:,0]
 			self.fO[:,0]=-self.fO[:,0]
+			self.mirror_plane="x"
+			self.ui.mirrorXbutton.setStyleSheet("background-color :rgb(77, 209, 97);")
+			self.ui.mirrorYbutton.setStyleSheet("background-color: None")
 		elif flipDirection == "y":
 			self.flp[:,1]=-self.flp[:,1]
 			self.fO[:,1]=-self.fO[:,1]
+			self.mirror_plane="y"
+			self.ui.mirrorYbutton.setStyleSheet("background-color :rgb(77, 209, 97);")
+			self.ui.mirrorXbutton.setStyleSheet("background-color: None")
 		
 		color=(255, 205, 52)
 		self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
@@ -432,12 +475,13 @@ class aa_interactor(QtWidgets.QMainWindow):
 		self.ren.ResetCamera()
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
-		self.ui.statusLabel.setText("Mirror operation complete. Idle.")
+		self.ui.statLabel.setText("Mirror operation complete.")
 		self.mirrored=True
 		
 	def align(self):
-		self.ui.statusLabel.setText("Starting alignment . . .")
-		QtWidgets.qApp.processEvents()
+		self.unchanged_changes=True
+		self.ui.statLabel.setText("Starting alignment . . .")
+		QtWidgets.QApplication.processEvents()
 		
 		icp=vtk.vtkIterativeClosestPointTransform()
 		if self.ui.alignPointCloudButton.isChecked():
@@ -469,6 +513,10 @@ class aa_interactor(QtWidgets.QMainWindow):
 		self.flp=np.dot(self.flp,self.transM[0:3,0:3])+self.transM[0:3,-1]
 		self.fO=np.dot(self.fO,self.transM[0:3,0:3])+self.transM[0:3,-1]
 		
+		# make sure to remove any user-defined translation from transM
+		if hasattr(self,'user_transl'):
+			self.transM[0:3,-1]=self.transM[0:3,-1]+np.asmatrix(self.user_transl)
+
 		color=(255, 205, 52)
 		self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
 		self.ren.AddActor(self.fActor)
@@ -502,11 +550,12 @@ class aa_interactor(QtWidgets.QMainWindow):
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
 		if self.mirrored==False:
-			self.ui.statusLabel.setText("WARNING alignment proceeding without a mirror operation. Alignment complete. Idle.")
+			self.ui.statLabel.setText("WARNING alignment proceeding without a mirror operation. Alignment complete.")
 		else:
-			self.ui.statusLabel.setText("Alignment complete. Idle.")
+			self.ui.statLabel.setText("Alignment complete.")
 		
 		self.aligned = True
+		self.ui.alignButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 		
 	def get_grid(RefPoints):
 	
@@ -533,6 +582,7 @@ class aa_interactor(QtWidgets.QMainWindow):
 			self.ren.RemoveActor(self.fActor)
 			self.ren.RemoveActor(self.rOutlineActor)
 			self.ren.RemoveActor(self.fOutlineActor)
+			self.user_transl=np.array([0,0,0]) #needs to be reset
 			
 		if hasattr(self,'aActor'):
 			self.ren.RemoveActor(self.aActor)
@@ -543,7 +593,11 @@ class aa_interactor(QtWidgets.QMainWindow):
 		if filem: #check variables
 			mat_contents = sio.loadmat(filem)
 			self.fileo=filem
-			try:
+			if 'aa' in mat_contents:
+
+				
+				#draw floating and reference datasets
+				
 				self.rp=mat_contents['ref']['rawPnts'][0][0]
 				ind=mat_contents['ref']['mask'][0][0][0]
 				self.rO=mat_contents['ref']['x_out'][0][0]
@@ -556,43 +610,103 @@ class aa_interactor(QtWidgets.QMainWindow):
 				self.rOutlineActor, self.rOPC = gen_outline(self.rO,color,self.PointSize)
 				self.ren.AddActor(self.rOutlineActor)
 				
-				#do other one
+				s,nl,axs=self.get_scale()
+				
+				self.rActor.SetScale(s)
+				self.rActor.Modified()
+				
+				#do other one, but with transformed floating points
 				self.flp=mat_contents['float']['rawPnts'][0][0]
 				ind=mat_contents['float']['mask'][0][0][0]
 				self.fO=mat_contents['float']['x_out'][0][0]
 				
 				self.flp=self.flp[np.where(ind)]
+				self.flipside(mat_contents['mirror'])
+				# flipping creates actors, so remove the actors immediately before transforming
+				self.ren.RemoveActor(self.fActor)
+				self.ren.RemoveActor(self.fOutlineActor)
 
+				self.transM=mat_contents['transM']
+				self.flp=np.dot(self.flp,self.transM[0:3,0:3])+self.transM[0:3,-1]
+				self.fO=np.dot(self.fO,self.transM[0:3,0:3])+self.transM[0:3,-1]
+				
 				color=(255, 205, 52)
 				self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
 				self.ren.AddActor(self.fActor)
 				self.fOutlineActor, self.fOPC = gen_outline(self.fO,color,self.PointSize)
 				self.ren.AddActor(self.fOutlineActor)
 				
-				# update status
-				self.ui.activeFileLabel.setText("Current analysis file:%s"%filem)
+				#show aligned and averaged data
+				self.ap=mat_contents['aa']
+				color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
+				_, self.aActor, _, = gen_point_cloud(self.ap,color,self.PointSize)
+				self.ren.AddActor(self.aActor)
+		
 				
-				RefMin=np.amin(np.vstack((self.flp,self.rp)),axis=0)
-				RefMax=np.amax(np.vstack((self.flp,self.rp)),axis=0)
 
-				extents=RefMax-RefMin #extents
-				rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
-				self.limits=[RefMin[0]-rl, \
-				RefMax[0]+rl, \
-				RefMin[1]-rl, \
-				RefMax[1]+rl, \
-				RefMin[2],RefMax[2]]
+				self.aActor.SetScale(s)
+				self.aActor.Modified()
+				
 
-				#add axes
-				self.add_axis(self.limits,[1,1,1])
+				
+				self.ui.statLabel.setText("This dataset has already been aligned and averaged.")
+				self.aligned = True
+				self.ui.alignButton.setStyleSheet("background-color :rgb(77, 209, 97);")
+				self.mirrored=True
+				self.averaged=True
+				self.ui.averageButton.setStyleSheet("background-color :rgb(77, 209, 97);")
+			else:
+				self.ui.statLabel.setText("This dataset has not been previously aligned.")
+				# QtWidgets.QApplication.processEvents()
 
-			except:
-				print("Couldn't read in both sets of data.")
-			
+				#'''
+				try:
+					self.rp=mat_contents['ref']['rawPnts'][0][0]
+					ind=mat_contents['ref']['mask'][0][0][0]
+					self.rO=mat_contents['ref']['x_out'][0][0]
+					
+					self.rp=self.rp[np.where(ind)]
+					
+					color=(242, 101, 34)
+					self.rPC, self.rActor, _, = gen_point_cloud(self.rp,color,self.PointSize)
+					self.ren.AddActor(self.rActor)
+					self.rOutlineActor, self.rOPC = gen_outline(self.rO,color,self.PointSize)
+					self.ren.AddActor(self.rOutlineActor)
+					
+					#do other one
+					self.flp=mat_contents['float']['rawPnts'][0][0]
+					ind=mat_contents['float']['mask'][0][0][0]
+					self.fO=mat_contents['float']['x_out'][0][0]
+					
+					self.flp=self.flp[np.where(ind)]
+
+					color=(255, 205, 52)
+					self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
+					self.ren.AddActor(self.fActor)
+					self.fOutlineActor, self.fOPC = gen_outline(self.fO,color,self.PointSize)
+					self.ren.AddActor(self.fOutlineActor)
+					
+					RefMin=np.amin(np.vstack((self.flp,self.rp)),axis=0)
+					RefMax=np.amax(np.vstack((self.flp,self.rp)),axis=0)
+
+					extents=RefMax-RefMin #extents
+					rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
+					self.limits=[RefMin[0]-rl, \
+					RefMax[0]+rl, \
+					RefMin[1]-rl, \
+					RefMax[1]+rl, \
+					RefMin[2],RefMax[2]]
+
+					#add axes
+					self.add_axis(self.limits,[1,1,1])
+
+				except:
+					print("Couldn't read in both sets of data.")
+				
 		else:
 			print("Invalid *.mat file")
 			return
-		
+		self.unsaved_changes=False
 		#update
 		self.ren.ResetCamera()
 		self.ui.vtkWidget.update()
@@ -624,8 +738,6 @@ class aa_interactor(QtWidgets.QMainWindow):
 				self.aActor.Modified()
 			
 			self.add_axis(nl,axs)
-
-
 
 		elif key=="x":
 			self.Zaspect=self.Zaspect*0.5
@@ -692,6 +804,9 @@ class aa_interactor(QtWidgets.QMainWindow):
 			else:
 				self.picking =True
 				self.show_picking()
+				
+		elif key=="l":
+			self.get_input_data(None)
 		
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()

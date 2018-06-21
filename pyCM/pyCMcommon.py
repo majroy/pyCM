@@ -49,12 +49,8 @@ def get_file(*args):
 		return filer, startdir
 		
 	else:
-		# filer=str(filer)
-		# startdir=os.path.dirname(filer)
-		print(filer[0])
 		return filer[0], os.path.dirname(filer[0])
-		#Hacky, but resolves the Qstring that gets returned by QfileDialog
-		# return filer.split(",")[0].strip("'('"), startdir.strip("('")
+
 				
 	
 def get_open_file(ext,outputd):
@@ -70,28 +66,38 @@ def get_open_file(ext,outputd):
 	ftypeName['*.ccx.inp']='Calculix input file'
 	ftypeName['*.abq.inp']='Abaqus input file'
 	
-	if outputd==None: id=os.getcwd()
+	
+	
+	if outputd==None: id=str(os.getcwd())
 	else: id=outputd
 	lapp = QtWidgets.QApplication.instance()
 	if lapp is None:
 		lapp = QtWidgets.QApplication([])
-	filer = QtWidgets.QFileDialog.getSaveFileName(None, 'Select the save location:', id,(ftypeName[ext]+' ('+ext+')'))
+
+	filer = QtWidgets.QFileDialog.getSaveFileName(None, "Save as:", "",str(ftypeName[ext]+' ('+ext+')'))
 	
 	if filer == '':
 		filer = None
 		startdir = None
-		
+		return filer, startdir
 
 	if filer:
-		filer=str(filer)
+		filer=str(filer[0])
 		if filer.endswith(ext[-4:]) and not filer.endswith(ext[-7:]):
 			filer=filer[:-4]+ext.split('*')[-1]
 
-		startdir=os.path.dirname(filer)
+		startdir=os.path.split(filer)
 	
-	#Hacky, but resolves the Qstring that gets returned by QfileDialog
-	
-	return filer.split(",")[0].strip("'('"), startdir.strip("('")
+		return filer, os.path.split(filer)
+
+def extract_from_mat(targetfile,matfile,field):
+	'''
+	Function to pull ascii data from .mat file and write to a given location which FEA packages need - called in the instance if the user deletes various auxiliary files, this function will recover them from a mat file.
+	'''
+	mat_contents = sio.loadmat(matfile)
+	fid=open(targetfile,'w+')
+	fid.write('%s'%mat_contents[field][0])
+	fid.close()
 
 def gen_point_cloud(pts,color,size):
 	'''
@@ -243,7 +249,7 @@ def update_point_size(actor,NewPointSize):
 	renWin.Render()
 	return NewPointSize
 	
-def read_uom_mat(file):
+def read_mat(file):
 	'''
 	Reads a .mat file from UoM's MATLAB routine outliner.m which preprocesses NanoFocus .dat file (Origin format). Returns points and an outline in numpy arrays.
 	'''
@@ -264,43 +270,20 @@ def set_size_policy(target_widget):
 	target_widget.setSizePolicy(sizePolicy)
 	target_widget.setMinimumSize(1080, 600); #leave 100 px on the size for i/o
 
-def read_abq_dat(infile):
-	"""
-	Reads an output dat file from Abaqus to recover information written by EL PRINT
-	"""
-	#string that identifies start of EL PRINT and one line after the end of the output
-	keyword =['    ELEMENT  PT FOOT-',' MAXIMUM']  
-	
-	#create counter for all lines in the file & number of blank lines
-	i,blanklines=0,0
-	#read file and find both where keyword occurs
-	fid = open(infile)
-	lineFlag=[]
-	while 1:
-		lines = fid.readlines(100000)
-		if not lines:
-			break
-		for line in lines:
-			i+=1
-			#look for keywords
-			for j in keyword:
-				if line[0:len(j)]==j:
-					lineFlag.append(i)
-			#start counting blank lines after the second keyword
-			if (len(lineFlag)>=1) and (line in ['\n', '\r\n']):
-				blanklines+=1
-				
-	lineFlag.append(i)
-	s_h=lineFlag[0]+1 #line after lineFlag
-	s_f=lineFlag[2]-lineFlag[1]-blanklines+3 #line no of lineFlag(s) and immediately before/after respective keyword(s)
+def clear_mat(matfile,fields):
+	'''
+	Remove specified fields from a .mat file, called in conjunction to a 'get_input_data' function for each respective step, keeps mat file current
+	'''
 
-	fid.close()
+	mat_contents=sio.loadmat(matfile) #dictionary of variable names
 
-	#pass element no, integration pnt coordinates (x,y,z) & S33 stresses into np matrix
-	return np.genfromtxt(infile, skip_header=s_h,
-								skip_footer=s_f,
-								usecols=(0, 2, 3, 4, 7), 
-								autostrip=True)
+	for field in fields:
+		if field in mat_contents:
+			del mat_contents[field]
+		
+	sio.savemat(matfile,mat_contents)
+
+
 
 class Ui_getFEAconfigDialog(object):
 	def setupUi(self, getFEAconfigDialog):
@@ -365,7 +348,6 @@ class Ui_getFEAconfigDialog(object):
 		self.ConfigFileLabel.setText(_translate("getFEAconfigDialog", "Current config file:",None))
 		self.ConfigFileLoc.setText(_translate("getFEAconfigDialog", "Undefined", None))
 		self.pushButton.setText(_translate("getFEAconfigDialog", "Set"))
-
 
 
 	def makeConfigChange(self, getFEAconfigDialog):
