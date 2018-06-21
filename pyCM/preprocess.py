@@ -17,8 +17,8 @@ f     - flip colors from white on dark to dark on white
 i     - save output to .png in current working directory
 r     - remove/reinstate compass/axes
 o     - remove/reinstate outline
-LMB+p - The p button with the Left mouse button allow 
-        for selecting rigid body boundary conditions. 
+LMB+p - The p button with the Left mouse button allow
+        for selecting rigid body boundary conditions.
         Click first and then press p to select.
 e     - allows the user to change their FEA exec location
 -------------------------------------------------------------------------------
@@ -49,11 +49,11 @@ from .pyCMcommon import *
 def FEAtool(*args, **kwargs):
 	"""
 	Main function, builds qt interaction
-	"""	
+	"""
 	app = QtWidgets.QApplication.instance()
 	if app is None:
 		app = QtWidgets.QApplication(sys.argv)
-	
+
 	spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
 	splash_pix = QtGui.QPixmap(spl_fname,'PNG')
 	splash = QtWidgets.QSplashScreen(splash_pix)
@@ -61,10 +61,18 @@ def FEAtool(*args, **kwargs):
 
 	splash.show()
 	app.processEvents()
+<<<<<<< HEAD
 	
 	window = msh_interactor(None)
 	if len(args)==1: msh_interactor.get_input_data(window,args[0])
 	else: msh_interactor.get_input_data(window,None)
+=======
+
+	window = msh_interactor()
+	if len(args)==2: msh_interactor.getInputData(window,args[0],args[1])
+	elif len(args)==1: msh_interactor.getInputData(window,args[0],None)
+	else: msh_interactor.getInputData(window,"",None)
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 
 
 	window.show()
@@ -72,7 +80,7 @@ def FEAtool(*args, **kwargs):
 	window.iren.Initialize() # Need this line to actually show the render inside Qt
 
 	ret = app.exec_()
-	
+
 	if sys.stdin.isatty() and not hasattr(sys,'ps1'):
 		sys.exit(ret)
 	else:
@@ -83,7 +91,7 @@ class pre_main_window(object):
 	Class to build qt interaction, including VTK widget
 	setupUi builds, initialize starts VTK widget
 	"""
-	
+
 	def setupUi(self, MainWindow):
 		MainWindow.setWindowTitle("pyCM - FEA preprocessing v%s" %__version__)
 		if hasattr(MainWindow,'setCentralWidget'):
@@ -133,8 +141,14 @@ class pre_main_window(object):
 		self.outlineButtonGroup.addButton(self.geoButton)
 		self.outlineButtonGroup.addButton(self.dxfButton)
 		self.outlineButtonGroup.setExclusive(True)
+<<<<<<< HEAD
 
 		
+=======
+		self.outlineButton = QtWidgets.QPushButton('Write')
+		self.outlineButton.setMinimumWidth(50)
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		horizLine2=QtWidgets.QFrame()
 		horizLine2.setFrameStyle(QtWidgets.QFrame.HLine)
 		meshscriptLabel=QtWidgets.QLabel("Generate mesh")
@@ -152,7 +166,7 @@ class pre_main_window(object):
 		self.codeButtonGroup.addButton(self.gmshButton)
 		self.codeButtonGroup.addButton(self.abaButton)
 		self.codeButtonGroup.setExclusive(True)
-		
+
 		self.quadButton=QtWidgets.QRadioButton("quads")
 		self.tetButton=QtWidgets.QRadioButton("tets")
 		self.quadButton.setChecked(True)
@@ -162,7 +176,7 @@ class pre_main_window(object):
 		self.mtypeButtonGroup.addButton(self.tetButton)
 		self.mtypeButtonGroup.addButton(self.quadButton)
 		self.mtypeButtonGroup.setExclusive(True)
-		
+
 		horizLine3=QtWidgets.QFrame()
 		horizLine3.setFrameStyle(QtWidgets.QFrame.HLine)
 		bcLabel=QtWidgets.QLabel("Impose BCs & material")
@@ -194,8 +208,13 @@ class pre_main_window(object):
 		self.ctypeButtonGroup.setExclusive(True)
 		self.runFEAButton=QtWidgets.QRadioButton("Run")
 		self.runFEAButton.setChecked(True)
+<<<<<<< HEAD
 		self.goButton = QtWidgets.QPushButton('Compose')
 		
+=======
+		self.goButton = QtWidgets.QPushButton('Write')
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		horizLine5=QtWidgets.QFrame()
 		horizLine5.setFrameStyle(QtWidgets.QFrame.HLine)
 		self.statLabel=QtWidgets.QLabel("Idle")
@@ -254,7 +273,7 @@ class pre_main_window(object):
 		self.mainlayout.addLayout(lvLayout,0,1,1,1)
 		self.mainlayout.addWidget(self.statLabel,1,0,1,2)
 
-	
+
 	def initialize(self):
 		self.vtkWidget.start()
 
@@ -277,7 +296,7 @@ class msh_interactor(QtWidgets.QWidget):
 		self.cp=self.ren.GetActiveCamera().GetPosition()
 		self.fp=self.ren.GetActiveCamera().GetFocalPoint()
 		self.iren.AddObserver("KeyPressEvent", self.Keypress)
-		
+
 		self.PointSize=2
 		self.LineWidth=1
 		self.Zaspect=1.0
@@ -290,17 +309,17 @@ class msh_interactor(QtWidgets.QWidget):
 			print("Did not find config file in the pyCM installation directory.")
 		try:
 			with open(self.filec,'r') as ymlfile:
-				self.cfg = yaml.load(ymlfile)	
+				self.cfg = yaml.load(ymlfile)
 		except:
 			try:
 				self.cfg= GetFEAconfig(['','',''],self.filec)
 			except:
 				sys.exit("Failed to set config file. Quitting.")
-				
-	
+
+
 		#Sets all connections between gui and functions
 
-		
+
 		self.ui.updateOutlineButton.clicked.connect(lambda: self.ModOutline())
 		self.ui.meshscriptButton.clicked.connect(lambda: self.WriteGeo())
 		self.ui.rigidBodyButton.clicked.connect(lambda: self.ImposeRigidBody())
@@ -308,6 +327,7 @@ class msh_interactor(QtWidgets.QWidget):
 		self.ui.imposeSpline.clicked.connect(lambda: self.ImposeSplineFit())
 		self.ui.goButton.clicked.connect(lambda: self.doFEA())
 
+<<<<<<< HEAD
 	def get_input_data(self,filem):
 		if filem == None:
 			filem, _, =get_file('*.mat')
@@ -318,6 +338,30 @@ class msh_interactor(QtWidgets.QWidget):
 			self.fileo=filem
 
 			mat_contents = sio.loadmat(self.fileo)
+=======
+	def getInputData(self,filer,outputd):
+		if outputd==None and (not os.path.isfile(filer)):
+			self.outputd=None
+			self.filer,startdir=get_file("*.mat")
+			if self.filer == None:
+				#if its called from the commandline
+				if sys.stdin.isatty() and not hasattr(sys,'ps1'):
+					sys.exit("No file identified")
+				else:
+					print("No surface file specified, exiting.")
+					#return to interactive python
+					exit()
+		elif not outputd==None and filer==None:
+			self.outputd=outputd
+			if not os.path.exists(self.outputd): #make the directory if it doesn't exist
+				os.makedirs(self.outputd)
+
+		elif os.path.isfile(filer):
+			self.outputd=os.path.dirname(filer)
+			self.filer = filer
+		else:
+			sys.exit("Arguments not specified correctly. Quitting.")
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 
 			try:
 				#read in for ImposeSplineFit function
@@ -406,6 +450,7 @@ class msh_interactor(QtWidgets.QWidget):
 				print("Couldn't read variables from file.")
 				print(str(e))
 				return
+<<<<<<< HEAD
 			
 			color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
 			self.outlineActor, _, = gen_outline(self.Outline,color,self.PointSize)
@@ -415,14 +460,29 @@ class msh_interactor(QtWidgets.QWidget):
 
 			###put stuff here that would read if the file contains preprocessed data
 		
+=======
+
+		except KeyError:
+			print("Error reading reference data")
+			return
+		color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
+		self.outlineActor, _, = gen_outline(self.Outline,color,self.PointSize)
+		self.ren.AddActor(self.outlineActor)
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		#update
 		self.ren.ResetCamera()
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
+<<<<<<< HEAD
 		self.outputd=os.path.split(self.fileo) #needed to write ancillary files.
 		
+=======
 
-		
+		# self.outlineActor=self.DisplayOutline(self.Outline,(0.2784,0.6745,0.6941),self.PointSize)
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
+
+
 	def UndoRigidBody(self):
 
 		if not hasattr(self,"pickedCornerInd"):
@@ -438,6 +498,7 @@ class msh_interactor(QtWidgets.QWidget):
 		l=self.limits
 		self.limits[0:4]=[l[0]+self.asize,l[1]-self.asize,l[2]+self.asize,l[3]-self.asize]
 		self.AddAxis(np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect]),1/self.Zaspect)
+<<<<<<< HEAD
 		
 		
 		self.ui.rigidBodyButton.setStyleSheet("background-color :None;")
@@ -447,8 +508,14 @@ class msh_interactor(QtWidgets.QWidget):
 	def ImposeRigidBody(self):
 		"""
 		Displays and identifies where rigid body BCs can be imposed
+=======
+
+	def ImposeRigidBody(self):
 		"""
-		
+		Displays and identifies where rigid body BCs can be imposed, calls
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
+		"""
+
 		if hasattr(self,"pickedCornerInd"):
 			msg=QtWidgets.QMessageBox()
 			msg.setIcon(QtWidgets.QMessageBox.Information)
@@ -456,7 +523,7 @@ class msh_interactor(QtWidgets.QWidget):
 			msg.setWindowTitle("pyCM Error")
 			msg.exec_()
 			return
-		
+
 		if not hasattr(self,"corners"):
 			msg=QtWidgets.QMessageBox()
 			msg.setIcon(QtWidgets.QMessageBox.Information)
@@ -464,18 +531,18 @@ class msh_interactor(QtWidgets.QWidget):
 			msg.setWindowTitle("pyCM Error")
 			msg.exec_()
 			return
-				
+
 		directions=np.array([[0,-1,0],[0,-1,0],[1,0,0],[1,0,0],
                                 [0,1,0],[0,1,0],[-1,0,0],[-1,0,0],
 					  [0,-1,0],[0,-1,0],[1,0,0],[1,0,0],
                                 [0,1,0],[0,1,0],[-1,0,0],[-1,0,0]]) #corresponds to ccw
 		if not self.OutlineIsCCW: directions=np.flipud(directions)
-		
+
 		#arrow size is 5% max size of domain
 		self.asize=np.maximum(self.limits[1]-self.limits[0],self.limits[3]-self.limits[2])*0.05
-		
+
 		self.a=[] #arrow actors on 'front' face
-		self.aInd=np.empty([8,2]) #index of corners and their 
+		self.aInd=np.empty([8,2]) #index of corners and their
 		for c in range(len(self.corners)):
 			if c==0:
 				self.a.append(DrawArrow(self.corners[c,:],self.asize,directions[c,:],self.ren))
@@ -485,21 +552,21 @@ class msh_interactor(QtWidgets.QWidget):
 				self.a.append(DrawArrow(self.corners[c,:],self.asize,directions[c*2-1,:],self.ren))
 				self.a.append(DrawArrow(self.corners[c,:],self.asize,directions[c*2,:],self.ren))
 				self.aInd[c,:]=[c*2,c*2+1]
-				
-		
-		
+
+
+
 		#bump out axis limits
 		l=self.limits
 		self.limits[0:4]=[l[0]-self.asize,l[1]+self.asize,l[2]-self.asize,l[3]+self.asize]
 		#there will be a BCactor, so BClimits will exist
 		self.AddAxis(np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect]),1/self.Zaspect)
 		self.ui.vtkWidget.update()
-		
+
 		self.picks=0
 		self.pickedCornerInd=[]
 		self.pickedActorInd=[]
 		self.iren.AddObserver("EndPickEvent",self.checkPick)
-		
+
 	def checkPick(self,object,event):
 		"""
 		Activates two pick events, one for each discrete rigid body BC. Needs ImposeRigidBody to run.
@@ -507,18 +574,27 @@ class msh_interactor(QtWidgets.QWidget):
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
 		picker=vtk.vtkPropPicker()
-		
+
 		clickPos=self.iren.GetEventPosition()
-		
+
 		picker.Pick(clickPos[0],clickPos[1],0,self.ren)
 		NewPickedActor = picker.GetActor()
+<<<<<<< HEAD
 		count=0
+=======
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		if NewPickedActor:
-			
+
 			i=int(NewPickedActor.GetAddressAsString('vtkPolyData')[5:], 16)
 			#compare it against the addresses in a
+<<<<<<< HEAD
 			
 			
+=======
+			count=0
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 			for actor in self.a:
 				ai=int(actor.GetAddressAsString('vtkPolyData')[5:], 16)
 				if ai==i:
@@ -539,6 +615,7 @@ class msh_interactor(QtWidgets.QWidget):
 							self.picks+=1
 				else:
 					count+=1
+<<<<<<< HEAD
 					
 		else: #the index and corners are coming from the mat file
 			for actor in self.a:
@@ -556,6 +633,9 @@ class msh_interactor(QtWidgets.QWidget):
 					self.a[count].GetProperty().SetColor(1,0,0)
 					self.pickedActorInd.append(count)
 					self.picks+=1
+=======
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 
 		#check if pick condition has been satisfied
 		if self.picks == 2 and len(self.pickedActorInd)==3:
@@ -565,7 +645,7 @@ class msh_interactor(QtWidgets.QWidget):
 			for actorInd in aDel:
 				self.ren.RemoveActor(self.a[actorInd])
 			self.iren.RemoveObservers("EndPickEvent")
-			#corners and their coordinates are stored in 
+			#corners and their coordinates are stored in
 			# print self.corners[self.pickedCornerInd,:]
 			#node numbers of the picked corners are stored in
 			# print self.cornerInd[self.pickedCornerInd]
@@ -643,12 +723,13 @@ class msh_interactor(QtWidgets.QWidget):
 		"""
 		Assumes that outline is unordered, finds corners and sorts, returns a new outline with either the node count indicated or an even number of nodes according to the length indicated. Calls write_outline.
 		"""
-		
+
 		#if there is already a respaced outline, then remove it from the display
 		if hasattr(self,"respacedOutlineActor"):
 			self.ren.RemoveActor(self.respacedOutlineActor)
 			self.rsOutline=[]
 
+<<<<<<< HEAD
 		
 		#Calculate 2D corners 
 		d=np.array([])
@@ -676,12 +757,41 @@ class msh_interactor(QtWidgets.QWidget):
 					)
 			ind=np.append(ind,np.where(d==np.amin(d)))
 		
+=======
+		#if it doesn't have corners, then calculate them
+		if not hasattr(self,"corners"):
+			d=np.array([])
+			for j in range(len(self.Outline[:,0])):
+				d=np.append(d,
+				np.sqrt((self.limits[0]-self.Outline[j,0])**2+(self.limits[2]-self.Outline[j,1])**2)
+				)
+			ind=np.where(d==np.amin(d))[0][0] #to avoid making ind an array
+
+
+			#reorder the points so that ind is first
+			self.Outline=np.vstack((self.Outline[ind::,:],self.Outline[0:ind+1,:]))
+
+			c_target=np.array([
+			[self.limits[0],self.limits[3]], #xmin,ymax
+			[self.limits[1],self.limits[3]], #xmax,ymax
+			[self.limits[1],self.limits[2]] #xmax,ymin
+			])
+			ind=np.array([])
+			for i in c_target:
+				d=np.array([])
+				for j in range(len(self.Outline[:,0])):
+					d=np.append(d,
+					np.sqrt((i[0]-self.Outline[j,0])**2+(i[1]-self.Outline[j,1])**2)
+						)
+				ind=np.append(ind,np.where(d==np.amin(d)))
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		outlineCornerInd=np.sort(np.append(ind,0)).astype(int)
-		
-		
+
+
 		#write routine for either 'spacing' based approach or total number of seeds
 		#create empty array to receive respaced points
-		
+
 		conv=True
 		count=0
 		while conv:
@@ -720,9 +830,15 @@ class msh_interactor(QtWidgets.QWidget):
 
 				X=respace_equally(self.Outline[outlineCornerInd[3]::,0:2],dist)[0]
 				respacedOutline=np.vstack((respacedOutline,X[0:-1,:])) #do not close profile
+<<<<<<< HEAD
 				# respacedOutline=np.vstack((respacedOutline,X))
 			
 			#write warning to the status line if 
+=======
+
+
+			#write warning to the status line if
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 			if not np.fmod(len(respacedOutline),2)==0:
 				if self.ui.spacingButton.isChecked():
 					dist+=0.25
@@ -734,10 +850,11 @@ class msh_interactor(QtWidgets.QWidget):
 				conv=False
 				self.ui.statLabel.setText("Idle") #clears error on recalculation
 			count+=1
-			
+
 		#Write zeros to the z coordinate of the outline
 		self.rsOutline=np.hstack((respacedOutline,np.zeros([len(respacedOutline[:,0]),1])))
 
+<<<<<<< HEAD
 		self.draw_rsoutline()
 		
 		self.Dist=dist
@@ -764,6 +881,62 @@ class msh_interactor(QtWidgets.QWidget):
 		Outline=self.rsOutline
 
 		
+=======
+		#display and get respaced outline actor
+		self.respacedOutlineActor, _ =gen_outline(respacedOutline,(1,0,0),self.PointSize+3)
+
+		self.ren.AddActor(self.respacedOutlineActor)
+		# self.respacedOutlineActor.GetProperty().SetPointSize(12)
+		self.ui.vtkWidget.update()
+
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+		self.AddAxis(self.limits,1)
+
+		# self.respacedOutlineActor=self.DisplayOutline(respacedOutline,(1,0,0),self.PointSize+3)
+		self.rsOutline=respacedOutline
+		self.Dist=dist
+		#update GUI to report back the number of points
+		self.ui.seedLengthInput.setText("%4.4f"%dist)
+		self.ui.numSeed.setValue(len(respacedOutline))
+
+	# def DisplayOutline(self,pts,color,size):
+		# points=vtk.vtkPoints()
+		# for i in pts:
+			# points.InsertNextPoint(i)
+		# lineseg=vtk.vtkPolygon()
+		# lineseg.GetPointIds().SetNumberOfIds(len(pts))
+		# for i in range(len(pts)):
+			# lineseg.GetPointIds().SetId(i,i)
+		# linesegcells=vtk.vtkCellArray()
+		# linesegcells.InsertNextCell(lineseg)
+		# outline=vtk.vtkPolyData()
+		# outline.SetPoints(points)
+		# outline.SetVerts(linesegcells)
+		# outline.SetLines(linesegcells)
+		# self.Omapper=vtk.vtkPolyDataMapper()
+		# self.Omapper.SetInputData(outline)
+		# outlineActor=vtk.vtkActor()
+		# outlineActor.SetMapper(self.Omapper)
+		# outlineActor.GetProperty().SetColor(color)
+		# outlineActor.GetProperty().SetPointSize(size)
+		# self.ren.AddActor(outlineActor)
+		# self.AddAxis(self.limits,1)
+		# self.ren.ResetCamera()
+		# self.ui.vtkWidget.update()
+		# self.ren.ResetCamera()
+		# return outlineActor
+
+	def WriteOut(self):
+
+		if hasattr(self,"rsOutline"):
+			Outline=self.rsOutline
+		else:
+			Outline=self.Outline
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		N=len(Outline)
 		if self.ui.geoButton.isChecked():
 			if not hasattr(self,"ofile"):
@@ -804,8 +977,8 @@ class msh_interactor(QtWidgets.QWidget):
 				self.ui.statLabel.setText("Didn't write dxf file.")
 				print(e)
 				return
-			
-			
+
+
 			fid.write("0\nSECTION\n2\nENTITIES\n0\n")
 			for i in range(N-1):
 				outputline = "LINE\n10\n%f\n20\n%f\n30\n%f\n11\n%f\n21\n%f\n31\n%f\n0\n" \
@@ -815,6 +988,7 @@ class msh_interactor(QtWidgets.QWidget):
 			fid.write("LINE\n10\n%f\n20\n%f\n30\n%f\n11\n%f\n21\n%f\n31\n%f\n0\n" \
 						%(Outline[-1,0],Outline[-1,1],0,Outline[0,0],Outline[0,1],0))
 			fid.write("ENDSEC\n0\nEOF\n")
+<<<<<<< HEAD
 			self.ui.dxfButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 			self.ui.geoButton.setStyleSheet("background-color :None;")
 			
@@ -849,8 +1023,12 @@ class msh_interactor(QtWidgets.QWidget):
 		self.AddAxis(self.limits,1)
 			
 	
+=======
+			fid.close()
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 	def RunMeshScript(self):
-	
+
 		if self.ui.gmshButton.isChecked():
 			self.ui.statLabel.setText("Running Gmsh script . . .")
 			QtWidgets.QApplication.processEvents()
@@ -874,7 +1052,7 @@ class msh_interactor(QtWidgets.QWidget):
 				print("Gmsh command failed for some reason.")
 				print(e.decode("utf-8"))
 				self.ui.statLabel.setText("Gmsh call failed . . . Idle")
-				
+
 		#Run equivalent Abaqus command chain, with the addition to converting mesh to legacy VTK file
 		if self.ui.abaButton.isChecked() and hasattr(self,'abapyfile'):
 			self.ui.statLabel.setText("Running Abaqus CAE script . . .")
@@ -904,9 +1082,14 @@ class msh_interactor(QtWidgets.QWidget):
 				print("Abaqus CAE command failed for some reason.")
 				print(e.decode("utf-8"))
 				self.ui.statLabel.setText("Abaqus CAE call failed . . . Idle")
+<<<<<<< HEAD
 		else: self.ui.statLabel.setText("No CAE input file specified . . . Idle")
 		self.UndoRigidBody()
 			
+=======
+
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 	def WriteGeo(self):
 		QtWidgets.QApplication.processEvents()
 		fid=io.StringIO()
@@ -939,10 +1122,14 @@ class msh_interactor(QtWidgets.QWidget):
 
 		NumNodesDeep=self.ui.numPart.value()
 		ExtrudeDepth=float(self.ui.lengthInput.text())
-		
+
 		cent=np.mean(Outline,axis=0)
-		
+
 		Bias_u=(ExtrudeDepth/float(self.Dist))**(1/float(NumNodesDeep-1)) #upper bound
+<<<<<<< HEAD
+=======
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		B_range=np.linspace(Bias_u/2,Bias_u,1000)
 		Intersection=self.Dist*(1-np.power(B_range,NumNodesDeep))/(1-B_range)
 		b=np.where(Intersection>ExtrudeDepth)
@@ -976,8 +1163,8 @@ class msh_interactor(QtWidgets.QWidget):
 			if self.ui.quadButton.isChecked():
 				fid.write("Recombine Surface {%i};\n\n" %(N+2)) #for quads, otherwise tets
 			sec+=1
-			
-			fid.write("OutOfPlane[]= Extrude {0, 0, %8.8f} {\n Surface{%i};\n Layers{ {"%(ExtrudeDepth,sec)) 
+
+			fid.write("OutOfPlane[]= Extrude {0, 0, %8.8f} {\n Surface{%i};\n Layers{ {"%(ExtrudeDepth,sec))
 			for i in range(len(L)-1):
 				fid.write("1,")
 			fid.write("1}, {")
@@ -987,15 +1174,19 @@ class msh_interactor(QtWidgets.QWidget):
 				fid.write("%2.4f} };\n Recombine;};\n \n//EOF"%L[-1])
 			else:
 				fid.write("%2.4f} };};\n \n//EOF"%L[-1])
+<<<<<<< HEAD
 			if hasattr(self,'geofile'):
 				with open(self.geofile, 'w+') as f: f.write(fid.getvalue())
 			else: return
+=======
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 			self.ui.statLabel.setText("Gmsh geo file written . . . Idle")
-			
+
 		if hasattr(self,"abapyfile") and self.ui.abaButton.isChecked():
 			self.ui.statLabel.setText("Writing Abaqus CAE script . . .")
 
-			
+
 			if self.ui.quadButton.isChecked():
 				ElemType="C3D8"
 			else:
@@ -1003,7 +1194,7 @@ class msh_interactor(QtWidgets.QWidget):
 			#move to metadata once dist channels are sorted
 			s1="""
 # RawInpWriter.py
-# Abaqus python script to automatically generate C3D20R element mesh 
+# Abaqus python script to automatically generate C3D20R element mesh
 # Geometry and mesh is based on *.dxf file
 # Produced by pyCM
 ####################################################################
@@ -1028,14 +1219,14 @@ executeOnCaeStartup()
 Mdb()
 importdxf(fileName=DXF_file)
 
-s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__', 
+s = mdb.models['Model-1'].ConstrainedSketch(name='__profile__',
     sheetSize=200.0)
 g, v, d, c = s.geometry, s.vertices, s.dimensions, s.constraints
 s.setPrimaryObject(option=STANDALONE)
 
 s.retrieveSketch(sketch=mdb.models['Model-1'].sketches[os.path.basename(OutputFname)])
 
-p = mdb.models['Model-1'].Part(name='Part-1', dimensionality=THREE_D, 
+p = mdb.models['Model-1'].Part(name='Part-1', dimensionality=THREE_D,
     type=DEFORMABLE_BODY)
 p = mdb.models['Model-1'].parts['Part-1']
 p.BaseSolidExtrude(sketch=s, depth=Depth)
@@ -1060,7 +1251,7 @@ session.viewports['Viewport: 1'].assemblyDisplay.meshOptions.setValues(
 a = mdb.models['Model-1'].rootAssembly
 e1 = a.instances['Part-1-1'].edges
 pickedEdges2 = e1.findAt((EdgePoint, ))
-a.seedEdgeByBias(biasMethod=SINGLE, end1Edges=pickedEdges2, minSize=MinLength, 
+a.seedEdgeByBias(biasMethod=SINGLE, end1Edges=pickedEdges2, minSize=MinLength,
     maxSize=MaxLength, constraint=FINER)
 
 elemType1 = mesh.ElemType(elemCode=ElemType, elemLibrary=STANDARD)
@@ -1078,12 +1269,12 @@ a.generateMesh(regions=partInstances)
 
 mdb.models['Model-1'].setValues(noPartsInputFile=ON)
 
-mdb.Job(name=OutputFname, model='Model-1', description='', type=ANALYSIS, 
-    atTime=None, waitMinutes=0, waitHours=0, queue=None, memory=90, 
-    memoryUnits=PERCENTAGE, getMemoryFromAnalysis=True, 
-    explicitPrecision=SINGLE, nodalOutputPrecision=SINGLE, echoPrint=OFF, 
-    modelPrint=OFF, contactPrint=OFF, historyPrint=OFF, userSubroutine='', 
-    scratch='', parallelizationMethodExplicit=DOMAIN, numDomains=1, 
+mdb.Job(name=OutputFname, model='Model-1', description='', type=ANALYSIS,
+    atTime=None, waitMinutes=0, waitHours=0, queue=None, memory=90,
+    memoryUnits=PERCENTAGE, getMemoryFromAnalysis=True,
+    explicitPrecision=SINGLE, nodalOutputPrecision=SINGLE, echoPrint=OFF,
+    modelPrint=OFF, contactPrint=OFF, historyPrint=OFF, userSubroutine='',
+    scratch='', parallelizationMethodExplicit=DOMAIN, numDomains=1,
     activateLoadBalancing=False, multiprocessingMode=DEFAULT, numCpus=1)
 mdb.jobs[OutputFname].writeInput(consistencyChecking=OFF)
 
@@ -1107,7 +1298,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			%(os.path.splitext(os.path.basename(self.ofile))[0]))
 			fid.write("ElemType=%s\n"%ElemType)
 			fid.write("%s"%s2)
-			
+
 			if self.ui.quadButton.isChecked():
 				fid.write("a.setMeshControls(regions=cells1, algorithm=ADVANCING_FRONT)\n")
 			else:
@@ -1133,6 +1324,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		else:
 			new={'mesh_script_filename':self.abapyfile,'mesh_script':fid.getvalue(),'vtk_filename':self.vtkFile,'vtk':vtkcontents,'mesh_extrude_depth':ExtrudeDepth,'mesh_partitions':NumNodesDeep}
 		fid.close()
+<<<<<<< HEAD
 		mat_contents.update(new)
 		sio.savemat(self.fileo,mat_contents)
 
@@ -1151,8 +1343,12 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.get_input_data(self.fileo)
 		
 		
+=======
+
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 	def DisplayMesh(self):
-	
+
 		if hasattr(self,"meshActor"):
 			self.ren.RemoveActor(self.meshActor)
 			del self.meshSource
@@ -1163,7 +1359,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 					del self.corners
 			if hasattr(self,"pickedCornerInd"):
 				self.UndoRigidBody()
-				
+
 			# if hasattr(self,"labelActor"):
 				# self.ren.RemoveActor(self.labelActor) #debug
 		if not hasattr(self,"vtkFile"):
@@ -1202,28 +1398,28 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		t.ThresholdByUpper(self.mainCellType)
 		t.SetInputArrayToProcess(0,0,0,1,"Type")
 		t.Update()
-		
+
 		self.mesh=t.GetOutput()
 		# print "Cells after thresholding:",self.mesh.GetNumberOfCells() #debug
 
 		self.ui.statLabel.setText("Rendering . . .")
 		QtWidgets.QApplication.processEvents()
-		
+
 		# print "Read VTK mesh file:" #debug
 		# print "No. points:",self.mesh.GetNumberOfPoints()
 		# print "No. elements:",self.mesh.GetNumberOfCells()
 		bounds=self.mesh.GetBounds()
-		
+
 		edges=vtk.vtkExtractEdges()
 		edges.SetInputConnection(self.meshSource.GetOutputPort())
 		edges.Update()
 
 		self.meshMapper=vtk.vtkDataSetMapper()
 		self.meshMapper.SetInputData(self.mesh)
-		
+
 		self.meshActor = vtk.vtkActor()
 		self.meshActor.SetMapper(self.meshMapper)
-		
+
 		self.meshActor.GetProperty().SetLineWidth(1)
 		self.meshActor.GetProperty().SetColor(0,0.9020,0.9020) #abaqus
 		# self.meshActor.GetProperty().SetColor(0,1,0.6039) #gmsh
@@ -1236,7 +1432,11 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.AddAxis(self.limits,1)
 		self.ui.vtkWidget.update()
 		self.ui.statLabel.setText("Mesh displayed . . . Idle")
+<<<<<<< HEAD
 		self.mesh_changed=True
+=======
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 
 	def ImposeSplineFit(self):
 		"""
@@ -1253,11 +1453,15 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			msg.setWindowTitle("pyCM Error")
 			msg.exec_()
 			return
+<<<<<<< HEAD
 		#check to make sure that there is a reason to run this again, e.g. the mesh has updated.
 		if not self.mesh_changed:
 			self.ui.statLabel.setText("No changes to mesh detected.")
 			return
 			
+=======
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		self.ui.statLabel.setText("Locating surface elements . . .")
 		QtWidgets.QApplication.processEvents()
 		#create a locator from a bounding box for candidate cells.
@@ -1267,14 +1471,14 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		locator.SetDataSet(self.mesh)
 		locator.BuildLocator()
 		locator.FindCellsWithinBounds(self.mesh.GetBounds()[0:4]+(-0.1,self.Dist),vil)
-		
-		
+
+
 		#vtk datatypes to hold info from locator filter
 		nfaces=vtk.vtkCellArray()
 		rptIds=vtk.vtkIdList()
 		ptIds=vtk.vtkIdList()
 		self.BCelements=np.array([])
-		
+
 		#push nodes of cells/elements id'ed into data structures
 		count=0
 		for i in range(vil.GetNumberOfIds()):
@@ -1284,10 +1488,20 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				count+=1
 				nfaces.InsertNextCell(ptIds)
 				self.BCelements=np.append(self.BCelements,vil.GetId(i))
+<<<<<<< HEAD
 				
 
 		rawPIds=v2n(nfaces.GetData()) 
 		
+=======
+
+		# for i in xrange(vilrf.GetNumberOfIds()):
+			# print self.mesh.GetCellPoints(vil.GetId(i))
+		# print(v2n(nfaces.GetData()))
+		#convert the vtklist to numpy array, resize accordingly; 1D array consists of number of nodes/element, followed by node/point number
+		rawPIds=v2n(nfaces.GetData())
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		#make new matrix to hold node/point number connectivity
 		if self.mainCellType == 12: #quads
 			SurfPoints=np.resize(rawPIds,(int(len(rawPIds)/float(9)),9))
@@ -1298,19 +1512,19 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			BCunit=6
 		#remove point count column
 		SurfPoints=SurfPoints[:,1::]
-		
+
 		#define vtk data structures for BC display
 		BCpnts=vtk.vtkPoints()
 		self.BCcells=vtk.vtkCellArray()
-		
+
 		#create array to append all of the points that are found so their id's can be used later to write specific BC's.
 		self.BCindex=np.array([])
-		
+
 		#same for node label display
 		self.BCnodeLabel=vtk.vtkStringArray()
 		self.BCnodeLabel.SetNumberOfComponents(1)
 		self.BCnodeLabel.SetName("NodeID")
-		
+
 		self.ui.statLabel.setText("Imposing nodal displacements . . .")
 		QtWidgets.QApplication.processEvents()
 		#build new mesh of shell elements to show the BC surface
@@ -1320,7 +1534,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			localCell=vtk.vtkPolygon()
 			#need to pre-allocate
 			localCell.GetPointIds().SetNumberOfIds(BCunit)
-			
+
 			pcount=0
 			for i in j:
 				# count how many points there are with z==0; make sure it's a BCunit's worth
@@ -1343,7 +1557,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 							localCell.GetPointIds().SetId(localcellind,
 								np.where(self.BCindex==i)[0][0])
 						localcellind+=1
-						
+
 				self.BCcells.InsertNextCell(localCell)
 				ccount+=BCunit
 
@@ -1357,14 +1571,14 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		BCPolyData.SetPoints(BCpnts)
 		BCPolyData.GetPointData().AddArray(self.BCnodeLabel)
 		BCPolyData.SetPolys(self.BCcells)
-		
+
 		cBCPolyData=vtk.vtkCleanPolyData() #remove shared edges
 		cBCPolyData.SetInputData(BCPolyData)
 
 		BCmapper=vtk.vtkPolyDataMapper()
 
 		BCmapper.SetInputConnection(cBCPolyData.GetOutputPort())
-		
+
 		# debug
 		# pointLabels=vtk.vtkPointSetToLabelHierarchy()
 		# pointLabels.SetInputData(BCPolyData)
@@ -1381,7 +1595,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		# self.labelActor.SetMapper(labelMapper)
 		# self.ren.AddActor2D(self.labelActor)
 		# """
-		
+
 		self.BCactor=vtk.vtkActor()
 		self.BCactor.SetMapper(BCmapper)
 
@@ -1409,9 +1623,9 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		[self.limits[1],self.limits[3]], #xmax,ymax
 		[self.limits[1],self.limits[2]] #xmax,ymin
 		])
-		
+
 		self.OutlineIsCCW=False #always will be false based on the order of c_target above
-		
+
 		ind=np.array([])
 		for i in c_target:
 			d=np.array([])
@@ -1419,12 +1633,12 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				d=np.append(d,
 				np.sqrt((i[0]-j[0])**2+(i[1]-j[1])**2))
 			ind=np.append(ind,np.where(d==np.amin(d)))
-		
+
 		self.cornerInd=self.BCindex[ind.astype(int)]
 		self.corners=self.BCpnts[ind.astype(int),:]
-		
+
 		# print(self.corners,self.cornerInd)
-		
+
 		#back face
 		bfc_target=np.array([
 		[self.limits[0],self.limits[2],self.limits[5]], #xmin,ymin,zmax
@@ -1432,28 +1646,33 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		[self.limits[1],self.limits[3],self.limits[5]], #xmax,ymax,zmax
 		[self.limits[1],self.limits[2],self.limits[5]] #xmax,ymin,zmax
 		])
-		
-		
+
+
 		#create point locator for nodes on back face
 		backCornerLocator=vtk.vtkPointLocator()
 		backCornerLocator.SetDataSet(self.mesh)
 		backCornerLocator.AutomaticOn()
 		backCornerLocator.BuildLocator()
-		
+
 		for i in bfc_target:
 			target=backCornerLocator.FindClosestPoint(i)
 			self.cornerInd=np.append(self.cornerInd,target)
 			self.corners=np.vstack((self.corners,self.mesh.GetPoint(target)))
-						
+
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
-		
+
 		self.ui.statLabel.setText("Ready for rigid body BCs . . . Idle")
 		QtWidgets.QApplication.processEvents()
+<<<<<<< HEAD
 		
 		self.mesh_changed=False #running this routing again without remeshing will skip.
 		self.ui.imposeSpline.setStyleSheet("background-color :rgb(77, 209, 97);")
 		
+=======
+
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 	def Keypress(self,obj,event):
 		key = obj.GetKeyCode()
 
@@ -1498,14 +1717,19 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			writer.SetInputConnection(im.GetOutputPort())
 			writer.SetFileName("mesh.png")
 			writer.Write()
+<<<<<<< HEAD
 			self.ui.statLabel.setText("Screen output saved to %s" %os.path.join(currentdir,'mesh.png'))
 		
+=======
+			print("Screen output saved to %s" %os.path.join(currentdir,'mesh.png'))
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		elif key=="r":
 			flip_visible(self.ax3D)
-			
+
 		elif key =="f": #flip color scheme for printing
 			flip_colors(self.ren,self.ax3D)
-				
+
 		elif key == "o":
 			flip_visible(self.outlineActor)
 
@@ -1516,7 +1740,11 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				l=[readcfg['FEA']['abaqusExec'],readcfg['FEA']['gmshExec'],readcfg['FEA']['ccxExec']]
 				self.cfg=GetFEAconfig(l,self.filec)
 			except:
+<<<<<<< HEAD
 				print("Couldn't find config file where it normally is." )
+=======
+				"Couldn't find config file where it normally is."
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 
 		self.ui.vtkWidget.update()
 
@@ -1580,13 +1808,17 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 					
 			except:
 				return
+<<<<<<< HEAD
 		
 		#catch condition where FEA routines change
 					
 		fid = io.BytesIO()
+=======
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 		nodes=v2n(self.mesh.GetPoints().GetData())
 		nodes=np.column_stack((np.arange(1,len(nodes)+1),nodes+1))
-		
+
 		cells=v2n(self.mesh.GetCells().GetData())
 		#determine element type based on first entry in cells, 8-C3D8, 10-C3D10
 		elType=cells[0]
@@ -1595,14 +1827,14 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 
 		#'top' element set
 		nR=len(self.BCelements) % 16 #max no of input entries/line
-		
+
 		if not nR==0:
 			BCelemsq=np.reshape(self.BCelements[0:-nR],(int(len(self.BCelements[0:-nR])/float(16)),16))
-			
+
 		else: #well, the remainder is 0
 			BCelemsq=np.reshape(self.BCelements,(int(len(self.BCelements)/float(16)),16))
 		BCelemsq=BCelemsq+1 #because elements start numbering at 1
-		
+
 		fid.write(str.encode('*HEADING\n'))
 
 		fid.write(str.encode('**pyCM input deck, converted from VTK format\n'))
@@ -1643,7 +1875,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			fid.write(str.encode('%i, 3,, %6.6f\n'%(self.BCindex[ind]+1,self.BCpnts[ind,2])))
 		fid.write(str.encode('*EL FILE\n'))
 		fid.write(str.encode('S,E\n'))#get all stresses and strains just to be safe.
-		fid.write(str.encode('*EL PRINT, ELSET=BC\n'))
+		fid.write(str.encode('*EL PRINT\n'))
 		if self.ui.CalculixButton.isChecked():
 			fid.write(str.encode('S\n'))#Coords by default
 			self.ui.CalculixButton.setStyleSheet("background-color :rgb(77, 209, 97);")
@@ -1654,6 +1886,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			self.ui.CalculixButton.setStyleSheet("background-color :None;")
 		fid.write(str.encode('*ENDSTEP'))
 
+<<<<<<< HEAD
 		#write contents to file, highlight relevant button
 		mat_contents=sio.loadmat(self.fileo)
 		new={'FEA_filename':self.ofile_FEA,'FEA':fid.getvalue(),'Modulus':float(self.ui.modulusInput.text()),'Poisson':float(self.ui.poissonInput.text())}
@@ -1687,6 +1920,13 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			self.ui.statLabel.setText("Nothing to write to MAT file. Idle.")
 	'''
 	
+=======
+		fid.close()
+
+		if self.ui.runFEAButton.isChecked():
+			self.RunFEA()
+
+>>>>>>> 52358bd96a7247d6c85fcde5d2ee46b08b5869f9
 	def RunFEA(self):
 		'''
 		Runs FEA according to specified method & entries in config file
@@ -1698,7 +1938,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			QtWidgets.QApplication.processEvents()
 			try:
 				out=sp.check_output([execStr,"-i",self.ofile_FEA[:-4]])
-				
+
 				print("Calculix output log:")
 				print("----------------")
 				print(out.decode("utf-8"))
@@ -1708,7 +1948,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				print("Calculix command failed for some reason.")
 				print(e.decode("utf-8"))
 				self.ui.statLabel.setText("Calculix call failed . . . Idle")
-				
+
 		if self.ui.AbaqusButton.isChecked():
 			execStr=(self.cfg['FEA']['abaqusExec'])
 			self.ui.statLabel.setText("Running Abaqus . . .")
@@ -1733,13 +1973,13 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 
 def ConvertInptoVTK(infile,outfile):
 	"""
-	Converts abaqus inp file into a legacy ASCII vtk file. First order quads (C3D8) and third order tets (C3D10) are supported.
+	Converts abaqus inp file into a xml ASCII vtk file. First order quads (C3D8) and third order tets (C3D10) are supported.
 	"""
 	fid = open(infile)
-	
+
 	#flags for identifying sections of the inp file
 	inpKeywords=["*Node", "*Element", "*Nset", "*Elset"]
-	
+
 	#map abaqus mesh types to vtk objects
 	vtkType={}
 	vtkType['C3D8']=12
@@ -1747,7 +1987,7 @@ def ConvertInptoVTK(infile,outfile):
 
 	#create counter for all lines in the inp file, and array to store their location
 	i=0
-	lineFlag=[];
+	lineFlag=[]
 	#read file and find both where keywords occur as well as the element type used
 	while 1:
 		lines = fid.readlines(100000)
@@ -1788,8 +2028,6 @@ def ConvertInptoVTK(infile,outfile):
 	CellType=np.ones([len(Elements[:,0]),1])*CellNum
 	np.savetxt(fid,CellType,fmt='%i')
 
-	fid.close()
-
 def respace_equally(X,input):
 	distance=np.sqrt(np.sum(np.diff(X,axis=0)**2,axis=1))
 	s=np.insert(np.cumsum(distance),0,0)
@@ -1799,14 +2037,14 @@ def respace_equally(X,input):
 		nPts=round(Perimeter/input)
 	else:
 		nPts=input
-	
+
 	sNew=np.linspace(0,s[-1],nPts)
 	fx = interp1d(s,X[:,0])
 	fy = interp1d(s,X[:,1])
-	
+
 	Xnew=fx(sNew)
 	Ynew=fy(sNew)
-	
+
 	X_new=np.stack((Xnew,Ynew),axis=-1)
 	return X_new,Perimeter,nPts
 
@@ -1822,11 +2060,11 @@ def DrawArrow(startPoint,length,direction,renderer):
 	endPoint=startPoint+length*direction
 	normalizedX=(endPoint-startPoint)/length
 
-	
+
 	arbitrary=np.array([1,1,1]) #can be replaced with a random vector
 	normalizedZ=np.cross(normalizedX,arbitrary/np.linalg.norm(arbitrary))
 	normalizedY=np.cross(normalizedZ,normalizedX)
-	
+
 	# Create the direction cosine matrix by writing values directly to an identity matrix
 	matrix = vtk.vtkMatrix4x4()
 	matrix.Identity()
@@ -1834,18 +2072,18 @@ def DrawArrow(startPoint,length,direction,renderer):
 		matrix.SetElement(i, 0, normalizedX[i])
 		matrix.SetElement(i, 1, normalizedY[i])
 		matrix.SetElement(i, 2, normalizedZ[i])
-		
+
 	#Apply transforms
 	transform = vtk.vtkTransform()
 	transform.Translate(startPoint)
 	transform.Concatenate(matrix)
 	transform.Scale(length, length, length)
- 
+
 	# Transform the polydata
 	transformPD = vtk.vtkTransformPolyDataFilter()
 	transformPD.SetTransform(transform)
 	transformPD.SetInputConnection(arrowSource.GetOutputPort())
-	
+
 	#Create mapper and actor
 	mapper = vtk.vtkPolyDataMapper()
 	mapper.SetInputConnection(transformPD.GetOutputPort())
@@ -1853,9 +2091,9 @@ def DrawArrow(startPoint,length,direction,renderer):
 	actor.SetMapper(mapper)
 	renderer.AddActor(actor)
 	return actor
-	
-	
-	
+
+
+
 def GetFEAconfig(inputlist,filec):
 	'''
 	Creates a GUI window to let the user specify FEA executable paths and writes them to a config file. Reads configs.
@@ -1878,7 +2116,7 @@ def GetFEAconfig(inputlist,filec):
 	except:
 		print("Couldn't read config file for some reason.")
 
-	
+
 if __name__ == "__main__":
 	if len(sys.argv)>1:
 		RefFile=sys.argv[1]
