@@ -18,7 +18,7 @@ from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtGui, QtWidgets
 from vtk.util.numpy_support import vtk_to_numpy as v2n
 from pkg_resources import Requirement, resource_filename
-from pyCMcommon import *
+from .pyCMcommon import *
 
 __author__ = "N. Stoyanov"
 __version__ = "0.1"
