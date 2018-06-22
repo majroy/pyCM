@@ -24,11 +24,11 @@ import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .pyCMcommon import *
-import .point_cloud as pc
-import .align_average as aa
-import .fit_surface as sf
-import .preprocess as pre
+from pyCMcommon import *
+import point_cloud as pc
+import align_average as aa
+import fit_surface as sf
+import preprocess as pre
 
 class Ui_MainWindow(object):
 	def setupUi(self, MainWindow):
@@ -95,7 +95,7 @@ class Ui_MainWindow(object):
 		
 		##To be implemented
 		#reporting menu
-		optMenu = self.menubar.addMenu('&Reporting')
+		# optMenu = self.menubar.addMenu('&Reporting')
 
 		MainWindow.setMenuBar(self.menubar)
 		self.statusbar = QtWidgets.QStatusBar(MainWindow)

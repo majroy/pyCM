@@ -42,7 +42,7 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.spatial import Delaunay
 from matplotlib import path
 from pkg_resources import Requirement, resource_filename
-from .pyCMcommon import *
+from pyCMcommon import *
 
 
 def sf_def(*args, **kwargs):

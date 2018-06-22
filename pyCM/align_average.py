@@ -47,7 +47,7 @@ from scipy.spatial.distance import pdist, squareform
 from matplotlib import path
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .pyCMcommon import *
+from pyCMcommon import *
 from pkg_resources import Requirement, resource_filename
 
 
