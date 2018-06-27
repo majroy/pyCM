@@ -27,6 +27,9 @@ Many researchers have moved from using MATLAB to Python entirely for numerical a
 ## Moving forward
 It is for these reasons the overall aim is to future proof the analysis code by moving towards using Python as the language of choice. To this end, a Python package called pyCM (Python Contour Method) has been developed. The idea is to fully move over from using primarily MATLAB functions/scripts to Python equivalents in a step-by-step manner. The development strategy adopted is to build new tools where required, and allow for existing MATLAB tools to be used on the input and output from these Python tools. This will be accomplished using the SciPy packages which generate binary MATLAB files to store workspace variables, so processing can be partially performed in Python, and shifted back into MATLAB to use existing scripts.
 
+# Latest version
+Alpha release 1.0.0 is currently the latest version which contains a complete toolchain for rectangular specimens with no self-restraint up to the FEA pre-processing step of an analysis. A post-processor is currently being developed, which has been made available in a beta form for testing purposes on *quadrilateral meshes only*.
+
 # Requirements
 
 1. Python 3.x (last tested on 3.6.0)
@@ -38,11 +41,13 @@ It is for these reasons the overall aim is to future proof the analysis code by 
 7. PyQt5
 
 
-Once Python is installed, it is recommended on Windows machines to get numpy, scipy and VTK binaries from Christoph Gohlke’s [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/). Note that URLs on this site are blocked, you will have to manually select the distribution that you will need. Install them via:
+Once Python is installed, it is recommended on Windows machines to get numpy, scipy and VTK binaries from Christoph Gohlke's [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/). Note that URLs on this site are blocked, you will have to manually select the distribution that you will need. Install them via:
 
 ~~~
 python -m pip install <pkg_prefix>.whl
 ~~~
+
+However, the sources which arrive from PyPI are acceptable for most purposes and should automatically install - see next section.
 
 # Installation
 
@@ -63,10 +68,12 @@ pip uninstall pyCM
 
 # Modules
 
+* [main](doc/mainREADME.md) - a tabbed viewer which groups the following tools together to allow a more cohesive analysis route.
 * [point_cloud](doc/point_cloudREADME.md) - utility to read and work with raw contour data both with and without perimeter files.
 * [align_average](doc/align_averageREADME.md) - utility to manipulate, align and average two contour surface datasets with perimeter files.
 * [fit_surface](doc/fit_surfaceREADME.md) - utility to fit averaged point clouds
 * [preprocess](doc/preprocessREADME.md) - meshing/boundary condition building tool which works with Abaqus and OS FEA toolchains (Gmsh & Calculix).
+* [postprocess](doc/postprocessREADME.md) - **BETA** currently only supports results from analyses with quadrilateral meshes.
 
 # Contributions and extensions
 This project is intended to best serve the overall residual stress community, so feel free to adjust as needed and add functionality. Please contact me directly by email prior to submitting pull requests so that we can discuss overall structure further.

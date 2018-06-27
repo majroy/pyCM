@@ -870,6 +870,8 @@ class msh_interactor(QtWidgets.QWidget):
 				self.ui.gmshButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 				self.ui.abaButton.setStyleSheet("background-color :None;")
 				self.ui.imposeSpline.setStyleSheet("background-color :None;")
+				if hasattr(self,'abapyfile'):
+					del self.abapyfile #so logic in WriteGeo works
 			except sp.CalledProcessError as e:
 				print("Gmsh command failed for some reason.")
 				print(e.decode("utf-8"))
@@ -898,6 +900,8 @@ class msh_interactor(QtWidgets.QWidget):
 				self.ui.statLabel.setText("Abaqus .inp file converted . . . Idle")
 				self.ui.abaButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 				self.ui.gmshButton.setStyleSheet("background-color :None;")
+				if hasattr(self,'geofile'):
+					del self.geofile
 				self.ui.imposeSpline.setStyleSheet("background-color :None;")
 				os.chdir(currentPath)
 			except sp.CalledProcessError as e:
@@ -1126,7 +1130,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		#Execute everything
 		self.RunMeshScript()
 		QtWidgets.QApplication.processEvents()
-		self.DisplayMesh()
+		
 		with open(self.vtkFile, 'r') as file: vtkcontents=file.read()
 		if hasattr(self,'geofile'):
 			new={'mesh_script_filename':self.geofile,'mesh_script':fid.getvalue(),'vtk_filename':self.vtkFile,'vtk':vtkcontents,'mesh_extrude_depth':ExtrudeDepth,'mesh_partitions':NumNodesDeep}
@@ -1148,7 +1152,8 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.ui.rigidBodyButton.setStyleSheet("background-color :None;")
 		self.ui.AbaqusButton.setStyleSheet("background-color :None;")
 		self.ui.CalculixButton.setStyleSheet("background-color :None;")
-		self.get_input_data(self.fileo)
+		self.DisplayMesh()
+		# self.get_input_data(self.fileo)
 		
 		
 	def DisplayMesh(self):
