@@ -22,7 +22,7 @@ setup(name = 'pyCM',
 		'Natural Language :: English',
 		],
 
-	install_requires=['vtk>=6.0','numpy','scipy','pyyaml','matplotlib','PyQt5','h5py','pandas'],
+	install_requires=['vtk>=6.0','numpy','scipy','pyyaml','matplotlib','PyQt5<5.10','h5py','pandas'],
 	license = 'Creative Commons Attribution-Noncommercial-Share Alike license',
 	keywords = 'residual stress contour method VTK',
 	packages=['pyCM', 'pyCM.meta'],

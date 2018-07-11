@@ -38,10 +38,11 @@ Alpha release 1.0.0 is currently the latest version which contains a complete to
 4. VTK
 5. Matplotlib
 6. pyYaml
-7. PyQt5
+7. PyQt5 (<5.10)
 
+PyQt5 support mirrors that which is used by [Spyder](https://github.com/spyder-ide/spyder), a MATLAB-like Integrated Development Environment (IDE) for Python. Later versions of PyQt5 do not work, and installing later versions will break Spyder 3.3.0.
 
-Once Python is installed, it is recommended on Windows machines to get numpy, scipy and VTK binaries from Christoph Gohlke's [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/). Note that URLs on this site are blocked, you will have to manually select the distribution that you will need. Install them via:
+Once Python is installed, it is recommended on Windows machines to get numpy, scipy and VTK binaries from Christoph Gohlke's [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/) for the best possible performance. Note that URLs on this site are blocked, you will have to manually select the distribution that you will need. Install them via:
 
 ~~~
 pip install <pkg_prefix>.whl
