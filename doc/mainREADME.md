@@ -7,7 +7,7 @@ Tabbed interface which groups all steps of the contour method together to read a
 
 Once pyCM has been installed, this GUI interface can be launched by typing
 ~~~
-python -m pyCM.main()
+python -m pyCM.main
 ~~~
 from a command line. This will launch the `main` script which in turn calls all other step-specific applications in discrete tabs. To read more about the functionality of each tab, see below where links to each respective step reside. 
 
