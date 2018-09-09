@@ -88,6 +88,14 @@ class QtMainWindow(object):
         self.head_font=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
         self.outline_label.setFont(self.head_font)
 
+        self.quadButton = QtWidgets.QRadioButton("quads")
+        self.tetButton = QtWidgets.QRadioButton("tets")
+        self.quadButton.setChecked(True)
+        self.mtypeButtonGroup = QtWidgets.QButtonGroup()
+        self.mtypeButtonGroup.addButton(self.tetButton)
+        self.mtypeButtonGroup.addButton(self.quadButton)
+        self.mtypeButtonGroup.setExclusive(True)
+
         self.read_sim_data_button = QtWidgets.QPushButton('Extract S33')
         self.display_vtk_button = QtWidgets.QPushButton('Display S33')
 
@@ -119,6 +127,7 @@ class QtMainWindow(object):
         self.stat_label.setFont(QtGui.QFont("Helvetica", italic=True))
         self.stat_label.setMinimumWidth(50)
 
+        self.main_ui_box.addRow(self.quadButton,self.tetButton)
         self.main_ui_box.addRow(self.read_sim_data_button, self.display_vtk_button)
         self.main_ui_box.addRow(self.horiz_line3)
         self.main_ui_box.addRow(self.stress_label)
