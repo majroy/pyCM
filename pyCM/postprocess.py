@@ -254,7 +254,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         """
         Writes the FE output data - gaussian integration points
         to the legacy vtk file. The FE data is stored in the .dat file for ABAQUS.
-        """
+        """ 
         QtWidgets.QApplication.processEvents()
 
         # load input files
@@ -267,7 +267,11 @@ class MeshInteractor(QtWidgets.QMainWindow):
         node_data, element_data = self.get_node_data(inp_file)
 
         # obtain a matrix of node number, x, y, z, stress
-        stress_array = self.calculate_quadrature_stress_C3D8(quadrature_data, element_data, node_data)
+        # check if the discretisation was done with brick (C3D8) or tetrahedra (C3D10) elements
+        if self.main_ui_box.quadButton.isChecked():
+            stress_array = self.calculate_quadrature_stress_C3D8(quadrature_data, element_data, node_data)
+        else:
+            stress_array = self.calculate_quadrature_stress_C3D10(quadrature_data, element_data, node_data)
 
         # nodes will duplicate in elements
         # sum contributions from nodes
@@ -394,6 +398,89 @@ class MeshInteractor(QtWidgets.QMainWindow):
             stress_array[row_index + 5, :] = nodal_data6
             stress_array[row_index + 6, :] = nodal_data7
             stress_array[row_index + 7, :] = nodal_data8
+
+        return stress_array
+    
+    def calculate_quadrature_stress_C3D10(quadrature_data, element_data, node_data)
+        """
+        Calculate the stress values from quadrature and element data
+        for element C3D10 
+        """
+
+        # default step for the C3D10 element -> number of nodes
+        element_step = 10
+
+        # define the element counter
+        element_index = 0
+
+        # define the counter for the shape matrix
+        shape_matrix_index = 0
+
+        # define nodal coordinates and stress storage
+        stress_array = np.zeros(shape=(len(quadrature_data), 5))
+
+        for row_index in range(0, len(quadrature_data)-1, element_step):
+            # extract the stresses at the quadrature points
+            quadrature_point_1 = quadrature_data[row_index, 4]
+            quadrature_point_2 = quadrature_data[row_index + 1, 4]
+            quadrature_point_3 = quadrature_data[row_index + 2, 4]
+            quadrature_point_4 = quadrature_data[row_index + 3, 4]
+
+            # construct the quadrature stress matrix
+            quadrature_stress = np.array([quadrature_point_1,
+                                          quadrature_point_2,
+                                          quadrature_point_3,
+                                          quadrature_point_4])
+
+            # extract element row
+            element_row = element_data[element_index, :]
+            element_index = element_index + 1
+
+            # find the nodal points in the element
+            # the int conversion could be done so much better
+            # in the future i have to extract this as a structured array
+            # and set as int
+            nodal_point_1 = node_data[int(element_row[1]) - 1, :]
+            nodal_point_2 = node_data[int(element_row[2]) - 1, :]
+            nodal_point_3 = node_data[int(element_row[3]) - 1, :]
+            nodal_point_4 = node_data[int(element_row[4]) - 1, :]
+            nodal_point_5 = node_data[int(element_row[5]) - 1, :]
+            nodal_point_6 = node_data[int(element_row[6]) - 1, :]
+            nodal_point_7 = node_data[int(element_row[7]) - 1, :]
+            nodal_point_8 = node_data[int(element_row[8]) - 1, :]
+            nodal_point_9 = node_data[int(element_row[9]) - 1, :]
+            nodal_point_10 = node_data[int(element_row[10]) - 1, :]
+
+            # obtain the natural coordinates of the gauss points
+            # and apply the shape functions
+            shape_function_matrix = self.C3D10_quadrature_points()
+
+            # extrapolate from quadrature points to nodal points
+            nodal_stress = shape_function_matrix.dot(quadrature_stress)
+
+            # create an array with nodal coordinates and stress
+            nodal_data1 = np.array([[nodal_point_1[0], nodal_point_1[1], nodal_point_1[2], nodal_point_1[3], nodal_stress[0]]])
+            nodal_data2 = np.array([[nodal_point_2[0], nodal_point_2[1], nodal_point_2[2], nodal_point_2[3], nodal_stress[1]]])
+            nodal_data3 = np.array([[nodal_point_3[0], nodal_point_3[1], nodal_point_3[2], nodal_point_3[3], nodal_stress[2]]])
+            nodal_data4 = np.array([[nodal_point_4[0], nodal_point_4[1], nodal_point_4[2], nodal_point_4[3], nodal_stress[3]]])
+            nodal_data5 = np.array([[nodal_point_5[0], nodal_point_5[1], nodal_point_5[2], nodal_point_5[3], nodal_stress[4]]])
+            nodal_data6 = np.array([[nodal_point_6[0], nodal_point_6[1], nodal_point_6[2], nodal_point_6[3], nodal_stress[5]]])
+            nodal_data7 = np.array([[nodal_point_7[0], nodal_point_7[1], nodal_point_7[2], nodal_point_7[3], nodal_stress[6]]])
+            nodal_data8 = np.array([[nodal_point_8[0], nodal_point_8[1], nodal_point_8[2], nodal_point_8[3], nodal_stress[7]]])
+            nodal_data9 = np.array([[nodal_point_9[0], nodal_point_9[1], nodal_point_9[2], nodal_point_9[3], nodal_stress[8]]])
+            nodal_data10 = np.array([[nodal_point_10[0], nodal_point_10[1], nodal_point_10[2], nodal_point_10[3], nodal_stress[9]]])
+
+            # collate the data from all nodes
+            stress_array[row_index, :] = nodal_data1
+            stress_array[row_index + 1, :] = nodal_data2
+            stress_array[row_index + 2, :] = nodal_data3
+            stress_array[row_index + 3, :] = nodal_data4
+            stress_array[row_index + 4, :] = nodal_data5
+            stress_array[row_index + 5, :] = nodal_data6
+            stress_array[row_index + 6, :] = nodal_data7
+            stress_array[row_index + 7, :] = nodal_data8
+            stress_array[row_index + 8, :] = nodal_data9
+            stress_array[row_index + 9, :] = nodal_data10
 
         return stress_array
 
