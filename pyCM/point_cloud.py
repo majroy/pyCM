@@ -41,7 +41,7 @@ import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .pyCMcommon import *
+from pyCMcommon import *
 
 
 nosio=False
@@ -480,8 +480,7 @@ class pnt_interactor(QtWidgets.QMainWindow):
 				print('No file selected; exiting.')
 				exit()
 		
-		
-		if filep != None: #because filediag can be cancelled
+		if filep != '': #because filediag can be cancelled
 			self.Outline=np.genfromtxt(filep)
 			self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
 			self.ren.AddActor(self.outlineActor)			
@@ -489,14 +488,14 @@ class pnt_interactor(QtWidgets.QMainWindow):
 			
 		_, ext = os.path.splitext(filec)
 		
-		if ext == '.dat':
-			self.rawPnts=np.genfromtxt(filec,skiprows=1)
-			QtWidgets.QMessageBox.warning(self, "pyCM warning", "No outline can be processed at this time; this is a visualisation only.",QtWidgets.QMessageBox.Close, QtWidgets.QMessageBox.NoButton,QtWidgets.QMessageBox.NoButton)
+
 		elif ext == '.txt':
 			self.rawPnts=np.genfromtxt(filec)
 		elif ext == '.mat':
 			try:
 				self.rawPnts, self.Outline = read_uom_mat(filec)
+				self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
+				self.ren.AddActor(self.outlineActor)
 			except:
 				exit()
 		

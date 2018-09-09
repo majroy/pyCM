@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 
 setup(name = 'pyCM',
-	version = '0.5.0.dev0',
+	version = '0.6.1.dev0',
 	description = 'Python contour method toolkit',
 	long_description = 'https://github.com/majroy/pyCM',
 	url = 'https://github.com/majroy/pyCM',
@@ -11,7 +11,7 @@ setup(name = 'pyCM',
 	author_email = 'matthew.roy@manchester.ac.uk',
 
 	classifiers=[
-		'Development Status :: 5 - Pre-Alpha',
+		'Development Status :: 6 - Pre-Alpha',
 		'Environment :: Win32 (MS Windows)',
 		'Topic :: Scientific/Engineering :: Visualization',
 		'License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)',

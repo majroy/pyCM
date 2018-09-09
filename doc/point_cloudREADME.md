@@ -10,36 +10,28 @@ A tool has been developed to perform this type of masking, called point_cloud. I
 
 The function allows a user to load and visualize a point cloud, select points to be deleted and then write an output file containing the point locations and whether they were masked. This function does not delete points, merely creates a new file containing this information.
 
+There is one main GUI-enabled function, called `mask_def`. This can be accessed by running `from pyCM import point_cloud`.
+
 ## Initializing
+Analysis starts with loading the perimeter and point cloud for each surface.
 
 **Input and output descriptors for the `mask_def` function**
 
 Input | Description
 ---  |---
 Perimeter file |	*Optional*. Only text files are supported. If not specified directly, location is acquired via GUI.
-Point cloud file |	Text, data and MAT-files are supported. Path dependencies are the same as the perimeter file. If not specified directly, location is acquired via GUI.
-Output directory |	Specification of where the results *.mat file is written, obtained by GUI.
+Point cloud file |	Text and MAT-files are supported. Path dependencies are the same as the perimeter file. If not specified directly, location is acquired via GUI. **UoM users should employ the MAT-file route for loading NanoFocus-generated data.** This file is in the form of a *_clean.mat file containing the following:<ul><li>x, y, z: arrays containing corresponding coordinate values of the point cloud.</li><li>x_out: a Nx3 matrix of coordinates of the outline ordered clockwise around the periphery of the surface in the form of [x1 y1 z1; x2 y2 z2; ...] where x_out is in {x, y, z}</li></ul>
+Output directory |	Specification of where the results *.mat file is written. If not specified, the location is acquired via GUI.
 
 Output | Description
 ---  |---
-Output file	| A *.mat file will be written to the specified output directory. At minimum, it will contain two data structures needed for subsequent processing, *ref* and *float* which contain the following:<ul><li>x,y,z: Nx1 arrays of the masked coordinate values. </li><li>rawPnts: Nx3 matrix of the points read in via the point cloud file.</li><li>mask: 1xN array of int8 values consisting of 0 and 1 where 0 indicates a masked point. Conversion to a boolean array will provide an index of rawPnts that were masked.</li><li>fname: file name of where the point cloud data was imported from </li><li>x_out: Nx3 matrix of the points that comprise the outline</li></ul> 
+Output file	| A *.mat file will be written to the specified output directory. At minimum, it will contain two data structures needed for subsequent processing, *ref* and *float* which contain the following:<ul><li>x,y,z: N×1 arrays of the masked coordinate values. *this will be eliminated with the next refactor*</li><li>rawPnts: N×3 matrix of the points read in via the point cloud file.</li><li>mask: 1×N array of int8 values consisting of 0 and 1 where 0 indicates a masked point. Conversion to a boolean array will provide an index of rawPnts that were masked.</li><li>fname: file name of where the point cloud data was imported from </li><li>x_out: N×3 matrix of the points that comprise the outline</li></ul> 
 
-The function is called from a Python script or in interactive mode, starting by importing point_cloud module from the pyCM module and then calling the `mask_def`, for example: 
+The function is called from a Python script or in interactive mode, starting by importing point_cloud module from the pyCM package and then calling the `mask_def` function via: 
 ~~~
-from pyCM import point_cloud as pc
-pc.mask_def()
+mask_def()
 ~~~
-or to specify the perimeter and surface files directly:
-~~~
-from pyCM import point_cloud as pc
-pc.mask_def("PathToPerimeter.txt","PathToPointCloud.txt")
-~~~
-or just the point cloud:
-~~~
-from pyCM import point_cloud as pc
-pc.mask_def("PathToPointCloud.txt")
-~~~
-This will load the perimeter file located in the current working directory, the point cloud file with prefix 'Points' located in the same - the perimeter prompt can be cancelled if alternate formats are employed. Note if paths are not specified, 2 GUIs prompts will take place, one for each the perimeter and point cloud data sets.
+This will load the perimeter file located in the current working directory, the point cloud file with prefix 'Points' located in the same - the perimeter prompt can be cancelled if alternate formats are employed. Note that in total 2 GUIs prompts will take place, one for each the perimeter and point cloud data sets.
 
 ##  Interaction functionality
 The data will appear in a custom VTK interaction window after initializing, with data appearing in white (points) or lines on a dark background. The default view is looking down on the data in the z direction, after which the view can be rotated to show the data in perspective ([Fig. 1](#fig1)) by pressing the left mouse button. The middle mouse button provides a pan function while pressed, and the right mouse button zooms. There are three named views that are accessed via **1**, **2** and **3** looking down the z, x and y directions, respectively. 
@@ -47,7 +39,7 @@ The data will appear in a custom VTK interaction window after initializing, with
 <span>![<span>Main Window</span>](images/PointCloud_m.png)</span>  
 *<a name="fig1"></a> Figure 1: Main default interaction window with a dark background and white data and annotations. Perimeter is shown as a solid line, with axes to show scale.*
 
-For publication purposes, the ability to flip the default color scheme (dark on bright) has been provided. This is obtained by pressing f ([Fig. 2](#fig2)) on the keyboard. Again, for publication purposes, a facility has been provided for printing the interaction window to file. Pressing **i** will print the interaction window to the current working directory as `point_cloud.png`.
+For publication purposes, the ability to flip the default color scheme (dark on bright) has been provided. This is obtained by pressing f ([Fig. 2](#fig2)) on the keyboard. Again, for publication purposes, a facility has been provided for printing the interaction window to file. Pressing **i** will print the interaction window to the current working directory as ’point_cloud.png’.
 
 <span>![<span>Flip color</span>](images/PointCloud_f.png)</span>  
 *<a name="fig2"></a> Figure 2: Flipped colour scheme with a white background and black data and annotations. Pressing f on the keyboard when the window is in focus flips to and from this scheme.*
@@ -56,12 +48,12 @@ As contour data has dimensions that are sometimes orders of magnitude larger in 
 
 Masking of points to be discluded in the subsequent analysis can be accomplished with two techniques: a wholesale reduction of points, or more selectively with a picking tool. The *Pick options* pane's first option is to reduce points by a percentage: entering a value in the spinbox beside the *Reduce* button will eliminate that same amount of points, percentage-wise. For example, a value of 10 will leave 90% of the points.
 
-In order to select masked points, there is an interaction sequence which is triggered by pressing **r**. This disable rotation such that using the left mouse button will enable the user to draw a rectangular window around points to be masked ([Fig. 4](#fig4)). This rectangle can be drawn and redrawn any number of times; panning and zooming are accessible by pressing **r** once more. The *Pick active* pane will activate when the picker is active. This can be repeated any number of times. If a mistake is made, then the last pick can be undone with the *Undo last pick* button to deselect all highlighted points the last time the picker was active. Note that a hardware selection tool has been employed: only points that are visible in the particular view/orientation will be selected. If a mistake is made, then the entire dataset can be reloaded with the *Reload source* button.
+In order to select masked points, there is an interaction sequence which is triggered by pressing *Picker*. Pressing **r** will disable rotation such that using the left mouse button will enable the user to draw a rectangular window around points to be masked ([Fig. 4](#fig4)). This rectangle can be drawn and redrawn any number of times; panning and zooming are accessible by pressing **r** once more. The *Pick active* pane will activate when the picker is active. This can be repeated any number of times. If a mistake is made, then the last pick can be undone with the *Undo last pick* button to deselect all highlighted points the last time the picker was active. Note that a hardware selection tool has been employed: only points that are visible in the particular view/orientation will be selected. If a mistake is made, then the entire dataset can be reloaded with the *Reload source* button.
 
 <span>![<span>ZAspect</span>](images/PointCloud_u.png)</span>  
 *<a name="fig4"></a> Figure 4: Points to be eliminated/dismissed from subsequent analysis can be selected, as can the overall point cloud using the **Pick options** pane.*
 
-Once the required points have been added to the mask, then the function can then write a *.mat file for the displayed perimeter/point cloud, targeting the structure identified with the radio button in the *Write output* pane. If this *.mat file has not been generated, then a GUI will prompt for a location. If there is already a *Reference* or *Floating* data series in the *.mat file, the user will be asked if they wish to overwrite. If multiple *.mat files need to be generated/edited, then pressing the *Release* button will release focus on the *.mat file, permitting the creation of a new *.mat file as required.
+Once the required points have been added to the mask, then the function can then write a *.mat file for the displayed perimeter/point cloud, targeting the structure identified with the radio button in the *Write output* pane. If this *.mat file has not been generated, then a GUI will prompt for a location. If there is already a *Reference* or *Floating* data series in the *.mat file, the user will be asked if they wish to overwrite.
 
 The process can then be repeated for the other perimeter/point cloud combination by pressing the *Load* button at the top left of the GUI.
 
@@ -80,9 +72,9 @@ Right mouse button 	|Zoom/refresh window extents
 2 	|View 2, default, looks down x axis onto zy plane
 3 	|View 3, default, looks down y axis onto zx plane
 r 	|MaskDef Enter/exit picking mode, LMB is used to generate a selection window. Pressing key again exits selection mode and selected points will be highlighted.
-z 	|Increase ratio by a factor of 2
-x 	|Decrease ratio by a factor of 0.5
-c 	|Return to default aspect ratio; x,y:z=1:1
+z 	|Increase z-aspect ratio by a factor of 2
+x 	|Decrease z-aspect ratio by a factor of 0.5
+c 	|Return to default z-aspect ratio; x,y:z=1:1
 Shift+z 	|Increase the size of points
 Shift+x 	|Decrease the size of points
 Shift+c 	|Return to the default point size
@@ -93,4 +85,4 @@ i 	|Save visualization window as ’point_cloud.png’ to the current working di
 
 ## Known issues
 
-Loading of extremely large datasets has shown to create serious lag. Point clouds are better off sampled and reduced before using these tools. Not all hardware is supported; OpenGL errors have been noted when using 4k displays when tested with VTK 6.x.
+Loading of extremely large datasets has shown to create serious lag. Point clouds are better off sampled and reduced before using these tools. Not all hardware is supported; OpenGL errors have been noted when using 4k displays. 
