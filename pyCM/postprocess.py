@@ -401,14 +401,14 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         return stress_array
     
-    def calculate_quadrature_stress_C3D10(quadrature_data, element_data, node_data):
+    def calculate_quadrature_stress_C3D10(self, quadrature_data, element_data, node_data):
         """
         Calculate the stress values from quadrature and element data
         for element C3D10 
         """
 
         # default step for the C3D10 element -> number of nodes
-        element_step = 10
+        element_step = 4
 
         # define the element counter
         element_index = 0
@@ -417,7 +417,9 @@ class MeshInteractor(QtWidgets.QMainWindow):
         shape_matrix_index = 0
 
         # define nodal coordinates and stress storage
-        stress_array = np.zeros(shape=(len(quadrature_data), 5))
+        stress_array = np.zeros(shape=(int(len(quadrature_data) * 2.5), 5))
+
+        stress_array_row = 0
 
         for row_index in range(0, len(quadrature_data)-1, element_step):
             # extract the stresses at the quadrature points
@@ -456,6 +458,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
             shape_function_matrix = self.C3D10_quadrature_points()
 
             # extrapolate from quadrature points to nodal points
+            shape_function_matrix = shape_function_matrix.T
             nodal_stress = shape_function_matrix.dot(quadrature_stress)
 
             # create an array with nodal coordinates and stress
@@ -471,16 +474,17 @@ class MeshInteractor(QtWidgets.QMainWindow):
             nodal_data10 = np.array([[nodal_point_10[0], nodal_point_10[1], nodal_point_10[2], nodal_point_10[3], nodal_stress[9]]])
 
             # collate the data from all nodes
-            stress_array[row_index, :] = nodal_data1
-            stress_array[row_index + 1, :] = nodal_data2
-            stress_array[row_index + 2, :] = nodal_data3
-            stress_array[row_index + 3, :] = nodal_data4
-            stress_array[row_index + 4, :] = nodal_data5
-            stress_array[row_index + 5, :] = nodal_data6
-            stress_array[row_index + 6, :] = nodal_data7
-            stress_array[row_index + 7, :] = nodal_data8
-            stress_array[row_index + 8, :] = nodal_data9
-            stress_array[row_index + 9, :] = nodal_data10
+            stress_array[stress_array_row, :] = nodal_data1
+            stress_array[stress_array_row + 1, :] = nodal_data2
+            stress_array[stress_array_row + 2, :] = nodal_data3
+            stress_array[stress_array_row + 3, :] = nodal_data4
+            stress_array[stress_array_row + 4, :] = nodal_data5
+            stress_array[stress_array_row + 5, :] = nodal_data6
+            stress_array[stress_array_row + 6, :] = nodal_data7
+            stress_array[stress_array_row + 7, :] = nodal_data8
+            stress_array[stress_array_row + 8, :] = nodal_data9
+            stress_array[stress_array_row + 9, :] = nodal_data10
+            stress_array_row = stress_array_row + 10
 
         return stress_array
 
@@ -492,7 +496,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         # set parser keywords
         INP_FILE_NODE_LOOKUP_STR = "*Node"
         INP_FILE_ELEM_LOOKUP_STR = "*Element"
-        INP_FILE_ELEM_END_LOOKUP_STR = "*Nset, nset=Part-1-1_SURFACE, generate"
+        INP_FILE_ELEM_END_LOOKUP_STR = "*Nset, nset=Part-1-1_SURFACE"
 
         # initialize
         curr_line = 0
@@ -586,7 +590,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         """
 
         # create the square shape function matrix
-        shape_function_matrix = np.zeros(shape=(10,4))
+        shape_function_matrix = np.zeros(shape=(4, 10))
 
         # natural coordinates of the quadrature points
         nat_coord_quadrature_points = np.array([[(5+3*(5)**(0.5)), (5-(5)**(0.5)), (5-(5)**(0.5)), (5-(5)**(0.5))], \
@@ -599,26 +603,26 @@ class MeshInteractor(QtWidgets.QMainWindow):
         # apply the shape functions to the natural coordinates
         # and built the matrix
         for shape_matrix_index in range(0, 4):
-            shape_function_matrix[shape_matrix_index, 0] = nat_coord_quadrature_points[shape_function_matrix, 0] \
-                                                           * (2 * nat_coord_quadrature_points[shape_function_matrix, 0] - 1)
-            shape_function_matrix[shape_matrix_index, 1] = nat_coord_quadrature_points[shape_function_matrix, 1] \
-                                                           * (2 * nat_coord_quadrature_points[shape_function_matrix, 1] - 1)
-            shape_function_matrix[shape_matrix_index, 2] = nat_coord_quadrature_points[shape_function_matrix, 2] \
-                                                           * (2 * nat_coord_quadrature_points[shape_function_matrix, 2] - 1)
-            shape_function_matrix[shape_matrix_index, 3] = nat_coord_quadrature_points[shape_function_matrix, 3] \
-                                                           * (2 * nat_coord_quadrature_points[shape_function_matrix, 3] - 1)
-            shape_function_matrix[shape_matrix_index, 4] = 4 * nat_coord_quadrature_points[shape_function_matrix, 0] \
-                                                           * nat_coord_quadrature_points[shape_function_matrix, 1]
-            shape_function_matrix[shape_matrix_index, 5] = 4 * nat_coord_quadrature_points[shape_function_matrix, 1] \
-                                                           * nat_coord_quadrature_points[shape_function_matrix, 2]
-            shape_function_matrix[shape_matrix_index, 6] = 4 * nat_coord_quadrature_points[shape_function_matrix, 2] \
-                                                           * nat_coord_quadrature_points[shape_function_matrix, 0]
-            shape_function_matrix[shape_matrix_index, 7] = 4 * nat_coord_quadrature_points[shape_function_matrix, 0] \
-                                                           * nat_coord_quadrature_points[shape_function_matrix, 3]
-            shape_function_matrix[shape_matrix_index, 8] = 4 * nat_coord_quadrature_points[shape_function_matrix, 1] \
-                                                           * nat_coord_quadrature_points[shape_function_matrix, 3]
-            shape_function_matrix[shape_matrix_index, 9] = 4 * nat_coord_quadrature_points[shape_function_matrix, 2] \
-                                                           * nat_coord_quadrature_points[shape_function_matrix, 3]
+            shape_function_matrix[shape_matrix_index, 0] = nat_coord_quadrature_points[shape_matrix_index, 0] \
+                                                           * (2 * nat_coord_quadrature_points[shape_matrix_index, 0] - 1)
+            shape_function_matrix[shape_matrix_index, 1] = nat_coord_quadrature_points[shape_matrix_index, 1] \
+                                                           * (2 * nat_coord_quadrature_points[shape_matrix_index, 1] - 1)
+            shape_function_matrix[shape_matrix_index, 2] = nat_coord_quadrature_points[shape_matrix_index, 2] \
+                                                           * (2 * nat_coord_quadrature_points[shape_matrix_index, 2] - 1)
+            shape_function_matrix[shape_matrix_index, 3] = nat_coord_quadrature_points[shape_matrix_index, 3] \
+                                                           * (2 * nat_coord_quadrature_points[shape_matrix_index, 3] - 1)
+            shape_function_matrix[shape_matrix_index, 4] = 4 * nat_coord_quadrature_points[shape_matrix_index, 0] \
+                                                           * nat_coord_quadrature_points[shape_matrix_index, 1]
+            shape_function_matrix[shape_matrix_index, 5] = 4 * nat_coord_quadrature_points[shape_matrix_index, 1] \
+                                                           * nat_coord_quadrature_points[shape_matrix_index, 2]
+            shape_function_matrix[shape_matrix_index, 6] = 4 * nat_coord_quadrature_points[shape_matrix_index, 2] \
+                                                           * nat_coord_quadrature_points[shape_matrix_index, 0]
+            shape_function_matrix[shape_matrix_index, 7] = 4 * nat_coord_quadrature_points[shape_matrix_index, 0] \
+                                                           * nat_coord_quadrature_points[shape_matrix_index, 3]
+            shape_function_matrix[shape_matrix_index, 8] = 4 * nat_coord_quadrature_points[shape_matrix_index, 1] \
+                                                           * nat_coord_quadrature_points[shape_matrix_index, 3]
+            shape_function_matrix[shape_matrix_index, 9] = 4 * nat_coord_quadrature_points[shape_matrix_index, 2] \
+                                                           * nat_coord_quadrature_points[shape_matrix_index, 3]
 
         return shape_function_matrix
 
