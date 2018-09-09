@@ -579,6 +579,49 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         return shape_function_matrix
 
+    def C3D10_quadrature_points(self):
+        """
+        Define the natural coordinates of the quadrature points for C3D10.
+        The element has 10 nodes and 4 quadrature points.
+        """
+
+        # create the square shape function matrix
+        shape_function_matrix = np.zeros(shape=(10,4))
+
+        # natural coordinates of the quadrature points
+        nat_coord_quadrature_points = np.array([[(5+3*(5)**(0.5)), (5-(5)**(0.5)), (5-(5)**(0.5)), (5-(5)**(0.5))], \
+                                                [(5-(5)**(0.5)), (5+3*(5)**(0.5)), (5-(5)**(0.5)), (5-(5)**(0.5))], \
+                                                [(5-(5)**(0.5)), (5-(5)**(0.5)), (5+3*(5)**(0.5)), (5-(5)**(0.5))], \
+                                                [(5-(5)**(0.5)), (5-(5)**(0.5)), (5-(5)**(0.5)), (5+3*(5)**(0.5))]])
+
+        nat_coord_quadrature_points = nat_coord_quadrature_points / 20
+
+        # apply the shape functions to the natural coordinates
+        # and built the matrix
+        for shape_matrix_index in range(0, 4):
+            shape_function_matrix[shape_matrix_index, 0] = nat_coord_quadrature_points[shape_function_matrix, 0] \
+                                                           * (2 * nat_coord_quadrature_points[shape_function_matrix, 0] - 1)
+            shape_function_matrix[shape_matrix_index, 1] = nat_coord_quadrature_points[shape_function_matrix, 1] \
+                                                           * (2 * nat_coord_quadrature_points[shape_function_matrix, 1] - 1)
+            shape_function_matrix[shape_matrix_index, 2] = nat_coord_quadrature_points[shape_function_matrix, 2] \
+                                                           * (2 * nat_coord_quadrature_points[shape_function_matrix, 2] - 1)
+            shape_function_matrix[shape_matrix_index, 3] = nat_coord_quadrature_points[shape_function_matrix, 3] \
+                                                           * (2 * nat_coord_quadrature_points[shape_function_matrix, 3] - 1)
+            shape_function_matrix[shape_matrix_index, 4] = 4 * nat_coord_quadrature_points[shape_function_matrix, 0] \
+                                                           * nat_coord_quadrature_points[shape_function_matrix, 1]
+            shape_function_matrix[shape_matrix_index, 5] = 4 * nat_coord_quadrature_points[shape_function_matrix, 1] \
+                                                           * nat_coord_quadrature_points[shape_function_matrix, 2]
+            shape_function_matrix[shape_matrix_index, 6] = 4 * nat_coord_quadrature_points[shape_function_matrix, 2] \
+                                                           * nat_coord_quadrature_points[shape_function_matrix, 0]
+            shape_function_matrix[shape_matrix_index, 7] = 4 * nat_coord_quadrature_points[shape_function_matrix, 0] \
+                                                           * nat_coord_quadrature_points[shape_function_matrix, 3]
+            shape_function_matrix[shape_matrix_index, 8] = 4 * nat_coord_quadrature_points[shape_function_matrix, 1] \
+                                                           * nat_coord_quadrature_points[shape_function_matrix, 3]
+            shape_function_matrix[shape_matrix_index, 9] = 4 * nat_coord_quadrature_points[shape_function_matrix, 2] \
+                                                           * nat_coord_quadrature_points[shape_function_matrix, 3]
+
+        return shape_function_matrix
+
     def draw_color_range(self, mesh_lookup_table):
         """
         Draw the scalar range so that red is max, blue is min
