@@ -491,7 +491,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # set parser keywords
         INP_FILE_NODE_LOOKUP_STR = "*Node"
-        INP_FILE_ELEM_LOOKUP_STR = "*Element, type=C3D8"
+        INP_FILE_ELEM_LOOKUP_STR = "*Element"
         INP_FILE_ELEM_END_LOOKUP_STR = "*Nset, nset=Part-1-1_SURFACE, generate"
 
         # initialize
