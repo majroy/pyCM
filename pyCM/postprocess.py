@@ -401,7 +401,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         return stress_array
     
-    def calculate_quadrature_stress_C3D10(quadrature_data, element_data, node_data)
+    def calculate_quadrature_stress_C3D10(quadrature_data, element_data, node_data):
         """
         Calculate the stress values from quadrature and element data
         for element C3D10 
