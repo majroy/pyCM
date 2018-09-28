@@ -15,6 +15,7 @@ import vtk
 import pandas
 import numpy as np
 import scipy.io as sio
+from shutil import copyfile
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtGui, QtWidgets
 from vtk.util.numpy_support import vtk_to_numpy as v2n
@@ -264,8 +265,7 @@ class MeshInteractor(QtWidgets.QMainWindow):
         dat_file,_ = get_file("*.dat")
         inp_file,_ = get_file("*.inp")
 
-        # default ABAQUS C3D8 elements only for now
-        quadrature_data = read_abq_dat(dat_file)
+        quadrature_data = self.read_abq_dat(dat_file)
         node_data, element_data = self.get_node_data(inp_file)
 
         # obtain a matrix of node number, x, y, z, stress
@@ -290,9 +290,12 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # get *.vtk file
         vtk_file, _ = get_file("*.vtk")
+        # copy vtk file
+        filename, _ = os.path.splitext(vtk_file)
+        copyfile(vtk_file,filename+'_post.vtk')
 
         # append at the end of the vtk file
-        self.append_postprocess_data(vtk_file, stress_data_frame)
+        self.append_postprocess_data(filename+'_post.vtk', stress_data_frame)
     
     def read_abq_dat(self, infile):
         """
