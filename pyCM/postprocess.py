@@ -14,6 +14,7 @@ import sys
 import vtk
 import pandas
 import numpy as np
+import scipy.io as sio
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtGui, QtWidgets
 from vtk.util.numpy_support import vtk_to_numpy as v2n
@@ -292,6 +293,40 @@ class MeshInteractor(QtWidgets.QMainWindow):
 
         # append at the end of the vtk file
         self.append_postprocess_data(vtk_file, stress_data_frame)
+    
+    def read_abq_dat(self, infile):
+        """
+        Reads an output dat file from Abaqus to recover information written by EL PRINT
+        """
+        #string that identifies start of EL PRINT and one line after the end of the output
+        keyword =['    ELEMENT  PT FOOT-',' MAXIMUM']
+        #create counter for all lines in the file & number of blank lines
+        i,blanklines=0,0
+        #read file and find both where keyword occurs
+        fid = open(infile)
+        lineFlag=[]
+        while 1:
+            lines = fid.readlines(100000)
+            if not lines:
+                break
+            for line in lines:
+                i+=1
+                #look for keywords
+                for j in keyword:
+                    if line[0:len(j)]==j:
+                        lineFlag.append(i)
+                #start counting blank lines after the second keyword
+                if (len(lineFlag)>=1) and (line in ['\n', '\r\n']):
+                    blanklines+=1
+        lineFlag.append(i)
+        s_h=lineFlag[0]+1 #line after lineFlag
+        s_f=lineFlag[2]-lineFlag[1]-blanklines+3 #line no of lineFlag(s) and immediately before/after respective keyword(s)
+
+        #pass element no, integration pnt coordinates (x,y,z) & S33 stresses into np matrix
+        return np.genfromtxt(infile, skip_header=s_h,
+                                    skip_footer=s_f,
+                                    usecols=(0, 2, 3, 4, 7),
+                                    autostrip=True)
 
     def append_postprocess_data(self, vtk_file, stress_data_frame):
         """
