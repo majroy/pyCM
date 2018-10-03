@@ -1648,7 +1648,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			fid.write(str.encode('%i, 3,, %6.6f\n'%(self.BCindex[ind]+1,self.BCpnts[ind,2])))
 		fid.write(str.encode('*EL FILE\n'))
 		fid.write(str.encode('S,E\n'))#get all stresses and strains just to be safe.
-		fid.write(str.encode('*EL PRINT, ELSET=BC\n'))
+		fid.write(str.encode('*EL PRINT\n'))
 		if self.ui.CalculixButton.isChecked():
 			fid.write(str.encode('S\n'))#Coords by default
 			self.ui.CalculixButton.setStyleSheet("background-color :rgb(77, 209, 97);")
