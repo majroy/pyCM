@@ -42,7 +42,7 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.spatial import Delaunay
 from matplotlib import path
 from pkg_resources import Requirement, resource_filename
-from .pyCMcommon import *
+from pyCMcommon import *
 
 
 def sf_def(*args, **kwargs):
@@ -269,7 +269,7 @@ class surf_int(QtWidgets.QWidget):
 		self.Zaspect=1.0
 		self.limits=np.empty(6)
 		self.picking=False
-		self.unsaved_changes=False
+		self.fitted=False
 
 		self.ui.updateButton.clicked.connect(lambda: self.onUpdateSpline())
 		self.ui.sectionButton.clicked.connect(lambda: self.Cut())
@@ -366,7 +366,12 @@ class surf_int(QtWidgets.QWidget):
 					
 					
 					self.DisplayFit()
-				
+					self.fitted=True
+					self.unsaved_changes=False
+				else: #there is no fitted surface
+					self.fitted=False
+					self.ui.updateButton.setStyleSheet("background-color : None")
+					
 			except Exception as e: 
 				print(str(e))
 				
@@ -487,7 +492,8 @@ class surf_int(QtWidgets.QWidget):
 		
 		self.ui.updateButton.setEnabled(True)
 		self.ui.updateButton.setStyleSheet("background-color :rgb(77, 209, 97);")
-
+		self.unsaved_changes = True
+		
 	def DisplaySplineFit(self,p,t):
 
 		if hasattr(self,'splineActor'):
@@ -526,6 +532,7 @@ class surf_int(QtWidgets.QWidget):
 		self.splineActor.SetScale(1,1,self.Zaspect)
 		self.ren.AddActor(self.splineActor)
 		self.ui.vtkWidget.update()
+
 
 	def Cut(self):
 		pts=np.array([float(self.ui.xMin.text()),float(self.ui.xMax.text()),float(self.ui.yMin.text()),float(self.ui.yMax.text())])
@@ -784,6 +791,9 @@ class surf_int(QtWidgets.QWidget):
 				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
 			if ret == QtWidgets.QMessageBox.No: #don't overwrite
 				return
+			else:
+				#delete fitting parameters with pyCMcommon helper function, which negates key FEA parameters.
+				clear_mat(self.fileo,['vtk','pickedCornerInd','FEA']) 
 		
 		if hasattr(self,'tck'): #then spline fitting has been done
 			mat_contents=sio.loadmat(self.fileo)
@@ -797,6 +807,8 @@ class surf_int(QtWidgets.QWidget):
 			sio.savemat(self.fileo,mat_contents)
 			
 			self.ui.statLabel.setText("Output written.")
+			self.fitted=True
+			self.unsaved_changes=False
 		else:
 			self.ui.statLabel.setText("Nothing to write.")
 

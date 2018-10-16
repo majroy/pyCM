@@ -8,13 +8,15 @@ __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2017"
 
-import os,sys,yaml
-from PyQt5 import QtCore, QtGui, QtWidgets
+import os,sys,yaml,math
 import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 import numpy as np
 import scipy.io as sio
 import h5py
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 
 def get_file(*args):
@@ -32,14 +34,14 @@ def get_file(*args):
 	if len(args)==2:
 		ftypeName[ext][0] = args[1]
 		
-	lapp = QtWidgets.QApplication.instance()
+	lapp = QApplication.instance()
 	if lapp is None:
 		lapp = QtWidgetsQApplication([])
 	if ext=='*.txt':
-		filer = QtWidgets.QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
+		filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
          os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;'+ftypeName['*.mat'][2]+' ('+ftypeName['*.mat'][1]+');;All Files (*.*)'))
 	else:
-		filer = QtWidgets.QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
+		filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
          os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;All Files (*.*)'))
 
 	
@@ -65,16 +67,17 @@ def get_open_file(ext,outputd):
 	ftypeName['*.py']='Abaqus Python script'
 	ftypeName['*.ccx.inp']='Calculix input file'
 	ftypeName['*.abq.inp']='Abaqus input file'
+	ftypeName['*_out.vtk'] = 'VTK legacy file'
 	
 	
 	
 	if outputd==None: id=str(os.getcwd())
 	else: id=outputd
-	lapp = QtWidgets.QApplication.instance()
+	lapp = QApplication.instance()
 	if lapp is None:
-		lapp = QtWidgets.QApplication([])
+		lapp = QApplication([])
 
-	filer = QtWidgets.QFileDialog.getSaveFileName(None, "Save as:", "",str(ftypeName[ext]+' ('+ext+')'))
+	filer = QFileDialog.getSaveFileName(None, "Save as:", "",str(ftypeName[ext]+' ('+ext+')'))
 	
 	if filer == '':
 		filer = None
@@ -177,6 +180,15 @@ def xyview(renderer, camera,cp,fp):
 	camera.OrthogonalizeViewUp()
 	camera.ParallelProjectionOn()
 	renderer.ResetCamera()
+	
+def xyview_post(renderer, camera,cp,fp):
+	# print('cp',cp,'fp',fp)
+	camera.SetPosition(0,0,-cp[2]+0)
+	camera.SetFocalPoint(fp)
+	camera.SetViewUp(0,-1,0)
+	camera.OrthogonalizeViewUp()
+	camera.ParallelProjectionOn()
+	renderer.ResetCamera()
 
 def yzview(renderer, camera,cp,fp):
 	camera.SetPosition(cp[2]+0,0,0)
@@ -261,9 +273,34 @@ def read_mat(file):
 	except:
 		print("Couldn't data from %s."%file)
 		return
+
+def read_abq_dat(file_name):
+
+	i=0
+	lineFlag=[]
+	keyStrings=["    ELEMENT  PT"," MAXIMUM"]
+
+	fid = open(file_name)
+	while 1:
+		lines = fid.readlines(100000)
+		if not lines:
+			break
+		for line in lines:
+			i+=1
+			for keyString in keyStrings:
+				if line[0:len(keyString)]==keyString:
+					lineFlag.append(i)
+				
+	fid.close()
+	# extract quadrature data for
+	# node id, quadrature id, x coord, y coord, z coord, S33
+	# No idea why there's a full element's worth of an offset
+	return np.genfromtxt(file_name, skip_header=lineFlag[0]+2, skip_footer=i-lineFlag[1]-8, \
+							usecols=(0, 2, 3, 4, 7), autostrip=True)
 		
+
 def set_size_policy(target_widget):
-	sizePolicy=QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+	sizePolicy=QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
 	sizePolicy.setHorizontalStretch(0)
 	sizePolicy.setVerticalStretch(0)
 	sizePolicy.setHeightForWidth(target_widget.sizePolicy().hasHeightForWidth())
@@ -289,56 +326,56 @@ class Ui_getFEAconfigDialog(object):
 	def setupUi(self, getFEAconfigDialog):
 		getFEAconfigDialog.setObjectName("getFEAconfigDialog")
 		getFEAconfigDialog.resize(630, 201)
-		self.verticalLayout = QtWidgets.QVBoxLayout(getFEAconfigDialog)
+		self.verticalLayout = QVBoxLayout(getFEAconfigDialog)
 		self.verticalLayout.setObjectName("verticalLayout")
 		
-		self.horizontalLayout_3 = QtWidgets.QHBoxLayout()
+		self.horizontalLayout_3 = QHBoxLayout()
 		self.horizontalLayout_3.setObjectName("horizontalLayout_3")
-		self.dialoglabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.dialoglabel = QLabel(getFEAconfigDialog)
 		self.horizontalLayout_3.addWidget(self.dialoglabel)
 		self.verticalLayout.addLayout(self.horizontalLayout_3)
 		
-		self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
-		self.abaExec = QtWidgets.QLineEdit(getFEAconfigDialog)
-		self.abaLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_2 = QHBoxLayout()
+		self.abaExec = QLineEdit(getFEAconfigDialog)
+		self.abaLabel = QLabel(getFEAconfigDialog)
 		self.horizontalLayout_2.addWidget(self.abaLabel)
 		self.horizontalLayout_2.addWidget(self.abaExec)
 		self.verticalLayout.addLayout(self.horizontalLayout_2)
 
-		self.horizontalLayout_1 = QtWidgets.QHBoxLayout()
-		self.gmshExec = QtWidgets.QLineEdit(getFEAconfigDialog)
-		self.gmshLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_1 = QHBoxLayout()
+		self.gmshExec = QLineEdit(getFEAconfigDialog)
+		self.gmshLabel = QLabel(getFEAconfigDialog)
 		self.horizontalLayout_1.addWidget(self.gmshLabel)
 		self.horizontalLayout_1.addWidget(self.gmshExec)
 		self.verticalLayout.addLayout(self.horizontalLayout_1)
 		
-		self.horizontalLayout_0 = QtWidgets.QHBoxLayout()
-		self.ccxExec = QtWidgets.QLineEdit(getFEAconfigDialog)
-		self.ccxLabel = QtWidgets.QLabel(getFEAconfigDialog)
+		self.horizontalLayout_0 = QHBoxLayout()
+		self.ccxExec = QLineEdit(getFEAconfigDialog)
+		self.ccxLabel = QLabel(getFEAconfigDialog)
 		self.horizontalLayout_0.addWidget(self.ccxLabel)
 		self.horizontalLayout_0.addWidget(self.ccxExec)
 		self.verticalLayout.addLayout(self.horizontalLayout_0)
 		
 		
-		self.horizontalLayout = QtWidgets.QHBoxLayout()
-		self.ConfigFileLoc = QtWidgets.QLabel(getFEAconfigDialog)
-		self.ConfigFileLoc.setFont(QtGui.QFont("Helvetica",italic=True))
-		self.ConfigFileLabel = QtWidgets.QLabel(getFEAconfigDialog)
-		self.pushButton = QtWidgets.QPushButton(getFEAconfigDialog)
+		self.horizontalLayout = QHBoxLayout()
+		self.ConfigFileLoc = QLabel(getFEAconfigDialog)
+		self.ConfigFileLoc.setFont(QFont("Helvetica",italic=True))
+		self.ConfigFileLabel = QLabel(getFEAconfigDialog)
+		self.pushButton = QPushButton(getFEAconfigDialog)
 		self.horizontalLayout.addWidget(self.ConfigFileLabel)
 		self.horizontalLayout.addWidget(self.ConfigFileLoc)
 		self.horizontalLayout.addWidget(self.pushButton)
 		self.verticalLayout.addLayout(self.horizontalLayout)
 
 		self.retranslateUi(getFEAconfigDialog)
-		QtCore.QMetaObject.connectSlotsByName(getFEAconfigDialog)
+		QMetaObject.connectSlotsByName(getFEAconfigDialog)
 		
 		# connect the two functions
 		self.pushButton.clicked.connect(lambda: self.makeConfigChange(getFEAconfigDialog))
 		# self.pushButton_2.clicked.connect(self.return_cancel)
 
 	def retranslateUi(self, getFEAconfigDialog):
-		_translate = QtCore.QCoreApplication.translate
+		_translate = QCoreApplication.translate
 		getFEAconfigDialog.setWindowTitle(_translate("getFEAconfigDialog", "pyCM FEA configuration settings"))
 		self.dialoglabel.setText(_translate("getFEAconfigDialog", "Please specify the full path to relevant executable, or leave blank if not relevant."))
 		self.abaLabel.setText(_translate("getFEAconfigDialog", "Abaqus executable"))
@@ -367,3 +404,186 @@ class Ui_getFEAconfigDialog(object):
 
 		getFEAconfigDialog.close()
 
+class QtWaitingSpinner(QWidget):
+	"""
+	https://github.com/z3ntu/QtWaitingSpinner/blob/master/waitingspinnerwidget.py for license
+	"""
+	def __init__(self, parent, centerOnParent=True, disableParentWhenSpinning=False, modality=Qt.NonModal):
+		super().__init__(parent)
+
+		self._centerOnParent = centerOnParent
+		self._disableParentWhenSpinning = disableParentWhenSpinning
+
+		# WAS IN initialize()
+		self._color = QColor(Qt.black)
+		self._roundness = 100.0
+		self._minimumTrailOpacity = 3.14159265358979323846
+		self._trailFadePercentage = 80.0
+		self._revolutionsPerSecond = 1.57079632679489661923
+		self._numberOfLines = 20
+		self._lineLength = 10
+		self._lineWidth = 2
+		self._innerRadius = 10
+		self._currentCounter = 0
+		self._isSpinning = False
+
+		self._timer = QTimer(self)
+		self._timer.timeout.connect(self.rotate)
+		self.updateSize()
+		self.updateTimer()
+		self.hide()
+		# END initialize()
+
+		self.setWindowModality(modality)
+		self.setAttribute(Qt.WA_TranslucentBackground)
+
+	def paintEvent(self, QPaintEvent):
+		self.updatePosition()
+		painter = QPainter(self)
+		painter.fillRect(self.rect(), Qt.transparent)
+		painter.setRenderHint(QPainter.Antialiasing, True)
+
+		if self._currentCounter >= self._numberOfLines:
+			self._currentCounter = 0
+
+		painter.setPen(Qt.NoPen)
+		for i in range(0, self._numberOfLines):
+			painter.save()
+			painter.translate(self._innerRadius + self._lineLength, self._innerRadius + self._lineLength)
+			rotateAngle = float(360 * i) / float(self._numberOfLines)
+			painter.rotate(rotateAngle)
+			painter.translate(self._innerRadius, 0)
+			distance = self.lineCountDistanceFromPrimary(i, self._currentCounter, self._numberOfLines)
+			color = self.currentLineColor(distance, self._numberOfLines, self._trailFadePercentage,
+										self._minimumTrailOpacity, self._color)
+			painter.setBrush(color)
+			painter.drawRoundedRect(QRect(0, -self._lineWidth / 2, self._lineLength, self._lineWidth), self._roundness,
+									self._roundness, Qt.RelativeSize)
+			painter.restore()
+
+	def start(self):
+		self.updatePosition()
+		self._isSpinning = True
+		self.show()
+
+		if self.parentWidget and self._disableParentWhenSpinning:
+			self.parentWidget().setEnabled(False)
+
+		if not self._timer.isActive():
+			self._timer.start()
+			self._currentCounter = 0
+
+	def stop(self):
+		self._isSpinning = False
+		self.hide()
+
+		if self.parentWidget() and self._disableParentWhenSpinning:
+			self.parentWidget().setEnabled(True)
+
+		if self._timer.isActive():
+			self._timer.stop()
+			self._currentCounter = 0
+
+	def setNumberOfLines(self, lines):
+		self._numberOfLines = lines
+		self._currentCounter = 0
+		self.updateTimer()
+
+	def setLineLength(self, length):
+		self._lineLength = length
+		self.updateSize()
+
+	def setLineWidth(self, width):
+		self._lineWidth = width
+		self.updateSize()
+
+	def setInnerRadius(self, radius):
+		self._innerRadius = radius
+		self.updateSize()
+
+	def color(self):
+		return self._color
+
+	def roundness(self):
+		return self._roundness
+
+	def minimumTrailOpacity(self):
+		return self._minimumTrailOpacity
+
+	def trailFadePercentage(self):
+		return self._trailFadePercentage
+
+	def revolutionsPersSecond(self):
+		return self._revolutionsPerSecond
+
+	def numberOfLines(self):
+		return self._numberOfLines
+
+	def lineLength(self):
+		return self._lineLength
+
+	def lineWidth(self):
+		return self._lineWidth
+
+	def innerRadius(self):
+		return self._innerRadius
+
+	def isSpinning(self):
+		return self._isSpinning
+
+	def setRoundness(self, roundness):
+		self._roundness = max(0.0, min(100.0, roundness))
+
+	def setColor(self, color=Qt.black):
+		self._color = QColor(color)
+
+	def setRevolutionsPerSecond(self, revolutionsPerSecond):
+		self._revolutionsPerSecond = revolutionsPerSecond
+		self.updateTimer()
+
+	def setTrailFadePercentage(self, trail):
+		self._trailFadePercentage = trail
+
+	def setMinimumTrailOpacity(self, minimumTrailOpacity):
+		self._minimumTrailOpacity = minimumTrailOpacity
+
+	def rotate(self):
+		self._currentCounter += 1
+		if self._currentCounter >= self._numberOfLines:
+			self._currentCounter = 0
+		self.update()
+
+	def updateSize(self):
+		size = (self._innerRadius + self._lineLength) * 2
+		self.setFixedSize(size, size)
+
+	def updateTimer(self):
+		self._timer.setInterval(1000 / (self._numberOfLines * self._revolutionsPerSecond))
+
+	def updatePosition(self):
+		if self.parentWidget() and self._centerOnParent:
+			self.move(self.parentWidget().width() / 2 - self.width() / 2,
+					self.parentWidget().height() / 2 - self.height() / 2)
+
+	def lineCountDistanceFromPrimary(self, current, primary, totalNrOfLines):
+		distance = primary - current
+		if distance < 0:
+			distance += totalNrOfLines
+		return distance
+
+	def currentLineColor(self, countDistance, totalNrOfLines, trailFadePerc, minOpacity, colorinput):
+		color = QColor(colorinput)
+		if countDistance == 0:
+			return color
+		minAlphaF = minOpacity / 100.0
+		distanceThreshold = int(math.ceil((totalNrOfLines - 1) * trailFadePerc / 100.0))
+		if countDistance > distanceThreshold:
+			color.setAlphaF(minAlphaF)
+		else:
+			alphaDiff = color.alphaF() - minAlphaF
+			gradient = alphaDiff / float(distanceThreshold + 1)
+			resultAlpha = color.alphaF() - gradient * countDistance
+			# If alpha is out of bounds, clip it.
+			resultAlpha = min(1.0, max(0.0, resultAlpha))
+			color.setAlphaF(resultAlpha)
+		return color

@@ -25,11 +25,12 @@ import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
 #Change following to local import for dev
-from .pyCMcommon import *
-from pyCM import point_cloud as pc
-from pyCM import align_average as aa
-from pyCM import fit_surface as sf
-from pyCM import preprocess as pre
+from pyCMcommon import *
+import point_cloud as pc
+import align_average as aa
+import fit_surface as sf
+import preprocess as pre
+import postprocess as post
 
 class Ui_MainWindow(object):
 	def setupUi(self, MainWindow):
@@ -56,6 +57,7 @@ class Ui_MainWindow(object):
 		self.pretab = QtWidgets.QWidget()
 		self.tabWidget.addTab(self.pretab, "Preprocessing")
 		self.posttab = QtWidgets.QWidget()
+		self.tabWidget.addTab(self.posttab, "Postprocessing")
 		
 		MainWindow.setCentralWidget(self.centralwidget)
 		#detect changes between tabs
@@ -111,7 +113,9 @@ class Ui_MainWindow(object):
 		self.setup_aa()
 		self.setup_sf()
 		self.setup_pre()
+		self.setup_post()
 		
+		#unsaved_changes flips if the user does something within the interactor, so initialised all to be false
 	def setup_pc(self):
 		lhLayout=QtWidgets.QHBoxLayout(self.pctab)
 		self.pctab.setLayout(lhLayout)
@@ -135,6 +139,7 @@ class Ui_MainWindow(object):
 		self.sfui=sf.surf_int(self.centralwidget)
 		lhLayout.addWidget(self.sfui)
 		self.sfui.iren.Initialize()
+		self.sfui.fitted=False
 		self.sfui.unsaved_changes=False
 
 	def setup_pre(self):
@@ -144,6 +149,14 @@ class Ui_MainWindow(object):
 		lhLayout.addWidget(self.preui)
 		self.preui.iren.Initialize()
 		self.preui.unsaved_changes=False
+		
+	def setup_post(self):
+		lhLayout=QtWidgets.QHBoxLayout(self.posttab)
+		self.posttab.setLayout(lhLayout)
+		self.postui=post.pp_interactor(self.centralwidget)
+		lhLayout.addWidget(self.postui)
+		self.postui.iren.Initialize()
+		self.postui.unsaved_changes=False
 
 	def populate(self):
 		"""
@@ -156,40 +169,54 @@ class Ui_MainWindow(object):
 		self.aaui.get_input_data(self.activeFile)
 		self.sfui.get_input_data(self.activeFile)
 		self.preui.get_input_data(self.activeFile)
+		self.postui.get_input_data(self.activeFile)
 		
 	def on_change(self):
+		
+		#check if there's an activeFile & change title bar for new analyses
+		
+			
+
+		#perform checks from each step and load as necessary
+		##validity of moving from pc to aa: refWritten and floatWritten are both true
+		
+		#check the status of alignment/averaging against the surface input file
+		if (self.pcui.refWritten and self.pcui.floatWritten) and self.tabWidget.currentIndex()==1:
+			try:
+				if not hasattr(self,'activeFile'): #otherwise will reload data un-necessarily
+					self.activeFile = self.pcui.fileo
+					self.aaui.get_input_data(self.activeFile)
+					MainWindow.setWindowTitle("%s  -  pyCM v%s" %(self.activeFile,__version__))
+				
+			except:
+				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"Loading alignment and averaging step failed.", \
+				QtWidgets.QMessageBox.Ok)
+		elif not (self.pcui.refWritten and self.pcui.floatWritten) and self.tabWidget.currentIndex()>0:
+			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"Insufficient point cloud data available for this step.", \
+				QtWidgets.QMessageBox.Ok)
+			self.tabWidget.setCurrentIndex(0)
+			
+			
 		#check if there are unsaved changes from the point editor
-		if self.pcui.unsaved_changes:
+		if self.pcui.unsaved_changes and self.tabWidget.currentIndex()!=0:
 			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
 				"There are unsaved changes pending to a point cloud. Ignore?", \
 				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
 			if ret == QtWidgets.QMessageBox.Yes: #don't incorporate
 				#reload relevant parts of results file & clear unsaved changes.
 				self.pcui.load_mat()
-				self.pcui.unsaved_changes=False
 				return
 			else: 
 				#change unsaved flag temporarily to suppress on_change dialog
-				self.pcui.unsaved_changes=False
 				self.tabWidget.setCurrentIndex(0)
-				self.pcui.unsaved_changes=True
 
-		#check if there's an activeFile
-		if not hasattr(self,'activeFile'):
-			#then this is the first tab change since running the point editor
-			try:
-				self.activeFile=self.pcui.fileo
-				MainWindow.setWindowTitle("%s  -  pyCM v%s" %(self.activeFile,__version__))
-				self.aaui.get_input_data(self.activeFile)
-			except:
-				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
-				"No saved data to progress analysis.", \
-				QtWidgets.QMessageBox.Ok)
 
 		#check if there are unsaved changes from alignment/averaging
-		if self.aaui.unsaved_changes:
+		if self.aaui.unsaved_changes and self.tabWidget.currentIndex()!=1:
 			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
-				"There are unsaved changes pending to a point cloud. Ignore?", \
+				"There are unsaved changes pending on alignment/averaging. Ignore?", \
 				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
 			if ret == QtWidgets.QMessageBox.Yes: #don't incorporate
 				#reload relevant parts of results file & clear unsaved changes.
@@ -197,20 +224,55 @@ class Ui_MainWindow(object):
 				return
 			else: 
 				#change unsaved flag temporarily to suppress on_change dialog
-				self.aaui.unsaved_changes=False
 				self.tabWidget.setCurrentIndex(1)
-				self.aaui.unsaved_changes=True
-				
-		#check the status of alignment/averaging against the surface input file
-		if self.aaui.averaged and not hasattr(self.sfui,"fileo"):
-			try:
+
+
+		#check if there are unsaved changes from surface fitting
+		if self.sfui.unsaved_changes and self.tabWidget.currentIndex()!=2:
+			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"There are unsaved changes pending to fitting. Ignore?", \
+				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+			if ret == QtWidgets.QMessageBox.Yes: #don't incorporate
+				#reload relevant parts of results file & clear unsaved changes.
 				self.sfui.get_input_data(self.activeFile)
+				return
+			else: 
+				#change unsaved flag temporarily to suppress on_change dialog
+				self.tabWidget.setCurrentIndex(2)
+
+		#check the status of alignment/averaging against the surface input file
+		if self.aaui.averaged and self.tabWidget.currentIndex()==2:
+			try:
+				if not self.sfui.unsaved_changes:
+					self.sfui.get_input_data(self.activeFile)
+					print('reloaded fitted surface')
 
 			except:
 				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
-				"No saved data to progress analysis.", \
+				"Loading results from alignment/averaging failed.", \
 				QtWidgets.QMessageBox.Ok)
-				
+		elif not (self.aaui.averaged) and self.tabWidget.currentIndex()==2:
+			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"Need to have an averaged surface saved for this step.", \
+				QtWidgets.QMessageBox.Ok)
+			self.tabWidget.setCurrentIndex(1)
+			
+		#check the status of surface fitting 
+		if self.sfui.fitted and self.tabWidget.currentIndex()==3:
+			try:
+				if not self.preui.unsaved_changes:
+					self.preui.get_input_data(self.activeFile)
+
+			except:
+				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"Loading results from fitting failed.", \
+				QtWidgets.QMessageBox.Ok)
+		elif not (self.sfui.fitted) and self.tabWidget.currentIndex()==3:
+			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"Need to have a fitted surface saved for this step.", \
+				QtWidgets.QMessageBox.Ok)
+			self.tabWidget.setCurrentIndex(2)
+
 	def getFEAconfig(self):
 		#check config file
 		try:

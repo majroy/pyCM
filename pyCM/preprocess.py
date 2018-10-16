@@ -42,7 +42,7 @@ import vtk
 from vtk.util.numpy_support import vtk_to_numpy as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .pyCMcommon import *
+from pyCMcommon import *
 
 
 
@@ -252,7 +252,7 @@ class pre_main_window(object):
 		
 		self.mainlayout.addWidget(self.vtkWidget,0,0,1,1)
 		self.mainlayout.addLayout(lvLayout,0,1,1,1)
-		self.mainlayout.addWidget(self.statLabel,1,0,1,2)
+		self.mainlayout.addWidget(self.statLabel,1,0,1,1)
 
 	
 	def initialize(self):
@@ -313,10 +313,7 @@ class msh_interactor(QtWidgets.QWidget):
 			filem, _, =get_file('*.mat')
 			
 		if filem:
-			self.unsaved_changes = False
-			mat_contents = sio.loadmat(filem)
 			self.fileo=filem
-
 			mat_contents = sio.loadmat(self.fileo)
 
 			try:
@@ -362,7 +359,7 @@ class msh_interactor(QtWidgets.QWidget):
 					self.ui.seedLengthInput.setText("%4.4f"%self.Dist)
 					self.ui.numSeed.setValue(len(self.Outline))
 					
-				if 'vtk' in mat_contents: #load in the mesh if it exists
+				if 'vtk_inp' in mat_contents: #load in the mesh if it exists
 					self.vtkFile=mat_contents['vtk_filename'][0]
 					if mat_contents['mesh_script_filename'][0][-4:]=='.geo':
 						self.geofile=mat_contents['mesh_script_filename'][0]
@@ -375,7 +372,7 @@ class msh_interactor(QtWidgets.QWidget):
 					if not os.path.exists(self.vtkFile):
 							#run relevant extract_from_mat
 							print('Extracting vtk file from %s'%self.fileo)
-							extract_from_mat(mat_contents['vtk_filename'][0],self.fileo,'vtk')
+							extract_from_mat(mat_contents['vtk_filename'][0],self.fileo,'vtk_inp')
 					self.DisplayMesh()
 					self.ImposeSplineFit()
 					self.ui.lengthInput.setText(str(mat_contents['mesh_extrude_depth'][0][0]))
@@ -400,11 +397,12 @@ class msh_interactor(QtWidgets.QWidget):
 					if not os.path.exists(self.ofile_FEA):
 							#run relevant extract_from_mat
 							extract_from_mat(mat_contents['FEA_filename'][0],self.fileo,'FEA')
-					
-					
+				self.unsaved_changes=False
+				
 			except Exception as e:
-				print("Couldn't read variables from file.")
-				print(str(e))
+				#debug
+				# print("pyCM pre couldn't read variables from file.")
+				# print(str(e))
 				return
 			
 			color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
@@ -833,6 +831,10 @@ class msh_interactor(QtWidgets.QWidget):
 			
 			
 	def draw_rsoutline(self):
+		"""
+		Draws a respaced outline according to either a seed length, or total number of seeds.
+		"""
+		
 		if hasattr(self,"respacedOutlineActor"):
 			self.ren.RemoveActor(self.respacedOutlineActor)
 		
@@ -992,6 +994,7 @@ class msh_interactor(QtWidgets.QWidget):
 			else:
 				fid.write("%2.4f} };};\n \n//EOF"%L[-1])
 			if hasattr(self,'geofile'):
+				print('Geofile is',self.geofile)
 				with open(self.geofile, 'w+') as f: f.write(fid.getvalue())
 			else: return
 			self.ui.statLabel.setText("Gmsh geo file written . . . Idle")
@@ -1133,9 +1136,9 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		
 		with open(self.vtkFile, 'r') as file: vtkcontents=file.read()
 		if hasattr(self,'geofile'):
-			new={'mesh_script_filename':self.geofile,'mesh_script':fid.getvalue(),'vtk_filename':self.vtkFile,'vtk':vtkcontents,'mesh_extrude_depth':ExtrudeDepth,'mesh_partitions':NumNodesDeep}
+			new={'mesh_script_filename':self.geofile,'mesh_script':fid.getvalue(),'vtk_filename':self.vtkFile,'vtk_inp':vtkcontents,'mesh_extrude_depth':ExtrudeDepth,'mesh_partitions':NumNodesDeep}
 		else:
-			new={'mesh_script_filename':self.abapyfile,'mesh_script':fid.getvalue(),'vtk_filename':self.vtkFile,'vtk':vtkcontents,'mesh_extrude_depth':ExtrudeDepth,'mesh_partitions':NumNodesDeep}
+			new={'mesh_script_filename':self.abapyfile,'mesh_script':fid.getvalue(),'vtk_filename':self.vtkFile,'vtk_inp':vtkcontents,'mesh_extrude_depth':ExtrudeDepth,'mesh_partitions':NumNodesDeep}
 		fid.close()
 		mat_contents.update(new)
 		sio.savemat(self.fileo,mat_contents)
@@ -1266,13 +1269,13 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.ui.statLabel.setText("Locating surface elements . . .")
 		QtWidgets.QApplication.processEvents()
 		#create a locator from a bounding box for candidate cells.
-		#Unless the mesh is highly refined, this locator will a few layers of elements from the z=0 plane
+		#Unless the mesh is highly refined, this locator will id a few layers of elements from the z=0 plane
 		vil = vtk.vtkIdList()
 		locator = vtk.vtkCellTreeLocator()
 		locator.SetDataSet(self.mesh)
 		locator.BuildLocator()
 		locator.FindCellsWithinBounds(self.mesh.GetBounds()[0:4]+(-0.1,self.Dist),vil)
-		
+
 		
 		#vtk datatypes to hold info from locator filter
 		nfaces=vtk.vtkCellArray()
@@ -1290,7 +1293,6 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				nfaces.InsertNextCell(ptIds)
 				self.BCelements=np.append(self.BCelements,vil.GetId(i))
 				
-
 		rawPIds=v2n(nfaces.GetData()) 
 		
 		#make new matrix to hold node/point number connectivity
@@ -1301,6 +1303,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		elif self.mainCellType == 24: #2nd order tets
 			SurfPoints=np.resize(rawPIds,(int(len(rawPIds)/float(11)),11))
 			BCunit=6
+		
 		#remove point count column
 		SurfPoints=SurfPoints[:,1::]
 		
@@ -1321,6 +1324,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		#build new mesh of shell elements to show the BC surface
 		ccount=0
 		ppcount=0
+
 		for j in SurfPoints: #rows of surfpoints=elements
 			localCell=vtk.vtkPolygon()
 			#need to pre-allocate
@@ -1401,11 +1405,13 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.BClimits=BCpnts.GetBounds()
 		self.AddAxis(self.BClimits,1)
 		self.ui.vtkWidget.update()
-
-		self.ui.statLabel.setText("Finding corners . . .")
 		QtWidgets.QApplication.processEvents()
-		#create np matrix to store surface points (and find corners)
+		
+		self.ui.statLabel.setText("Finding corners . . .")
+		
+		#create np matrix to store surface points (and find corners) -> *FIX*
 		self.BCpnts=v2n(BCpnts.GetData()) #BCsearch will be fast
+
 		allNodes=v2n(self.mesh.GetPoints().GetData())
 
 		c_target=np.array([
@@ -1428,7 +1434,6 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.cornerInd=self.BCindex[ind.astype(int)]
 		self.corners=self.BCpnts[ind.astype(int),:]
 		
-		# print(self.corners,self.cornerInd)
 		
 		#back face
 		bfc_target=np.array([
@@ -1460,7 +1465,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.ui.imposeSpline.setStyleSheet("background-color :rgb(77, 209, 97);")
 		
 	def Keypress(self,obj,event):
-		key = obj.GetKeyCode()
+		key = obj.GetKeySym()
 
 		if key =="l": #load with keyboard shortcut
 			self.get_input_data(None)
@@ -1470,7 +1475,11 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			yzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
 		elif key =="3":
 			xzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
-
+		elif key == "Up":
+			self.ren.GetActiveCamera().Roll(90)
+			self.ren.ResetCamera()
+		
+		
 		elif key=="z":
 			self.Zaspect=self.Zaspect*2
 			# self.pointActor.SetScale(1,1,self.Zaspect)
@@ -1558,7 +1567,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			msg.setWindowTitle("pyCM Error")
 			msg.exec_()
 			return
-
+		
 		if not hasattr(self,'ofile_FEA'):
 			if self.ui.CalculixButton.isChecked():
 				try:
@@ -1585,6 +1594,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 					
 			except:
 				return
+		
 		
 		#catch condition where FEA routines change
 					
@@ -1648,7 +1658,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			fid.write(str.encode('%i, 3,, %6.6f\n'%(self.BCindex[ind]+1,self.BCpnts[ind,2])))
 		fid.write(str.encode('*EL FILE\n'))
 		fid.write(str.encode('S,E\n'))#get all stresses and strains just to be safe.
-		fid.write(str.encode('*EL PRINT, ELSET=BC\n'))
+		fid.write(str.encode('*EL PRINT\n'))
 		if self.ui.CalculixButton.isChecked():
 			fid.write(str.encode('S\n'))#Coords by default
 			self.ui.CalculixButton.setStyleSheet("background-color :rgb(77, 209, 97);")
@@ -1662,16 +1672,27 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		#write contents to file, highlight relevant button
 		mat_contents=sio.loadmat(self.fileo)
 		new={'FEA_filename':self.ofile_FEA,'FEA':fid.getvalue(),'Modulus':float(self.ui.modulusInput.text()),'Poisson':float(self.ui.poissonInput.text())}
-		if os.path.exists(self.ofile_FEA):
-			with open(self.ofile_FEA, 'w+') as f: f.write(fid.getvalue().decode("utf-8"))
+		with open(self.ofile_FEA, 'w+') as f: f.write(fid.getvalue().decode("utf-8"))
 		fid.close()
 		mat_contents.update(new)
 		sio.savemat(self.fileo,mat_contents)
 		
+		self.ui.vtkWidget.update()
+		
+		#Because duplicate entities exist during GMSH's procedure, the mesh is filtered. This changes the order of entities (node numbering and element numbering), so that the *.inp file & vtk file that is generated by Abaqus CAE meshing will not reflect the final .abq.inp file. Therefore, the initial vtk file is over-written for post-processing purposes.
+		self.ui.statLabel.setText("Writing new VTK file reflecting FEA packaging . . .")
+
+		ConvertInptoVTK(self.ofile_FEA,self.vtkFile[0:-7]+'out.vtk')
+		with open(self.vtkFile[0:-7]+'out.vtk', 'r') as file: vtkcontents_out=file.read()
+		
+		new={'vtk_out':vtkcontents_out}
+		mat_contents.update(new)
+		sio.savemat(self.fileo,mat_contents)
+		
+		self.ui.vtkWidget.update()
 		self.ui.statLabel.setText("Updated .mat file with FEA details.")
 		
 		if self.ui.runFEAButton.isChecked() and os.path.exists(self.ofile_FEA):
-			print('Ran FEA')
 			self.RunFEA()
 	
 	#Deprecated
@@ -1696,6 +1717,22 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		'''
 		Runs FEA according to specified method & entries in config file
 		'''
+		#Note that the spinner does not work because of a collision with VTK, commented out for now
+		# spinner = QtWaitingSpinner(self, True, True, Qt.ApplicationModal) #defaults
+		
+		# Custom
+		# spinner = QtWaitingSpinner(self)
+		# spinner.setRoundness(80.0)
+		# spinner.setMinimumTrailOpacity(15.0)
+		# spinner.setTrailFadePercentage(70.0)
+		# spinner.setNumberOfLines(12)
+		# spinner.setLineLength(50)
+		# spinner.setLineWidth(6)
+		# spinner.setInnerRadius(15)
+		# spinner.setRevolutionsPerSecond(0.5)
+
+		# spinner.start()
+
 		if self.ui.CalculixButton.isChecked():
 			#get the exe from cfg
 			execStr=(self.cfg['FEA']['ccxExec'])
@@ -1734,7 +1771,8 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				print("Abaqus command failed for some reason.")
 				print(e.decode("utf-8"))
 				self.ui.statLabel.setText("Abaqus call failed . . . Idle")
-
+		
+		# spinner.stop()
 
 def ConvertInptoVTK(infile,outfile):
 	"""
@@ -1743,7 +1781,7 @@ def ConvertInptoVTK(infile,outfile):
 	fid = open(infile)
 	
 	#flags for identifying sections of the inp file
-	inpKeywords=["*Node", "*Element", "*Nset", "*Elset"]
+	inpKeywords=["*Node", "*Element", "*Nset", "*Elset", "*NODE", "*ELEMENT", "*NSET", "*ELSET"]
 	
 	#map abaqus mesh types to vtk objects
 	vtkType={}
@@ -1763,7 +1801,7 @@ def ConvertInptoVTK(infile,outfile):
 			for keyword in inpKeywords:
 				if line[0:len(keyword)]==keyword:
 					lineFlag.append(i)
-					if keyword=="*Element":
+					if keyword=="*Element" or keyword=="*ELEMENT":
 						line = line.replace("\n", "")
 						CellNum=vtkType[line.split("=")[-1]]
 

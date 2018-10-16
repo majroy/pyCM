@@ -47,7 +47,7 @@ from scipy.spatial.distance import pdist, squareform
 from matplotlib import path
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .pyCMcommon import *
+from pyCMcommon import *
 from pkg_resources import Requirement, resource_filename
 
 
@@ -330,6 +330,9 @@ class aa_interactor(QtWidgets.QWidget):
 				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
 			if ret == QtWidgets.QMessageBox.No: #don't overwrite
 				return
+			else:
+				#delete fitting parameters with pyCMcommon helper function, which negates FEA pre-processing as well.
+				clear_mat(self.fileo,['x_out','aa_mask','spline_x']) 
 					
 		mat_contents=sio.loadmat(self.fileo)
 		
@@ -797,13 +800,6 @@ class aa_interactor(QtWidgets.QWidget):
 			if hasattr(self,'ax3D'):
 				flip_colors(self.ren,self.ax3D)
 				
-		elif key == "r":
-			if self.picking == True:
-				self.picking =False
-				self.show_picking()
-			else:
-				self.picking =True
-				self.show_picking()
 				
 		elif key=="l":
 			self.get_input_data(None)

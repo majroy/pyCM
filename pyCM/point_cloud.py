@@ -41,7 +41,7 @@ import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .pyCMcommon import *
+from pyCMcommon import *
 
 
 nosio=False
@@ -252,7 +252,9 @@ class pnt_interactor(QtWidgets.QWidget):
 		self.Zaspect=1.0
 		self.limits=np.empty(6)
 		self.picking=False
-
+		self.refWritten = False
+		self.floatWritten = False
+		
 		self.ui.reloadButton.clicked.connect(lambda: self.get_input_data(None,None))
 		self.ui.undoLastPickButton.clicked.connect(lambda: self.undo_pick())
 		self.ui.writeButton.clicked.connect(lambda: self.write_new())
@@ -334,7 +336,8 @@ class pnt_interactor(QtWidgets.QWidget):
 
 		if self.ui.showFloatButton.isChecked():
 			str_d='float'
-		
+			
+			
 		if hasattr(self,'pointActor'):
 			self.ren.RemoveActor(self.pointActor)
 		if hasattr(self,'outlineActor'):
@@ -345,8 +348,10 @@ class pnt_interactor(QtWidgets.QWidget):
 			#check contents
 			if 'ref' in mat_contents: 	
 				self.ui.refButton.setStyleSheet("background-color :rgb(77, 209, 97);")
+				self.refWritten = True
 			if 'float' in mat_contents: 	
 				self.ui.floatButton.setStyleSheet("background-color :rgb(77, 209, 97);")
+				self.floatWritten = True
 			try:
 				self.rawPnts=mat_contents[str_d]['rawPnts'][0][0]
 				self.bool_pnt=mat_contents[str_d]['mask'][0][0][0]
@@ -394,9 +399,8 @@ class pnt_interactor(QtWidgets.QWidget):
 
 			#add axes
 			self.add_axis(self.limits,[1,1,1])
-			
-			#since this is a fresh load, initialize as false
-			self.unsaved_changes=False
+
+
 			
 
 		
@@ -410,9 +414,11 @@ class pnt_interactor(QtWidgets.QWidget):
 		
 		if self.ui.refButton.isChecked():
 			str_d='ref'
-
+			self.refWritten=True
+			
 		if self.ui.floatButton.isChecked():
 			str_d='float'
+			self.floatWritten=True
 
 		
 		if not hasattr(self,'fileo'):
@@ -428,7 +434,7 @@ class pnt_interactor(QtWidgets.QWidget):
 				if self.ui.floatButton.isChecked():
 					self.ui.floatButton.setStyleSheet("background-color : rgb(77, 209, 97);")
 				#reset flag on ui to show that data has been modified
-				self.unsaved_changes=False
+				
 		else:
 			if not self.fileo:
 				self.fileo, _, = get_open_file('*.mat',os.getcwd())
@@ -460,8 +466,7 @@ class pnt_interactor(QtWidgets.QWidget):
 			#update status
 			self.ui.statLabel.setText("Wrote %s data to output file %s."%(str_d,self.fileo))
 			
-			#reset flag on ui to show that data has been modified
-			self.unsaved_changes=False
+
 
 			
 	def undo_pick(self):
