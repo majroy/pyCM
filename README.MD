@@ -22,13 +22,13 @@ Each of these factors contribute to the overall portability of the code and pres
 
 Some of these have already been addressed via projects such as [GNU Octave](https://www.gnu.org/software/octave/), a free and open source language similar to MATLAB in terms of development environment and syntax. However, this language has been shown to be quite slow in some cases, as inter-operability with MATLAB was favoured in place of speed. Inter-operability between GNU Octave and MATLAB is still relatively incomplete as MATLAB is developed independently of Octave.
 
-Many researchers have moved from using MATLAB to Python entirely for numerical analysis. Python is an extremely flexible language, with many packages available to perform the same work as MATLAB. Due to the open source nature of Python, there have been many contributions that allow for wrapping compiled science and engineering code written in other languages (Fortran, C, Java) to be called directly by Python. When coupled with [Numerical Python (NumPy)](http://www.numpy.org/)  and [SciPy](http://www.vtk.org/overview/), a significant amount of the same functionality is available as in MATLAB. Furthermore, there is a maintained library of Python bindings for VTK, the [Visualization Toolkit](http://www.scipy.org/), an extremely robust tool for visualising large datasets. For example, ParaView, an open source FEA post processor, makes extensive use of VTK.
+Many researchers have moved from using MATLAB to Python entirely for numerical analysis. Python is an extremely flexible language, with many packages available to perform the same work as MATLAB. Due to the open source nature of Python, there have been many contributions that allow for wrapping compiled science and engineering code written in other languages (Fortran, C, Java) to be called directly by Python. When coupled with [Numerical Python (NumPy)](http://www.numpy.org/)  and [SciPy](http://www.vtk.org/overview/), a significant amount of the same functionality is available as in MATLAB. Furthermore, there is a maintained library of Python bindings for VTK, the [Visualization Toolkit](http://www.scipy.org/), an extremely robust tool for visualising large datasets. For example, ParaView, an open source FEA post processor, makes extensive use of VTK - and the results of this application can be opened natively with this tool.
 
 ## Moving forward
 It is for these reasons the overall aim is to future proof the analysis code by moving towards using Python as the language of choice. To this end, a Python package called pyCM (Python Contour Method) has been developed. The idea is to fully move over from using primarily MATLAB functions/scripts to Python equivalents in a step-by-step manner. The development strategy adopted is to build new tools where required, and allow for existing MATLAB tools to be used on the input and output from these Python tools. This will be accomplished using the SciPy packages which generate binary MATLAB files to store workspace variables, so processing can be partially performed in Python, and shifted back into MATLAB to use existing scripts.
 
 # Latest version
-Alpha release 1.0.0 is currently the latest version which contains a complete toolchain for rectangular specimens with no self-restraint up to the FEA pre-processing step of an analysis. A post-processor is currently being developed, which has been made available in a beta form for testing purposes on *quadrilateral meshes only*.
+Alpha release 1.1.0 is currently the latest version which contains a complete toolchain for rectangular specimens with no self-restraint up to the FEA post-processing step of an analysis. NOte that the post-processor is still in a beta form for testing purposes on *quadrilateral meshes only*; if tetrahedral meshes are employed, then the native FEA code's post processor should be employed (GraphiX or Abaqus Viewer).
 
 # Requirements
 
@@ -48,7 +48,7 @@ Once Python is installed, it is recommended on Windows machines to get numpy, sc
 pip install <pkg_prefix>.whl
 ~~~
 
-However, the sources which arrive from PyPI are acceptable for most purposes and should automatically install - see next section.
+However, **the sources which arrive from PyPI are acceptable for most purposes and should automatically install** - see next section.
 
 # Installation
 
@@ -81,7 +81,7 @@ pip uninstall pyCM
 * [align_average](doc/align_averageREADME.md) - utility to manipulate, align and average two contour surface datasets with perimeter files.
 * [fit_surface](doc/fit_surfaceREADME.md) - utility to fit averaged point clouds
 * [preprocess](doc/preprocessREADME.md) - meshing/boundary condition building tool which works with Abaqus and OS FEA toolchains (Gmsh & Calculix).
-* [postprocess](doc/postprocessREADME.md) - **BETA** currently only supports results from analyses with quadrilateral meshes.
+* [postprocess](doc/postprocessREADME.md) - **BETA** currently only supports results from analyses with quadrilateral meshes, but for both Calculix and Abaqus.
 
 # Contributions and extensions
 This project is intended to best serve the overall residual stress community, so feel free to adjust as needed and add functionality. Please contact me directly by email prior to submitting pull requests so that we can discuss overall structure further.
