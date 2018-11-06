@@ -42,7 +42,7 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.spatial import Delaunay
 from matplotlib import path
 from pkg_resources import Requirement, resource_filename
-from pyCMcommon import *
+from .pyCMcommon import *
 
 
 def sf_def(*args, **kwargs):
@@ -492,7 +492,7 @@ class surf_int(QtWidgets.QWidget):
 		
 		self.ui.updateButton.setEnabled(True)
 		self.ui.updateButton.setStyleSheet("background-color :rgb(77, 209, 97);")
-		self.unsaved_changes = True
+
 		
 	def DisplaySplineFit(self,p,t):
 

@@ -41,7 +41,7 @@ import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCMcommon import *
+from .pyCMcommon import *
 
 
 nosio=False
@@ -344,6 +344,8 @@ class pnt_interactor(QtWidgets.QWidget):
 			self.ren.RemoveActor(self.outlineActor)
 		
 		if hasattr(self,'fileo'): #check variables
+			if self.fileo == None:
+				return
 			mat_contents = sio.loadmat(self.fileo)
 			#check contents
 			if 'ref' in mat_contents: 	
@@ -465,7 +467,10 @@ class pnt_interactor(QtWidgets.QWidget):
 			sio.savemat(self.fileo,mat_contents)	
 			#update status
 			self.ui.statLabel.setText("Wrote %s data to output file %s."%(str_d,self.fileo))
-			
+		
+		#check on write
+		if self.refWritten==True and self.floatWritten==True:
+			self.unsaved_changes==False
 
 
 			
@@ -575,7 +580,7 @@ class pnt_interactor(QtWidgets.QWidget):
 				return
 
 
-		if filep != '': #because filediag can be cancelled
+		if filep != None: #because filediag can be cancelled
 			self.Outline=np.genfromtxt(filep)
 			self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
 			self.ren.AddActor(self.outlineActor)			

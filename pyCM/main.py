@@ -10,13 +10,13 @@ See documentation for the following main methods in this package:
 ver 1.0 17-01-04 - contains all elements except for a post-processor
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.0"
+__version__ = "1.1"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2018"
 
-import sys
-import os.path
+import sys, os.path, shutil
+import subprocess as sp
 from pkg_resources import Requirement, resource_filename
 import numpy as np
 import scipy.io as sio
@@ -25,12 +25,12 @@ import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
 #Change following to local import for dev
-from pyCMcommon import *
-import point_cloud as pc
-import align_average as aa
-import fit_surface as sf
-import preprocess as pre
-import postprocess as post
+from .pyCMcommon import *
+import .point_cloud as pc
+import .align_average as aa
+import .fit_surface as sf
+import .preprocess as pre
+import .postprocess as post
 
 class Ui_MainWindow(object):
 	def setupUi(self, MainWindow):
@@ -70,14 +70,27 @@ class Ui_MainWindow(object):
 		loadButton = QtWidgets.QAction('Load', MainWindow)
 		loadButton.setShortcut('Ctrl+L')
 		loadButton.setStatusTip('Load pyCM data file')
-		loadButton.triggered.connect(self.populate)
+		loadButton.triggered.connect(lambda: self.populate(None))
+		
+		copyButton = QtWidgets.QAction('Copy', MainWindow)
+		copyButton.setShortcut('Ctrl+C')
+		copyButton.setStatusTip('Copy current results file.')
+		copyButton.triggered.connect(self.copy)
+		
+		clearallButton = QtWidgets.QAction('Restart', MainWindow)
+		clearallButton.setShortcut('Ctrl+Shift+R')
+		clearallButton.setStatusTip('Restart interactor without affecting current analysis.')
+		clearallButton.triggered.connect(self.restart)
 		
 		exitButton = QtWidgets.QAction('Exit', MainWindow)
 		exitButton.setShortcut('Ctrl+Q')
 		exitButton.setStatusTip('Exit application')
 		exitButton.triggered.connect(MainWindow.close)
+		
 		#add buttons to menus
 		fileMenu.addAction(loadButton)
+		fileMenu.addAction(copyButton)
+		fileMenu.addAction(clearallButton)
 		fileMenu.addAction(exitButton)
 
 		
@@ -92,6 +105,7 @@ class Ui_MainWindow(object):
 		setWorkDir.setShortcut('Ctrl+D')
 		setWorkDir.setStatusTip('Select working directory to perform FEA')
 		setWorkDir.triggered.connect(self.setFEAworkdir)
+		
 		
 		optMenu.addAction(setWorkDir)
 		optMenu.addAction(setFEA)
@@ -108,14 +122,10 @@ class Ui_MainWindow(object):
 		self.tabWidget.setCurrentIndex(0)
 		QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
-		#populate tabs
-		self.setup_pc()
-		self.setup_aa()
-		self.setup_sf()
-		self.setup_pre()
-		self.setup_post()
+		#set up tabs
+		self.initialize_all()
 		
-		#unsaved_changes flips if the user does something within the interactor, so initialised all to be false
+		
 	def setup_pc(self):
 		lhLayout=QtWidgets.QHBoxLayout(self.pctab)
 		self.pctab.setLayout(lhLayout)
@@ -148,6 +158,7 @@ class Ui_MainWindow(object):
 		self.preui=pre.msh_interactor(self.centralwidget)
 		lhLayout.addWidget(self.preui)
 		self.preui.iren.Initialize()
+		self.preui.preprocessed = False
 		self.preui.unsaved_changes=False
 		
 	def setup_post(self):
@@ -158,36 +169,49 @@ class Ui_MainWindow(object):
 		self.postui.iren.Initialize()
 		self.postui.unsaved_changes=False
 
-	def populate(self):
+	def populate(self, file):
 		"""
 		Populates all ui's with contents of mat file
 		"""
-		self.activeFile, _, = get_file('*.mat')
-		MainWindow.setWindowTitle("%s  -  pyCM v%s" %(self.activeFile,__version__))
-		self.pcui.fileo=self.activeFile
-		self.pcui.load_mat()
-		self.aaui.get_input_data(self.activeFile)
-		self.sfui.get_input_data(self.activeFile)
-		self.preui.get_input_data(self.activeFile)
-		self.postui.get_input_data(self.activeFile)
+		if file == None:
+			self.activeFile, _, = get_file('*.mat')
+		else: self.activeFile=file
 		
+		if self.activeFile != None:
+			MainWindow.setWindowTitle("%s  -  pyCM v%s" %(self.activeFile,__version__))
+			self.pcui.fileo=self.activeFile
+			self.pcui.load_mat()
+			self.aaui.get_input_data(self.activeFile)
+			self.sfui.get_input_data(self.activeFile)
+			self.preui.get_input_data(self.activeFile)
+			self.postui.get_input_data(self.activeFile)
+		else: return
+		
+	def initialize_all(self):
+		#run set up on all tabs again with null argument
+		self.setup_pc()
+		self.setup_aa()
+		self.setup_sf()
+		self.setup_pre()
+		self.setup_post()
+	
 	def on_change(self):
 		
 		#check if there's an activeFile & change title bar for new analyses
 		
-			
-
 		#perform checks from each step and load as necessary
-		##validity of moving from pc to aa: refWritten and floatWritten are both true
+		
+		QtWidgets.QApplication.processEvents()
 		
 		#check the status of alignment/averaging against the surface input file
 		if (self.pcui.refWritten and self.pcui.floatWritten) and self.tabWidget.currentIndex()==1:
 			try:
+				
 				if not hasattr(self,'activeFile'): #otherwise will reload data un-necessarily
 					self.activeFile = self.pcui.fileo
 					self.aaui.get_input_data(self.activeFile)
 					MainWindow.setWindowTitle("%s  -  pyCM v%s" %(self.activeFile,__version__))
-				
+
 			except:
 				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
 				"Loading alignment and averaging step failed.", \
@@ -201,6 +225,7 @@ class Ui_MainWindow(object):
 			
 		#check if there are unsaved changes from the point editor
 		if self.pcui.unsaved_changes and self.tabWidget.currentIndex()!=0:
+			print('Triggered.')
 			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
 				"There are unsaved changes pending to a point cloud. Ignore?", \
 				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
@@ -223,7 +248,6 @@ class Ui_MainWindow(object):
 				self.aaui.get_input_data(self.activeFile)
 				return
 			else: 
-				#change unsaved flag temporarily to suppress on_change dialog
 				self.tabWidget.setCurrentIndex(1)
 
 
@@ -237,9 +261,20 @@ class Ui_MainWindow(object):
 				self.sfui.get_input_data(self.activeFile)
 				return
 			else: 
-				#change unsaved flag temporarily to suppress on_change dialog
 				self.tabWidget.setCurrentIndex(2)
-
+				
+		#check if there are unsaved changes from preprocessing
+		if self.preui.unsaved_changes and self.tabWidget.currentIndex()!=3:
+			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"There are unsaved changes pending to preprocessing. Ignore?", \
+				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+			if ret == QtWidgets.QMessageBox.Yes: #don't incorporate
+				#reload relevant parts of results file & clear unsaved changes.
+				self.preui.get_input_data(self.activeFile)
+				return
+			else: 
+				self.tabWidget.setCurrentIndex(3)
+		
 		#check the status of alignment/averaging against the surface input file
 		if self.aaui.averaged and self.tabWidget.currentIndex()==2:
 			try:
@@ -262,7 +297,6 @@ class Ui_MainWindow(object):
 			try:
 				if not self.preui.unsaved_changes:
 					self.preui.get_input_data(self.activeFile)
-
 			except:
 				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
 				"Loading results from fitting failed.", \
@@ -272,6 +306,21 @@ class Ui_MainWindow(object):
 				"Need to have a fitted surface saved for this step.", \
 				QtWidgets.QMessageBox.Ok)
 			self.tabWidget.setCurrentIndex(2)
+			
+		#check the status of the FEA
+		if self.preui.preprocessed and self.tabWidget.currentIndex()==4:
+			try:
+				if not self.preui.unsaved_changes:
+					self.postui.get_input_data(self.activeFile)
+			except:
+				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"Loading results from fitting failed.", \
+				QtWidgets.QMessageBox.Ok)
+		elif not (self.preui.preprocessed) and self.tabWidget.currentIndex()==4:
+			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"Need to have a completed FEA for this step.", \
+				QtWidgets.QMessageBox.Ok)
+			self.tabWidget.setCurrentIndex(3)
 
 	def getFEAconfig(self):
 		#check config file
@@ -295,8 +344,36 @@ class Ui_MainWindow(object):
 		#sets directory to run FEA from - writes outputd variable to preprocessor interactor
 		self.preui.outputd = str(QtWidgets.QFileDialog.getExistingDirectory(None, "Select directory", "",QtWidgets.QFileDialog.ShowDirsOnly))
 
+	def copy(self):
+	
+		if hasattr(self,'activeFile'):
+			if self.activeFile != None:
+				launchlocation, _ = os.path.split(self.activeFile)
+				newFile, _, = get_open_file('*.mat',launchlocation)
+				if newFile == self.activeFile:
+					ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+					"Overwriting in this manner isn't supported. Modify current results file.", \
+					QtWidgets.QMessageBox.Ok)
+					return
+				#copy it
+				try:
+					shutil.copyfile(self.activeFile, newFile)
+				except:
+					return
+				
+				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
+				"Results file copied. Open this copy?", \
+				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+				if ret == QtWidgets.QMessageBox.Yes: 
+					#populate with copy
+					self.populate(newFile)
+				
+	def restart(self):
+		self.centralwidget.close
+		os.execl(sys.executable, sys.executable, *sys.argv)
+		# sp.call(sys.executable + ' "' + os.path.realpath(__file__) + '"')
+
 if __name__ == "__main__":
-	import sys
 	app = QtWidgets.QApplication(sys.argv)
 
 	

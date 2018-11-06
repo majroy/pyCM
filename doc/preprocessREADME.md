@@ -14,12 +14,14 @@ Calculix: http://www.dhondt.de/
 **Input and output descriptors**
 
 The input consists of a *.mat file which contains the following data structures:
+
 Input | Description
 ---  |---
 `ref` structure	| At minimum contains an `x_out` field, see [point_cloud](point_cloudREADME.md): Nx3 matrix of the points that comprise the outline.
 `spline_x` structure | Contains the following fields:<ul><li>`knots`: Nx2 cell arrays of knots in the x & y directions, respectively.</li><li>`dim`: dimension of the spline (required for MATLAB interoperability)</li><li>`form`: form of the spline - defaults to 'B-' (required for MATLAB interoperability)</li><li>`number`: Nx2 the number of knots in x and y, respectively (required for MATLAB interoperability)</li><li>`tck`: FITPACK generated spline information, a list that contains the knots, coefficients and order.</li><li>`coefs`: matrix of coefficients with dimensions of dimxNxM, according to the dimension, x and y directions (required for MATLAB interoperability)</li></ul> See [fit_surface](fit_surfaceREADME.md).
 
 Depending on which analysis route is selected, there is a variety of files that will be generated. Pre-processing can be carried out either following solely an open source route, either employing Abaqus or Gmsh to generate a mesh and boundary conditions. The final linear elastic analysis can either be conducted via Calculix or Abaqus, and analysis files are generated for each of those. The following table outlines both optional and mandatory files that are generated.
+
 Output | Description
 ---  |---
 *.geo | Gmsh script file. If generated during outline processing, this will be a 2D outline of the component corresponding to an 'optimized' `x_out`. If written as part of the 3D mesh generation process, then this will be the script corresponding to generating the full mesh.
@@ -72,6 +74,7 @@ In the **Compose FEA** pane, either a Calculix or Abaqus input deck can be writt
 *<a name="fig5"></a> Figure 5: Calculix CGX post-processor*
 
 **Keyboard and mouse mapping**
+
 Key | Description
 ---  |---
 Left mouse button 	|Rotate about the center of view

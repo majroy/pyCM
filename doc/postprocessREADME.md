@@ -1,27 +1,40 @@
 # postprocess
 
 ## Background
-Tool for both post-processing the output from the linear elastic Finite Element Analysis of the contour method. Visualization is carried out with VTK and currently can support C3D8 element from an ABAQUS output (.dat) file.
+Tool for both post-processing the output from the linear elastic Finite Element Analysis of the contour method. Visualization is carried out with VTK and currently can support C3D8 element from an Abaqus output (.abq.dat) or Calculix output (.ccx.dat) file.
 
 ## Initializing
 
 **Input and output descriptors**
 
-The input consists of a *.dat, *.inp and *.vtk files. All of them will be produced by the pre-processor. It is important to note that when selective the *.inp file the user must chose the intermediate input file containing *only the mesh* (not *.abq.inp!).
-
-An analysis will be carried out at each input stage and it is normal to take a few seconds (especially on the *.inp step). Following the extrapolation from quadrature points to nodal points the data will be appended in the selected *.vtk file. This can then be visualized in the Qt window.
+This application takes information from the results file (.mat) and looks for the corresponding .dat file associated with the analysis. From the mesh already contained within the results file, the values at integration (gauss) points is translated to nodes using the relevant shape functions, with the complete output stored in a VTK unstructured mesh file in XML format, suitable for further postprocessing in [ParaView](https://www.paraview.org/).
 
 The tool is called from Python according to:
 ~~~
-from pyCM import postprocess as pc
-pc.post_process_tool()
+from pyCM import postprocess as pp
+pp.post_process_tool()
 ~~~
 
 ##  Interaction functionality
-The button "Extract S33" will start the process of asking the user for the relevant files. The button "Display S33" can then be used to visualize the *.vtk file.
+After loading a results file by pressing **l**, pressing the 'Extract' button will start reading the relevant .dat results file. Display, by default, is the longitudinal direction (S33) but can be changed to S11 and S22 (x and y directions). The number of contours on the scalebar can be changed, as well as the minimum and maximum stresses resolved.
 
 <span>![<span>Main Window</span>](images/postprocess1.png)</span>
 *<a name="fig1"></a> Figure 1: Postprocess*
 
+**Keyboard and mouse mapping**
+
+Key | Description
+---  |---
+Left mouse button 	|Rotate about the center of view
+Middle mouse button 	|Pan
+Right mouse button 	|Zoom/refresh window extents
+1 	|View 1, default, looks down z axis onto xy plane
+2 	|View 2, default, looks down x axis onto zy plane
+3 	|View 3, default, looks down y axis onto zx plane
+f | Flip colors from white on dark to dark on white
+i | Save output to .png in current working directory
+l | load/reload *.mat file to conduct/review/revise this analysis step
+
+
 ## Known issues
-- The vtk display seems to cut parts of the piece when rotating
+None at this time.

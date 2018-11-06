@@ -42,7 +42,7 @@ import vtk
 from vtk.util.numpy_support import vtk_to_numpy as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCMcommon import *
+from .pyCMcommon import *
 
 
 
@@ -315,7 +315,7 @@ class msh_interactor(QtWidgets.QWidget):
 		if filem:
 			self.fileo=filem
 			mat_contents = sio.loadmat(self.fileo)
-
+			self.outputd=os.path.split(self.fileo) #needed to write ancillary files.
 			try:
 				#read in for ImposeSplineFit function
 				bsplinerep=mat_contents['spline_x']['tck'][0][0]
@@ -397,6 +397,7 @@ class msh_interactor(QtWidgets.QWidget):
 					if not os.path.exists(self.ofile_FEA):
 							#run relevant extract_from_mat
 							extract_from_mat(mat_contents['FEA_filename'][0],self.fileo,'FEA')
+					self.preprocessed=True
 				self.unsaved_changes=False
 				
 			except Exception as e:
@@ -417,7 +418,7 @@ class msh_interactor(QtWidgets.QWidget):
 		self.ren.ResetCamera()
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
-		self.outputd=os.path.split(self.fileo) #needed to write ancillary files.
+		
 		
 
 		
@@ -744,7 +745,7 @@ class msh_interactor(QtWidgets.QWidget):
 		self.write_outline()
 		
 		#clear anything from the matfile for subsequent steps and reload
-		clear_mat(self.fileo,['FEA','FEA_filename','mesh_extrude_depth','mesh_partitions','mesh_script','mesh_script_filename','Modulus','pickedCornerInd','Poisson','vtk','vtk_filename'])
+		clear_mat(self.fileo,['FEA','FEA_filename','mesh_extrude_depth','mesh_partitions','mesh_script','mesh_script_filename','Modulus','pickedCornerInd','Poisson','vtk_inp','vtk_filename'])
 		#clear all actors from interactor and set all buttons 'norm'
 		self.ren.RemoveAllViewProps()
 		self.ui.dxfButton.setStyleSheet("background-color :None;")
@@ -1648,7 +1649,10 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		fid.write(str.encode('*MATERIAL, NAME=USERSPEC\n'))
 		fid.write(str.encode('*ELASTIC, TYPE=ISO\n'))
 		fid.write(str.encode('%7.0f,%.3f\n'%(float(self.ui.modulusInput.text()),float(self.ui.poissonInput.text()))))
-		fid.write(str.encode('*STEP, NAME=CONFORM\n'))
+		if self.ui.CalculixButton.isChecked():
+			fid.write(str.encode('*STEP\n'))
+		elif self.ui.AbaqusButton.isChecked():
+			fid.write(str.encode('*STEP, NAME=CONFORM\n'))
 		fid.write(str.encode('*STATIC\n'))
 		fid.write(str.encode('*BOUNDARY\n'))
 		fid.write(str.encode('%i, 1,2, 0\n'%(self.cornerInd[self.pickedCornerInd[0]]+1)))
@@ -1656,14 +1660,16 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		fid.write(str.encode('*BOUNDARY\n'))
 		for ind in range(len(self.BCindex)):
 			fid.write(str.encode('%i, 3,, %6.6f\n'%(self.BCindex[ind]+1,self.BCpnts[ind,2])))
-		fid.write(str.encode('*EL FILE\n'))
-		fid.write(str.encode('S,E\n'))#get all stresses and strains just to be safe.
-		fid.write(str.encode('*EL PRINT\n'))
+		# fid.write(str.encode('*EL FILE\n'))
+		# fid.write(str.encode('S,E\n'))#get all stresses and strains just to be safe.
+		
 		if self.ui.CalculixButton.isChecked():
-			fid.write(str.encode('S\n'))#Coords by default
+			fid.write(str.encode('*EL PRINT, ELSET=DOMAIN\n'))
+			fid.write(str.encode('COORD,S\n'))#Coords by default
 			self.ui.CalculixButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 			self.ui.AbaqusButton.setStyleSheet("background-color :None;")
 		elif self.ui.AbaqusButton.isChecked():
+			fid.write(str.encode('*EL PRINT\n'))
 			fid.write(str.encode('COORD,S\n'))#have to specify coords
 			self.ui.AbaqusButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 			self.ui.CalculixButton.setStyleSheet("background-color :None;")
@@ -1694,7 +1700,9 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		
 		if self.ui.runFEAButton.isChecked() and os.path.exists(self.ofile_FEA):
 			self.RunFEA()
-	
+		self.unsaved_changes = False
+		self.preprocessed = True
+		
 	#Deprecated
 	'''
 	def WriteOutput(self):
@@ -1717,21 +1725,6 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		'''
 		Runs FEA according to specified method & entries in config file
 		'''
-		#Note that the spinner does not work because of a collision with VTK, commented out for now
-		# spinner = QtWaitingSpinner(self, True, True, Qt.ApplicationModal) #defaults
-		
-		# Custom
-		# spinner = QtWaitingSpinner(self)
-		# spinner.setRoundness(80.0)
-		# spinner.setMinimumTrailOpacity(15.0)
-		# spinner.setTrailFadePercentage(70.0)
-		# spinner.setNumberOfLines(12)
-		# spinner.setLineLength(50)
-		# spinner.setLineWidth(6)
-		# spinner.setInnerRadius(15)
-		# spinner.setRevolutionsPerSecond(0.5)
-
-		# spinner.start()
 
 		if self.ui.CalculixButton.isChecked():
 			#get the exe from cfg
@@ -1739,7 +1732,13 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			self.ui.statLabel.setText("Running Calculix . . .")
 			QtWidgets.QApplication.processEvents()
 			try:
-				out=sp.check_output([execStr,"-i",self.ofile_FEA[:-4]])
+				currentPath=os.getcwd()
+				ccxrunloc,ccxinpfile=os.path.split(self.ofile_FEA)
+				os.chdir(ccxrunloc)
+				
+				print('Current directory: ',os.getcwd())
+				print('exec: %s -i %s'%(execStr,ccxinpfile))
+				out=sp.check_output([execStr,"-i",ccxinpfile[:-4]], shell=True)
 				
 				print("Calculix output log:")
 				print("----------------")
@@ -1748,7 +1747,8 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				self.ui.statLabel.setText("Calculix run completed . . . Idle")
 			except sp.CalledProcessError as e:
 				print("Calculix command failed for some reason.")
-				print(e.decode("utf-8"))
+				# print(e.decode("utf-8"))
+				print(e)
 				self.ui.statLabel.setText("Calculix call failed . . . Idle")
 				
 		if self.ui.AbaqusButton.isChecked():
@@ -1772,7 +1772,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				print(e.decode("utf-8"))
 				self.ui.statLabel.setText("Abaqus call failed . . . Idle")
 		
-		# spinner.stop()
+
 
 def ConvertInptoVTK(infile,outfile):
 	"""

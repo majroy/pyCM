@@ -15,6 +15,8 @@ from a command line. This will launch the `main` script which in turn calls all 
 At this time, the drop down menu is sparsely populated, with the only functionality being the ability to:
 
 * To load a pyCM results file with a *.mat extension (File)
+* Copy an existing pyCM results file (File)
+* Clear and restart the application (File)
 * Change FEA working directory (Options)
 * Change FEA executable paths(Options)
 
@@ -43,10 +45,15 @@ The third tab permits the user to fit an analytical surface to the aligned and a
 
 This tab currently permits a user to refactor (seed) an outline, generate a mesh, and subsequently assign boundary conditions as dictated by the analytical surface found in the previous step. See [preprocess](preprocessREADME.md).
 
-<span>![<span>Surface fitting</span>](images/main4.png)</span>  
+<span>![<span>Preprocessing</span>](images/main4.png)</span>  
 *<a name="fig3"></a> Figure 4: Loaded data with the preprocessor editor active. Green highlights which route has been selected for generating a mesh and the subsequent finite element analysis.*
+
+## FEA postprocessing tab
+
+This tab currently permits a user to generate a postprocessing file, and can display results from either Abaqus or Calculix-generated analyses across the entire mesh. Displays a contour plot of resolved longitudinal stresses by default, and stresses relieved by the cut in other principle directions. The number of contours as well as the maximum/minimum stresses can be set directly. See [postprocess](postprocessREADME.md).
+
 
 ## Known issues
 Over-writing of data is still possible at this stage, it is recommended that the user works from a copy of a database file if any changes are to be experimented with, or if a sensitivity analysis is to be conducted. Changes in the analysis stream will not necessary negate results upstream, and therefore the user is advised to be cautious when using this tool. It has largely been written to a) perform an analysis in one direction along the analysis path, and b) playback analyses that have been conducted.
 
-The VTK interactor does not refresh automatically upon interface resizing, zooming will allow it to refresh.
+Note that absolute paths are still being employed, and therefore *.mat files will contain all relevant details, but may need a third party tool to adjust paths if the results file is moved to another machine.

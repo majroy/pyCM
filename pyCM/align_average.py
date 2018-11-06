@@ -47,7 +47,7 @@ from scipy.spatial.distance import pdist, squareform
 from matplotlib import path
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCMcommon import *
+from .pyCMcommon import *
 from pkg_resources import Requirement, resource_filename
 
 
@@ -170,14 +170,14 @@ class ali_avg(object):
 		self.alignButtonGroup.addButton(self.alignPointCloudButton)
 		self.alignButtonGroup.setExclusive(True)
 		self.alignButton = QtWidgets.QPushButton('Align')
-		self.alignButton.setStyleSheet("background-color : white;")
+		self.alignButton.setStyleSheet("background-color : None ")
 		
 		horizLine3=QtWidgets.QFrame()
 		horizLine3.setFrameStyle(QtWidgets.QFrame.HLine)
 		averageLabel=QtWidgets.QLabel("Averaging")
 		averageLabel.setFont(headFont)
 		self.averageButton = QtWidgets.QPushButton('Average')
-		self.averageButton.setStyleSheet("background-color : white;")
+		self.averageButton.setStyleSheet("background-color : None ")
 		
 		horizLine4=QtWidgets.QFrame()
 		horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)

@@ -10,7 +10,7 @@ RMB   - zoom
 ver 0.1 21 April 2018
 """
 __author__ = "N. Stoyanov"
-__version__ = "0.1"
+__version__ = "0.2"
 __email__ = "nikola.stoyanov@postgrad.manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, N. Stoyanov 2014-2018"
@@ -20,12 +20,13 @@ import vtk
 import pandas
 import numpy as np
 import scipy.io as sio
-from shutil import copyfile
+import matplotlib.pyplot as plt
+import xml.etree.ElementTree as ET
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtGui, QtWidgets, QtCore
 from vtk.util.numpy_support import vtk_to_numpy as v2n
 from pkg_resources import Requirement, resource_filename
-from pyCMcommon import *
+from .pyCMcommon import *
 
 
 def post_process_tool(*args, **kwargs):
@@ -86,42 +87,41 @@ class post_main_window(object):
 		sizePolicy.setHeightForWidth(self.vtkWidget.sizePolicy().hasHeightForWidth())
 		self.vtkWidget.setSizePolicy(sizePolicy)
 
-		self.horiz_line1 = QtWidgets.QFrame()
-		self.horiz_line1.setFrameStyle(QtWidgets.QFrame.HLine)
-		self.head_font=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
+		horiz_line1 = QtWidgets.QFrame()
+		horiz_line1.setFrameStyle(QtWidgets.QFrame.HLine)
+		horiz_line2 = QtWidgets.QFrame()
+		horiz_line2.setFrameStyle(QtWidgets.QFrame.HLine)
+		horiz_line3 = QtWidgets.QFrame()
+		horiz_line3.setFrameStyle(QtWidgets.QFrame.HLine)
+		horiz_line4 = QtWidgets.QFrame()
+		horiz_line4.setFrameStyle(QtWidgets.QFrame.HLine)
+		headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
 
+		display_label = QtWidgets.QLabel("Display")
+		display_label.setFont(headFont)
+		self.extract_button = QtWidgets.QPushButton('Extract')
+		self.display_button33 = QtWidgets.QPushButton('S33 - Longitudinal')
+		self.display_button11 = QtWidgets.QPushButton('S11')
+		self.display_button22 = QtWidgets.QPushButton('S22')
 
-		self.quadButton = QtWidgets.QRadioButton("quads")
-		self.tetButton = QtWidgets.QRadioButton("tets")
-		self.quadButton.setChecked(True)
-		self.mtypeButtonGroup = QtWidgets.QButtonGroup()
-		self.mtypeButtonGroup.addButton(self.tetButton)
-		self.mtypeButtonGroup.addButton(self.quadButton)
-		self.mtypeButtonGroup.setExclusive(True)
-
-		self.read_sim_data_button = QtWidgets.QPushButton('Extract S33')
-		self.display_vtk_button = QtWidgets.QPushButton('Display S33')
-
-		self.horiz_line3 = QtWidgets.QFrame()
-		self.horiz_line3.setFrameStyle(QtWidgets.QFrame.HLine)
-		self.stress_label = QtWidgets.QLabel("Contour levels")
-		self.stress_label.setWordWrap(True)
-		self.stress_label.setFont(QtGui.QFont("Helvetica"))
-		self.stress_label.setMinimumWidth(50)
+		stress_label = QtWidgets.QLabel("Contours")
+		stress_label.setFont(headFont)
+		stress_label.setWordWrap(True)
+		stress_label.setMinimumWidth(50)
 
 		# enter minimum stress to update the display
-		inp_min_stress_label = QtWidgets.QLabel("Min S33:")
+		inp_min_stress_label = QtWidgets.QLabel("Min:")
 		self.inp_min_stress = QtWidgets.QLineEdit()
 		self.inp_min_stress.setMinimumWidth(50)
 		
-		num_contours_label = QtWidgets.QLabel("Contours:")
+		num_contours_label = QtWidgets.QLabel("Number:")
 		self.numContour = QtWidgets.QSpinBox()
 		self.numContour.setMinimum(3)
 		self.numContour.setMaximum(20)
 		self.numContour.setValue(5)
 
 		# enter maximum stress to update the display
-		inp_max_stress_label = QtWidgets.QLabel("Max S33:")
+		inp_max_stress_label = QtWidgets.QLabel("Max:")
 		self.inp_max_stress = QtWidgets.QLineEdit()
 		self.inp_max_stress.setMinimumWidth(50)
 		
@@ -130,30 +130,29 @@ class post_main_window(object):
 		self.updateButton = QtWidgets.QPushButton('Update')
 		self.updateButton.setMinimumWidth(50)
 
-		self.horiz_line2 = QtWidgets.QFrame()
-		self.horiz_line2.setFrameStyle(QtWidgets.QFrame.HLine)
+
 		self.statLabel = QtWidgets.QLabel("Idle")
 		self.statLabel.setWordWrap(True)
 		self.statLabel.setFont(QtGui.QFont("Helvetica", italic=True))
 		self.statLabel.setMinimumWidth(50)
 
-		mainUiBox.addWidget(self.quadButton,0,0,1,1)
-		mainUiBox.addWidget(self.tetButton,0,1,1,1)
-		mainUiBox.addWidget(self.read_sim_data_button,1,0,1,1)
-		mainUiBox.addWidget(self.display_vtk_button,1,1,1,1)
-		mainUiBox.addWidget(self.horiz_line3,2,0,1,2)
-		mainUiBox.addWidget(self.stress_label,3,0,1,2)
-		mainUiBox.addWidget(inp_min_stress_label,4,0,1,1)
-		mainUiBox.addWidget(self.inp_min_stress,4,1,1,1)
-		mainUiBox.addWidget(inp_max_stress_label,5,0,1,1)
-		mainUiBox.addWidget(self.inp_max_stress,5,1,1,1)
-		mainUiBox.addWidget(num_contours_label,6,0,1,1)
-		mainUiBox.addWidget(self.numContour,6,1,1,1)
-		mainUiBox.addWidget(self.inp_max_stress,7,1,1,1)
-		mainUiBox.addWidget(self.updateButton,7,0,1,2)
-		mainUiBox.addWidget(self.horiz_line2,8,0,1,2)
+		mainUiBox.addWidget(self.extract_button,0,0,1,2)
+		mainUiBox.addWidget(display_label,1,0,1,2)
+		mainUiBox.addWidget(self.display_button33,2,0,1,2)
+		mainUiBox.addWidget(self.display_button11,3,0,1,1)
+		mainUiBox.addWidget(self.display_button22,3,1,1,1)
+		mainUiBox.addWidget(horiz_line1,4,0,1,2)
+		mainUiBox.addWidget(stress_label,5,0,1,2)
+		mainUiBox.addWidget(inp_max_stress_label,6,0,1,1)
+		mainUiBox.addWidget(self.inp_max_stress,6,1,1,1)
+		mainUiBox.addWidget(inp_min_stress_label,7,0,1,1)
+		mainUiBox.addWidget(self.inp_min_stress,7,1,1,1)
+		mainUiBox.addWidget(num_contours_label,8,0,1,1)
+		mainUiBox.addWidget(self.numContour,8,1,1,1)
+		mainUiBox.addWidget(self.inp_max_stress,9,1,1,1)
+		mainUiBox.addWidget(self.updateButton,9,0,1,2)
+		mainUiBox.addWidget(horiz_line2,10,0,1,2)
 
-		
 		lvLayout=QtWidgets.QVBoxLayout()
 		lvLayout.addLayout(mainUiBox)
 		lvLayout.addStretch(1)
@@ -161,9 +160,7 @@ class post_main_window(object):
 		self.mainlayout.addWidget(self.vtkWidget,0,0,1,1)
 		self.mainlayout.addLayout(lvLayout,0,1,1,1)
 		self.mainlayout.addWidget(self.statLabel,1,0,1,2)
-		
 
-		
 		def initialize(self):
 			self.vtkWidget.start()
 
@@ -191,9 +188,11 @@ class pp_interactor(QtWidgets.QWidget):
 
 		self.vtk_file = None
 
-		self.ui.read_sim_data_button.clicked.connect(lambda: self.load_integration_points())
-		self.ui.display_vtk_button.clicked.connect(lambda: self.load_vtk_legacy_file())
+		self.ui.extract_button.clicked.connect(lambda: self.load_integration_points())
 		self.ui.updateButton.clicked.connect(lambda: self.update_stress_display())
+		self.ui.display_button11.clicked.connect(lambda: self.update_stress_shown("S11"))
+		self.ui.display_button22.clicked.connect(lambda: self.update_stress_shown("S22"))
+		self.ui.display_button33.clicked.connect(lambda: self.update_stress_shown("S33"))
 
 	def get_input_data(self,filem):
 		if filem == None:
@@ -203,49 +202,64 @@ class pp_interactor(QtWidgets.QWidget):
 			mat_contents = sio.loadmat(filem)
 			self.fileo=filem
 
+		if not filem == None: #if the user cancels the file dialog
 		
-		try:
-			#get dat file
-			FEAbasename=mat_contents['FEA_filename'][0]
-			filename, _ = os.path.splitext(FEAbasename)
-			self.dat_file=filename+'.dat'
-			#check if the dat file is valid
-			if not os.path.exists(self.dat_file):
-				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
-				"Could not find a *.dat file associated with this analysis. Would you like to search for it yourself?", \
-				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-				if ret == QtWidgets.QMessageBox.Yes:
-					self.dat_file,_ = get_file("*.dat")
-				else:
+			try:
+				self.vtk_file = mat_contents['vtu_filename'][0]
+				if not os.path.exists(self.vtk_file):
+					extract_from_mat(mat_contents['vtu_filename'][0],self.fileo,'vtu')
+				self.load_vtk_XML_file(self.vtk_file,'S33')
+				
+			except Exception as e:
+				if 'FEA' in mat_contents: #there might be a dat file to read
+					#get dat file
+					FEAbasename=mat_contents['FEA_filename'][0]
+					filename, _ = os.path.splitext(FEAbasename)
+					self.dat_file=filename+'.dat'
+					self.analysis_type = filename[-3::]
+					#check if the dat file is valid
+					if not os.path.exists(self.dat_file):
+						ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
+						"Could not find a *.dat file associated with this %s analysis. Would you like to search for it yourself?"%self.analysis_type, \
+						QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+						if ret == QtWidgets.QMessageBox.Yes:
+							self.dat_file,directory = get_file("*.dat")
+						else:
+							return
+					
+					#get vtk output file - the one written on execution of the FEA
+					vtkbasename=mat_contents['vtk_filename'][0]
+					filename, _ = os.path.splitext(vtkbasename)
+					self.vtk_file=filename[0:-3]+'out.vtk'
+					if not os.path.exists(self.vtk_file):
+						#attempt to write it from the mat file
+						try:
+							extract_from_mat(self.vtk_file,self.fileo,'vtk_out')
+							print('Re-wrote VTK file.')
+						except:
+							ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
+						"The host directory specified in the originating analysis cannot be written to, or may have been performed elsewhere. Would you like to specify a new location?", \
+						QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+							if ret == QtWidgets.QMessageBox.Yes:
+								self.vtk_file,_ = get_open_file("*out.vtk",directory)
+								extract_from_mat(self.vtk_file,self.fileo,'vtk_out')
+								print('Wrote *out.vtk file in a different location than specified in results file.')
+							else:
+								return
+					
+					
+					self.ui.statLabel.setText("Acquired relevant data from *.mat file; now extracting stresses from %s dat file . . ."%self.analysis_type)
+					QtWidgets.QApplication.processEvents()
+					self.load_integration_points()
+					self.ui.statLabel.setText("Acquired all relevant data. Idle.")
+				else: 
 					return
-		except Exception as e:
-			print('Could not lock on dat file associated with analysis')
-			print(e)
+					print('Could not lock on FEA data.')
+					print(e)
+
 			
-		try:
-			#get vtk output file - the one written on execution of the FEA
-			vtkbasename=mat_contents['vtk_filename'][0]
-			filename, _ = os.path.splitext(vtkbasename)
-			self.vtk_file=filename[0:-3]+'out.vtk'
-			if not os.path.exists(self.vtk_file):
-				#attempt to write it from the mat file
-				try:
-					extract_from_mat(self.vtk_file,self.fileo,'vtk_out')
-					print('Re-wrote VTK file.')
-				except:
-					ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
-				"The host directory specified in the originating analysis cannot be written to. Would you like to specify a new location?", \
-				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-					if ret == QtWidgets.QMessageBox.Yes:
-						self.vtk_file,_ = get_open_file("*_out.vtk")
-						extract_from_mat(self.vtk_file,self.fileo,'vtk_out')
-						print('Wrote *_out.vtk file in a different location than specified in results file.')
-					else:
-						return
-		except:
-			print('Could not lock on dat file associated with analysis')
+
 			
-	
 	def update_stress_display(self):
 		"""
 		Updates the display to reflect the input of min/max stress
@@ -261,8 +275,7 @@ class pp_interactor(QtWidgets.QWidget):
 		self.ui.statLabel.setText("Updated stress intervals on contour. Idle.")
 
 		
-		
-	def load_vtk_legacy_file(self,file):
+	def load_vtk_XML_file(self,file,field):
 		"""
 		Loads the vtk mesh and displays the scalar data in a color map.
 		Allows further postprocessing to be done, such as grayscale and contour plots.
@@ -273,21 +286,19 @@ class pp_interactor(QtWidgets.QWidget):
 			self.ren.RemoveActor(self.sbActor)
 		
 		if file is None:
-			file,_ = get_file("*.vtk")
-		
+			file,_ = get_file("*.vtu")
 		
 		self.ui.statLabel.setText("Reading %s for mesh . . ."%file)
-		mesh_source = vtk.vtkUnstructuredGridReader()
+		mesh_source = vtk.vtkXMLUnstructuredGridReader()
 		mesh_source.SetFileName(file)
 
 		# read scalar to vtk
-		mesh_source.SetScalarsName("S33")
 		mesh_source.Update()
-		mesh_reader_output = mesh_source.GetOutput()
+		self.mesh_reader_output = mesh_source.GetOutput()
+		self.mesh_reader_output.GetPointData().SetActiveScalars(field)
 
-		
 		# bounds for axis
-		bounds = mesh_reader_output.GetBounds()
+		bounds = self.mesh_reader_output.GetBounds()
 
 		# show element edges
 		edges = vtk.vtkExtractEdges()
@@ -295,31 +306,26 @@ class pp_interactor(QtWidgets.QWidget):
 		edges.Update()
 
 		# lookup table and scalar range for a vtk file
-		mesh_lookup_table = vtk.vtkLookupTable()
+		self.mesh_lookup_table = vtk.vtkLookupTable()
 
 		# make scalar red = max; blue = min
 		self.ui.statLabel.setText("Building lookup table . . .")
-		self.draw_color_range(mesh_lookup_table)
-		mesh_lookup_table.Build()
-		scalar_range = mesh_reader_output.GetScalarRange()
+		self.mesh_lookup_table.SetHueRange(0.667, 0)
+		self.mesh_lookup_table.Build()
+		scalar_range = self.mesh_reader_output.GetScalarRange()
 
 		# mesh data set
 		self.mesh_mapper = vtk.vtkDataSetMapper()
-		self.mesh_mapper.SetInputData(mesh_reader_output)
+		self.mesh_mapper.SetInputData(self.mesh_reader_output)
 		self.mesh_mapper.SetScalarRange(scalar_range)
-		self.mesh_mapper.SetLookupTable(mesh_lookup_table)
+		self.mesh_mapper.SetLookupTable(self.mesh_lookup_table)
 
-		#define actors
+		#define mesh actor
 		self.mesh_actor = vtk.vtkActor()
-		# self.sbActor = vtk.vtkScalarBarActor()
-		
-
 
 		# #the scalar bar widget is associated with the qt interactor box
 		scalar_bar_widget = vtk.vtkScalarBarWidget()
 		scalar_bar_widget.SetInteractor(self.iren)
-		# scalar_bar_widget.SetCurrentRenderer(self.ren.GetRenderer())
-		# scalar_bar_widget.SetDefaultRenderer(self.ren.GetRenderer())
 		scalar_bar_widget.SetEnabled(True)
 		scalar_bar_widget.RepositionableOn()
 		scalar_bar_widget.On()
@@ -327,10 +333,10 @@ class pp_interactor(QtWidgets.QWidget):
 		# define scalar bar actor
 		self.sbActor=scalar_bar_widget.GetScalarBarActor()
 		# self.sbActor.SetOrientationToVertical()
-		self.sbActor.SetLookupTable(mesh_lookup_table)
-		self.sbActor.SetTitle("S33")
+		self.sbActor.SetLookupTable(self.mesh_lookup_table)
+		self.sbActor.SetTitle(field)
 
-
+		#adjust scale bar position
 		scalarBarRep = scalar_bar_widget.GetRepresentation()
 		scalarBarRep.GetPositionCoordinate().SetValue(0.01,0.01)
 		scalarBarRep.GetPosition2Coordinate().SetValue(0.09,0.9)
@@ -350,9 +356,6 @@ class pp_interactor(QtWidgets.QWidget):
 		self.sbActor.GetTitleTextProperty().SetFontSize(7)
 		self.sbActor.SetLabelFormat("%.1f")
 
-
-
-
 		#define the mesh actor properties
 		self.mesh_actor.SetMapper(self.mesh_mapper)
 		self.mesh_actor.GetProperty().SetLineWidth(1)
@@ -363,7 +366,7 @@ class pp_interactor(QtWidgets.QWidget):
 		self.ren.AddActor(self.sbActor)
 		
 		#get boundary of mesh
-		self.limits = mesh_reader_output.GetBounds()
+		self.limits = self.mesh_reader_output.GetBounds()
 		
 		
 		self.ui.vtkWidget.setFocus()
@@ -371,30 +374,43 @@ class pp_interactor(QtWidgets.QWidget):
 		xyview_post(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp) #sorts out the camera issue
 		self.ui.vtkWidget.update()
 		self.ui.statLabel.setText("Loaded results. Idle.")
+		self.ui.inp_min_stress.setText("%4.1f"%self.mesh_mapper.GetScalarRange()[0])
+		self.ui.inp_max_stress.setText("%4.1f"%self.mesh_mapper.GetScalarRange()[1])
+		#set extract button green
+		self.ui.extract_button.setStyleSheet("background-color :rgb(77, 209, 97);")
 		QtWidgets.QApplication.processEvents()
-		
 		
 	def load_integration_points(self):
 		"""
-		Writes the FE output data - gaussian integration points
-		to the legacy vtk file. The FE data is stored in the .dat file for ABAQUS.
+		Writes the FE output data - gaussian integration points and mesh
+		to a vtu file. 
 		"""
 		QtWidgets.QApplication.processEvents()
 
-		# load input files
-		# use the original *.inp file, not *.abq.inp
-		# dat_file,_ = get_file("*.dat")
-		# vtk_file,_ = get_file("*.vtk")
-
-		self.ui.statLabel.setText("Reading results from %s . . ."%self.dat_file)
-		try: quadrature_data = read_abq_dat(self.dat_file)
+		if not hasattr(self,"dat_file"):
+			msg=QtWidgets.QMessageBox()
+			msg.setIcon(QtWidgets.QMessageBox.Information)
+			msg.setText("Need to load *.mat file corresponding to an analysis that has run to extract the *.dat file associated with the analysis.")
+			msg.setWindowTitle("pyCM Error")
+			msg.exec_()
+			return
+		
+		try:
+			self.ui.statLabel.setText("Reading results from %s . . ."%self.dat_file)
+			if self.analysis_type == 'abq':
+				quadrature_data = read_abq_dat(self.dat_file)
+			elif self.analysis_type == 'ccx':
+				quadrature_data = read_ccx_dat(self.dat_file)
+			else: 
+				self.ui.statLabel.setText("Unrecognised analysis type found with %s."%self.dat_file)
+				return
 		except Exception as e: 
 			print('Could not read specified .dat file.')
 			print(e)
 			return
 
 		self.ui.statLabel.setText("Retrieving mesh information from %s . . ."%self.vtk_file)
-		# # node_data, element_data = self.get_node_data_abq(inp_file)
+
 		node_data, element_data = self.get_node_data_n(self.vtk_file)
 		
 		#debug
@@ -404,61 +420,133 @@ class pp_interactor(QtWidgets.QWidget):
 		# print('abq node',node_data)
 		# print('abq elem',element_data)
 		
+		# copy vtk file, convert to XML
+		mesh_source = vtk.vtkUnstructuredGridReader()
+		mesh_source.SetFileName(self.vtk_file)
+		mesh_source.Update()
+		w = vtk.vtkXMLUnstructuredGridWriter()
+		w.SetDataModeToAscii ()
+		w.SetInputConnection(mesh_source.GetOutputPort())
+		self.vtk_file=self.vtk_file[0:-8]+'.'+self.analysis_type+'.vtu'
+		w.SetFileName(self.vtk_file)
+		w.Write()
 
-		# obtain a matrix of node number, x, y, z, stress
-		# check if the discretisation was done with brick (C3D8) or tetrahedra (C3D10) elements
-		if self.ui.quadButton.isChecked():
-			stress_array = self.calculate_quadrature_stress_C3D8(quadrature_data, element_data, node_data)
-		else:
-			stress_array = self.calculate_quadrature_stress_C3D10(quadrature_data, element_data, node_data)
-
-		# nodes will duplicate in elements
-		# sum contributions from nodes
-		stress_data_frame = pandas.DataFrame(stress_array)
-		stress_data_frame[5] = stress_data_frame.groupby([0])[4].transform(np.mean)
-
-		# remove the individual stress at nodes
-		del stress_data_frame[4]
-
-		# drop the duplicates
-		stress_data_frame = pandas.DataFrame(stress_data_frame).drop_duplicates(subset=[0])
-		stress_data_frame = pandas.DataFrame(stress_data_frame).values
-		stress_data_frame = pandas.DataFrame(stress_data_frame)
-
-		# get *.vtk file
-		# vtk_file, _ = get_file("*.vtk")
-		# copy vtk file
-		filename, _ = os.path.splitext(self.vtk_file)
-		new_vtk_file = filename+'_post.vtk'
-		copyfile(self.vtk_file,new_vtk_file)
+		#parse the vtu file and set up for inserting PointData
+		tree = ET.parse(self.vtk_file)
+		root = tree.getroot()
+		attrib= {'Name': 'S33', 'type': 'Float64', 'format': 'ASCII'}
+		np.set_printoptions(threshold=np.nan,precision=8,suppress=True)
 		
+		i=3
+		for component in ['S11', 'S22', 'S33']:
+			i+=1
+			self.ui.statLabel.setText("Calculating quadrature for %s . . ."%component)
+			# check if the discretisation was done with brick (C3D8) or tetrahedra (C3D10) elements
+			# need to run 
+			if self.mainCellType==12: #1st order quads
+				stress_array = self.calculate_quadrature_stress_C3D8(quadrature_data[:,[0,1,2,3,i]], element_data, node_data)
 
-		# append at the end of the vtk file
-		self.append_postprocess_data(new_vtk_file, stress_data_frame)
+			else: #2nd order tets
+				stress_array = self.calculate_quadrature_stress_C3D10(quadrature_data[:,[0,1,2,3,i]], element_data, node_data)
+
+			# nodes will duplicate in elements
+			# AVERAGE contributions from nodes
+			stress_data_frame = pandas.DataFrame(stress_array)
+			stress_data_frame[5] = stress_data_frame.groupby([0])[4].transform(np.mean)
+
+			# remove the individual stress at nodes
+			del stress_data_frame[4]
+
+			# drop the duplicates
+			stress_data_frame = pandas.DataFrame(stress_data_frame).drop_duplicates(subset=[0])
+			stress_data_frame = pandas.DataFrame(stress_data_frame).values
+			stress_data_frame = pandas.DataFrame(stress_data_frame)
+
+			# push to vtu file as
+			attrib['Name']=component
+			newdata=ET.Element("DataArray", attrib)
+			
+			#Strip brackets off ends of numpy array containing stress values
+			newdata.text=str(stress_data_frame[4].values).replace('[', '').replace(']', '')
+			
+			#insert into PointData
+			root[0][0][0].insert(0,newdata)
 		
+		self.ui.statLabel.setText("Calculating quadrature complete. Displaying . . .")
+		tree.write(self.vtk_file)
+		
+		#write contents of vtu file to *.mat
+		mat_contents = sio.loadmat(self.fileo)
+		
+		#get file handle on vtu
+		with open(self.vtk_file, 'r') as f: vtu_text=f.read()
+			
+		print('vtu_text type',type(vtu_text))
+		new={'vtu_filename':self.vtk_file,'vtu':vtu_text}
+			
+		mat_contents.update(new)
+		sio.savemat(self.fileo,mat_contents)
+		print('wrote new vtu')
+
 		#show the result
-		self.load_vtk_legacy_file(new_vtk_file)
+		self.load_vtk_XML_file(self.vtk_file,"S33")
+		self.ui.statLabel.setText("Idle.")
+		
+	def update_stress_shown(self,field):
+		'''
+		Checks if there's a valid xml file, and switches fields S11, S22 and S33
+		'''
+		if not self.vtk_file == None:
+				_, file_extension = os.path.splitext(self.vtk_file)
+				if file_extension == '.vtu' and os.path.isfile(self.vtk_file) :
+					#collect new scalars
+					self.mesh_reader_output.GetPointData().SetActiveScalars(field)
+					#set scalar range
+					scalar_range = self.mesh_reader_output.GetScalarRange()
+					#update mapper
+					self.mesh_mapper.SetScalarRange(scalar_range)
+					#update scale bar title
+					self.sbActor.SetTitle(field)
 
-	def append_postprocess_data(self, vtk_file, stress_data_frame):
-		"""
-		Append the postprocessed data to the end of the *.vtk file
-		"""
+					#update ui
+					self.ui.inp_min_stress.setText("%4.1f"%self.mesh_mapper.GetScalarRange()[0])
+					self.ui.inp_max_stress.setText("%4.1f"%self.mesh_mapper.GetScalarRange()[1])
+					#force update of vtk interactor
+					self.ui.vtkWidget.update()
+					self.ui.vtkWidget.setFocus()
+				else:
+					msg=QtWidgets.QMessageBox()
+					msg.setIcon(QtWidgets.QMessageBox.Information)
+					msg.setText("No *.vtu file found or has moved. 'Extract' to generate.")
+					msg.setWindowTitle("pyCM Error")
+					msg.exec_()
+					return
+		else:
+			msg=QtWidgets.QMessageBox()
+			msg.setIcon(QtWidgets.QMessageBox.Information)
+			msg.setText("No *.vtu file found. 'Extract' necessary data first.")
+			msg.setWindowTitle("pyCM Error")
+			msg.exec_()
+			return
+	# def append_postprocess_data(self, vtk_file, stress_data_frame, component):
+		# """
+		# Append the postprocessed data to the end of the *.vtk file
+		# """
 
-		# sort the dataframe since the nodes are by connectivity from elements
-		# vtk requires them by numbering from 0
-		stress_data_frame = stress_data_frame.sort_values(by=[0])
+		# # sort the dataframe since the nodes are by connectivity from elements
+		# # vtk requires them by numbering from 0
+		# stress_data_frame = stress_data_frame.sort_values(by=[0])
 
-		# open the *.vtk file in append mode
-		file_handle = open(vtk_file, 'ab')
+		# # open the *.vtk file in append mode
+		# file_handle = open(vtk_file, 'ab')
 
-		# add vtk headers
-		#vtk_header_text = "SCALARS S33 \nLOOKUP_ TABLE default\n"
-		file_handle.write(str.encode('POINT_DATA %i\nSCALARS S33 DOUBLE\nLOOKUP_TABLE default\n' % \
-									stress_data_frame[4].count()))
+		# # add vtk headers
+		
+		# file_handle.write(str.encode('POINT_DATA %i\nSCALARS %s DOUBLE\nLOOKUP_TABLE default\n' %(stress_data_frame[4].count(),component)))
 
-		# add the dataframe
-		np.savetxt(file_handle, stress_data_frame[4].values, fmt='%.6f')
-		file_handle.close()
+		# # add the dataframe
+		# np.savetxt(file_handle, stress_data_frame[4].values, fmt='%.6f')
+		# file_handle.close()
 
 	def calculate_quadrature_stress_C3D8(self, quadrature_data, element_data, node_data):
 		"""
@@ -659,66 +747,62 @@ class pp_interactor(QtWidgets.QWidget):
 
 		#reshape according to 'abaqus' standards (elem number, connectivity1 2 ...)
 		if tcs.IsType(12)==1:
-			mainCellType=12 #1st order quad
+			self.mainCellType=12 #1st order quad
 			element_data=np.resize(e,(int(len(e)/float(9)),9))
 			element_data[:,0]=np.arange(np.shape(element_data)[0])+1
-			print('Quaaad') #debug
-			self.ui.quadButton.setChecked(True)
 		elif tcs.IsType(24)==1:
-			mainCellType=24 #2nd order tet
+			self.mainCellType=24 #2nd order tet
 			element_data=np.resize(e,(int(len(e)/float(11)),11))
 			element_data[:,0]=np.arange(np.shape(element_data)[0])+1
-			print('Tet tet tet') #debug
-			self.ui.tetButton.setChecked(True)
 		# print(np.shape(node_data),np.shape(element_data)) #debug
 		return node_data, element_data+1 #add one to the element number to match abaqus format
 
-	def get_node_data(self, file_name):
-		"""
-		Reads the nodal point coordinates. Returns a numpy array.
-		"""
+	# def get_node_data(self, file_name):
+		# """
+		# Reads the nodal point coordinates. Returns a numpy array.
+		# """
 
-		# set parser keywords
-		INP_FILE_NODE_LOOKUP_STR = "*Node"
-		INP_FILE_ELEM_LOOKUP_STR = "*Element"
-		INP_FILE_ELEM_END_LOOKUP_STR = "*Nset, nset=Part-1-1_SURFACE"
+		# # set parser keywords
+		# INP_FILE_NODE_LOOKUP_STR = "*Node"
+		# INP_FILE_ELEM_LOOKUP_STR = "*Element"
+		# INP_FILE_ELEM_END_LOOKUP_STR = "*Nset, nset=Part-1-1_SURFACE"
 
-		# initialize
-		curr_line = 0
-		node_start = 0
-		node_end = 0
-		elem_start = 0
-		elem_end = 0
+		# # initialize
+		# curr_line = 0
+		# node_start = 0
+		# node_end = 0
+		# elem_start = 0
+		# elem_end = 0
 
-		with open(file_name) as inp_file:
-			p_lines = inp_file.readlines()
-			for line in p_lines:
-				curr_line = curr_line + 1
-				if line.find(INP_FILE_NODE_LOOKUP_STR) >= 0:
-					node_start = curr_line
-				if line.find(INP_FILE_ELEM_LOOKUP_STR) >= 0:
-					node_end = curr_line - 1
-					elem_start = curr_line
-				if line.find(INP_FILE_ELEM_END_LOOKUP_STR) >= 0:
-					elem_end = curr_line - 1
+		# with open(file_name) as inp_file:
+			# p_lines = inp_file.readlines()
+			# for line in p_lines:
+				# curr_line = curr_line + 1
+				# if line.find(INP_FILE_NODE_LOOKUP_STR) >= 0:
+					# node_start = curr_line
+				# if line.find(INP_FILE_ELEM_LOOKUP_STR) >= 0:
+					# node_end = curr_line - 1
+					# elem_start = curr_line
+				# if line.find(INP_FILE_ELEM_END_LOOKUP_STR) >= 0:
+					# elem_end = curr_line - 1
 
-		node_end = curr_line - node_end
-		elem_end = curr_line - elem_end
+		# node_end = curr_line - node_end
+		# elem_end = curr_line - elem_end
 
-		inp_file.close()
+		# inp_file.close()
 
-		# extract nodal point data for
-		# node id, x coord, y coord, z coord, S33
-		node_data = np.genfromtxt(file_name, skip_header=node_start, skip_footer=node_end, \
-									delimiter=',')
+		# # extract nodal point data for
+		# # node id, x coord, y coord, z coord, S33
+		# node_data = np.genfromtxt(file_name, skip_header=node_start, skip_footer=node_end, \
+									# delimiter=',')
 
-		element_data = np.genfromtxt(file_name, skip_header=elem_start, skip_footer=elem_end, \
-									delimiter=',')
+		# element_data = np.genfromtxt(file_name, skip_header=elem_start, skip_footer=elem_end, \
+									# delimiter=',')
 
-		node_data = node_data.view().reshape(len(node_data), -1)
-		element_data = element_data.view().reshape(len(element_data), -1)
-		prin( node_data,element_data)
-		return node_data, element_data
+		# node_data = node_data.view().reshape(len(node_data), -1)
+		# element_data = element_data.view().reshape(len(element_data), -1)
+		# prin( node_data,element_data)
+		# return node_data, element_data
 		
 		
 	def get_node_data_abq(self, file_name):
@@ -867,9 +951,9 @@ class pp_interactor(QtWidgets.QWidget):
 			im.SetInput(self.ui.vtkWidget._RenderWindow)
 			im.Update()
 			writer.SetInputConnection(im.GetOutputPort())
-			writer.SetFileName("mesh.png")
+			writer.SetFileName("postprocessed.png")
 			writer.Write()
-			self.ui.statLabel.setText("Screen output saved to %s" %os.path.join(currentdir,'post.png'))
+			self.ui.statLabel.setText("Screen output saved to %s" %os.path.join(os.getcwd(),'postprocessed.png'))
 		
 		elif key=="r":
 			flip_visible(self.ax3D)
@@ -885,27 +969,14 @@ class pp_interactor(QtWidgets.QWidget):
 			self.ren.RemoveActor(self.ax3D)
 		self.ax3D = vtk.vtkCubeAxesActor()
 		self.ax3D.ZAxisTickVisibilityOn()
-		self.ax3D.SetXTitle('X')
-		self.ax3D.SetYTitle('Y')
+		self.ax3D.SetXTitle('X (11)')
+		self.ax3D.SetYTitle('Y (22)')
 		self.ax3D.SetZTitle('Z')
 		self.ax3D.SetBounds(limits)
 		self.ax3D.SetZAxisRange(limits[-2]*scale,limits[-1]*scale)
 		self.ax3D.SetCamera(self.ren.GetActiveCamera())
 		self.ren.AddActor(self.ax3D)
 		self.ax3D.SetFlyModeToOuterEdges()
-	
-	def draw_color_range(self, mesh_lookup_table):
-		"""
-		Draw the scalar range so that red is max, blue is min
-		"""
-
-		mesh_lookup_table.SetHueRange(0.667, 0)
-
-	def draw_iso_surface(self):
-		"""
-		Draws contours on the object by the use of filters
-		http://web.cs.wpi.edu/~matt/courses/cs563/talks/vtk/visualization.html
-		"""
 
 if __name__ == "__main__":
 	post_process_tool()
