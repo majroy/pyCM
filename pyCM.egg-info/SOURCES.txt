@@ -1,6 +1,6 @@
 MANIFEST.in
-README
 README.MD
+README.md
 setup.py
 pyCM/__init__.py
 pyCM/align_average.py

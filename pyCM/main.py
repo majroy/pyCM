@@ -26,11 +26,11 @@ from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
 #Change following to local import for dev
 from .pyCMcommon import *
-import .point_cloud as pc
-import .align_average as aa
-import .fit_surface as sf
-import .preprocess as pre
-import .postprocess as post
+import point_cloud as pc
+import align_average as aa
+import fit_surface as sf
+import preprocess as pre
+import postprocess as post
 
 class Ui_MainWindow(object):
 	def setupUi(self, MainWindow):
