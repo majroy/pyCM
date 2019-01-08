@@ -24,16 +24,17 @@ A - align using perimeters
 v - average
 e - write output and exit
 -------------------------------------------------------------------------------
-ver 1.1 16-11-06
+ver 19-01-08
 1.1 - Initial release
 1.2 - Refactored to use PyQt interface and eliminated global variables
 1.3 - Refactored to use PyQt5, Python 3
+1.4 - added option to remove start at centroid
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.3"
+__version__ = "1.4"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-__copyright__ = "(c) M. J. Roy, 2014-2018"
+__copyright__ = "(c) M. J. Roy, 2014-2019"
 
 import sys
 import os.path
@@ -47,7 +48,7 @@ from scipy.spatial.distance import pdist, squareform
 from matplotlib import path
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .pyCMcommon import *
+from pyCMcommon import *
 from pkg_resources import Requirement, resource_filename
 
 
@@ -169,6 +170,8 @@ class ali_avg(object):
 		self.alignButtonGroup.addButton(self.alignOutlineButton)
 		self.alignButtonGroup.addButton(self.alignPointCloudButton)
 		self.alignButtonGroup.setExclusive(True)
+		self.startAtCentroidButton=QtWidgets.QRadioButton("Start alignment at centroids")
+		self.startAtCentroidButton.setChecked(True)
 		self.alignButton = QtWidgets.QPushButton('Align')
 		self.alignButton.setStyleSheet("background-color : None ")
 		
@@ -207,13 +210,14 @@ class ali_avg(object):
 		mainUiBox.addWidget(self.transButton,9,0,1,2)
 		mainUiBox.addWidget(self.alignOutlineButton,10,0,1,1)
 		mainUiBox.addWidget(self.alignPointCloudButton,10,1,1,1)
-		mainUiBox.addWidget(self.alignButton,11,0,1,2)
-		mainUiBox.addWidget(horizLine3,12,0,1,2)
-		mainUiBox.addWidget(averageLabel,13,0,1,2)
-		mainUiBox.addWidget(self.averageButton,14,0,1,2)
-		mainUiBox.addWidget(horizLine4,15,0,1,2)
-		mainUiBox.addWidget(self.writeButton,16,0,1,2)
-		mainUiBox.addWidget(horizLine5,17,0,1,2)
+		mainUiBox.addWidget(self.startAtCentroidButton,11,0,1,2)
+		mainUiBox.addWidget(self.alignButton,12,0,1,2)
+		mainUiBox.addWidget(horizLine3,13,0,1,2)
+		mainUiBox.addWidget(averageLabel,14,0,1,2)
+		mainUiBox.addWidget(self.averageButton,15,0,1,2)
+		mainUiBox.addWidget(horizLine4,16,0,1,2)
+		mainUiBox.addWidget(self.writeButton,17,0,1,2)
+		mainUiBox.addWidget(horizLine5,18,0,1,2)
 		# mainUiBox.addWidget(self.statusLabel,18,0,1,2)
 
 		mainUiBox.setColumnMinimumWidth(0,mainUiBox.columnMinimumWidth(0))
@@ -500,8 +504,16 @@ class aa_interactor(QtWidgets.QWidget):
 			
 
 		
-		icp.SetMaximumNumberOfIterations(200)
-		icp.StartByMatchingCentroidsOn()
+		# icp.SetMaximumNumberOfIterations(200)
+		# icp.SetMaximumNumberOfLandmarks(10)
+		print(icp.GetMaximumNumberOfLandmarks())
+		if self.ui.startAtCentroidButton.isChecked():
+			icp.StartByMatchingCentroidsOn()
+			
+		else:
+			icp.StartByMatchingCentroidsOff()
+			
+		icp.GetLandmarkTransform().SetModeToRigidBody()
 		icp.Modified()
 		icp.Update()
 		icp.Inverse()
@@ -511,7 +523,6 @@ class aa_interactor(QtWidgets.QWidget):
 			for j in range(4):
 				self.transM[i,j]=icp.GetMatrix().GetElement(i, j)
 		self.transM=np.linalg.inv(self.transM)
-
 		#apply operation
 		self.flp=np.dot(self.flp,self.transM[0:3,0:3])+self.transM[0:3,-1]
 		self.fO=np.dot(self.fO,self.transM[0:3,0:3])+self.transM[0:3,-1]

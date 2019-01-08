@@ -25,7 +25,7 @@ import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
 #Change following to local import for dev
-from .pyCMcommon import *
+from pyCM.pyCMcommon import *
 from pyCM import point_cloud as pc
 from pyCM import align_average as aa
 from pyCM import fit_surface as sf
@@ -77,10 +77,10 @@ class Ui_MainWindow(object):
 		copyButton.setStatusTip('Copy current results file.')
 		copyButton.triggered.connect(self.copy)
 		
-		clearallButton = QtWidgets.QAction('Restart', MainWindow)
-		clearallButton.setShortcut('Ctrl+Shift+R')
-		clearallButton.setStatusTip('Restart interactor without affecting current analysis.')
-		clearallButton.triggered.connect(self.restart)
+		# clearallButton = QtWidgets.QAction('Restart', MainWindow)
+		# clearallButton.setShortcut('Ctrl+Shift+R')
+		# clearallButton.setStatusTip('Restart interactor without affecting current analysis.')
+		# clearallButton.triggered.connect(self.restart)
 		
 		exitButton = QtWidgets.QAction('Exit', MainWindow)
 		exitButton.setShortcut('Ctrl+Q')
@@ -90,7 +90,7 @@ class Ui_MainWindow(object):
 		#add buttons to menus
 		fileMenu.addAction(loadButton)
 		fileMenu.addAction(copyButton)
-		fileMenu.addAction(clearallButton)
+		# fileMenu.addAction(clearallButton) #debug
 		fileMenu.addAction(exitButton)
 
 		
@@ -280,7 +280,7 @@ class Ui_MainWindow(object):
 			try:
 				if not self.sfui.unsaved_changes:
 					self.sfui.get_input_data(self.activeFile)
-					print('reloaded fitted surface')
+					# print('reloaded fitted surface') #debug
 
 			except:
 				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
@@ -368,9 +368,9 @@ class Ui_MainWindow(object):
 					#populate with copy
 					self.populate(newFile)
 				
-	def restart(self):
-		self.centralwidget.close
-		os.execl(sys.executable, sys.executable, *sys.argv)
+	# def restart(self):
+		# self.centralwidget.close
+		# os.execl(sys.executable, sys.executable, *sys.argv) #debug
 		# sp.call(sys.executable + ' "' + os.path.realpath(__file__) + '"')
 
 if __name__ == "__main__":

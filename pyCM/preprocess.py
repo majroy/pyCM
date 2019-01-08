@@ -22,14 +22,15 @@ LMB+p - The p button with the Left mouse button allow
         Click first and then press p to select.
 e     - allows the user to change their FEA exec location
 -------------------------------------------------------------------------------
-ver 0.1 17-01-04
+ver 19-01-08
 1.0 - Refactored for PyQt5 & Python 3.x
+1.1 - Cleared issue with subprocess, added ability to sideload vtk file
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.0"
+__version__ = "1.1"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-__copyright__ = "(c) M. J. Roy, 2014-2018"
+__copyright__ = "(c) M. J. Roy, 2014-2019"
 
 import os,io,sys,time,yaml
 import subprocess as sp
@@ -42,7 +43,7 @@ import vtk
 from vtk.util.numpy_support import vtk_to_numpy as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .pyCMcommon import *
+from pyCM.pyCMcommon import *
 
 
 
@@ -862,9 +863,9 @@ class msh_interactor(QtWidgets.QWidget):
 			try:
 				if self.ui.tetButton.isChecked():
 					#make sure second order tets are generated
-					out=sp.check_output([execStr,"-3","-order","2",self.geofile,"-o",self.vtkFile])
+					out=sp.check_output([execStr,"-3","-order","2",self.geofile,"-o",self.vtkFile], shell=True)
 				else:
-					out=sp.check_output([execStr,"-3",self.geofile,"-o",self.vtkFile])
+					out=sp.check_output([execStr,"-3",self.geofile,"-o",self.vtkFile], shell=True)
 				print("Gmsh output log:")
 				print("----------------")
 				print(out.decode("utf-8"))
@@ -877,7 +878,7 @@ class msh_interactor(QtWidgets.QWidget):
 					del self.abapyfile #so logic in WriteGeo works
 			except sp.CalledProcessError as e:
 				print("Gmsh command failed for some reason.")
-				print(e.decode("utf-8"))
+				print(e)
 				self.ui.statLabel.setText("Gmsh call failed . . . Idle")
 				
 		#Run equivalent Abaqus command chain, with the addition to converting mesh to legacy VTK file
@@ -909,7 +910,7 @@ class msh_interactor(QtWidgets.QWidget):
 				os.chdir(currentPath)
 			except sp.CalledProcessError as e:
 				print("Abaqus CAE command failed for some reason.")
-				print(e.decode("utf-8"))
+				print(e)
 				self.ui.statLabel.setText("Abaqus CAE call failed . . . Idle")
 		else: self.ui.statLabel.setText("No CAE input file specified . . . Idle")
 		self.UndoRigidBody()
@@ -1533,6 +1534,10 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			except:
 				print("Couldn't find config file where it normally is." )
 
+		elif key == "m":
+			del self.vtkFile
+			self.DisplayMesh()
+			
 		self.ui.vtkWidget.update()
 
 	def AddAxis(self,limits,scale):
@@ -1660,12 +1665,10 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		fid.write(str.encode('*BOUNDARY\n'))
 		for ind in range(len(self.BCindex)):
 			fid.write(str.encode('%i, 3,, %6.6f\n'%(self.BCindex[ind]+1,self.BCpnts[ind,2])))
-		# fid.write(str.encode('*EL FILE\n'))
-		# fid.write(str.encode('S,E\n'))#get all stresses and strains just to be safe.
 		
 		if self.ui.CalculixButton.isChecked():
 			fid.write(str.encode('*EL PRINT, ELSET=DOMAIN\n'))
-			fid.write(str.encode('COORD,S\n'))#Coords by default
+			fid.write(str.encode('S\n'))#Coords by default
 			self.ui.CalculixButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 			self.ui.AbaqusButton.setStyleSheet("background-color :None;")
 		elif self.ui.AbaqusButton.isChecked():
@@ -1747,7 +1750,6 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				self.ui.statLabel.setText("Calculix run completed . . . Idle")
 			except sp.CalledProcessError as e:
 				print("Calculix command failed for some reason.")
-				# print(e.decode("utf-8"))
 				print(e)
 				self.ui.statLabel.setText("Calculix call failed . . . Idle")
 				
@@ -1769,7 +1771,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 				os.chdir(currentPath)
 			except sp.CalledProcessError as e:
 				print("Abaqus command failed for some reason.")
-				print(e.decode("utf-8"))
+				print(e)
 				self.ui.statLabel.setText("Abaqus call failed . . . Idle")
 		
 
