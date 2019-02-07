@@ -20,17 +20,17 @@ i - save output to .png in current working directory
 a - toggles axes
 o - togles outline (if present)
 -------------------------------------------------------------------------------
-ver 1.2 16-11-06
 1.1 - Fixed array orientation, clipping issue, compass scaling and sped up writing output
       Added ReadMask
 1.2 - Fixed window handling, now exits cleanly
 1.3 - Modified to run in Python 3.x, uses VTK keyboard interrupts to start picking, Qt button for this function has been commented out.
+1.4 - Added the ability to 'level' incoming data based on AFRC input
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.3"
+__version__ = "1.4"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-__copyright__ = "(c) M. J. Roy, 2014-2018"
+__copyright__ = "(c) M. J. Roy, 2014-2019"
 
 import sys
 import os.path
@@ -41,7 +41,7 @@ import vtk
 import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .pyCMcommon import *
+from pyCM.pyCMcommon import *
 
 
 nosio=False
@@ -140,6 +140,7 @@ class pt_main_window(object):
 		scaleBoxlayout.addWidget(self.xsButton,1,1)
 		scaleBoxlayout.addWidget(self.ysButton,1,2)
 		scaleBoxlayout.addWidget(self.zsButton,1,3)
+		self.levelButton=QtWidgets.QRadioButton("Translate to mean z value")
 		self.reduce = QtWidgets.QSpinBox()
 		self.reduce.setValue(0)
 		self.reduceButton = QtWidgets.QPushButton('Reduce')
@@ -189,36 +190,33 @@ class pt_main_window(object):
 		horizLine4=QtWidgets.QFrame()
 		horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)
 
-		# self.loadMatButton=QtWidgets.QPushButton('Load current')
-
 		#add widgets to ui
 		mainUiBox.addWidget(self.reloadButton,0,0,1,2)
 		mainUiBox.addWidget(scalingLabel,1,0,1,2)
 		mainUiBox.addLayout(scaleBoxlayout,2,0,1,2)
-		mainUiBox.addWidget(horizLine1,3,0,1,2)
-		mainUiBox.addWidget(pickLabel,4,0,1,2)
-		mainUiBox.addLayout(reduceBoxlayout,5,0,1,2)
-		mainUiBox.addWidget(self.pickHelpLabel,6,0,1,1)
-		mainUiBox.addWidget(self.pickActiveLabel,6,1,1,1)
-		mainUiBox.addWidget(self.undoLastPickButton,7,0,1,2)
-		mainUiBox.addWidget(self.revertButton,8,0,1,2)
-		mainUiBox.addWidget(horizLine2,9,0,1,2)
-		mainUiBox.addWidget(outputLabel,10,0,1,2)
-		mainUiBox.addWidget(self.refButton,11,0,1,1)
-		mainUiBox.addWidget(self.floatButton,11,1,1,1)
-		mainUiBox.addWidget(self.writeButton,12,0,1,2)
-		mainUiBox.addWidget(horizLine3,13,0,1,2)
-		mainUiBox.addWidget(showLabel,14,0,1,2)
-		mainUiBox.addWidget(self.showRefButton,15,0,1,1)
-		mainUiBox.addWidget(self.showFloatButton,15,1,1,1)
-		mainUiBox.addWidget(self.showButton,16,0,1,2)
-		mainUiBox.addWidget(horizLine4,17,0,1,2)
-		# mainUiBox.addWidget(self.loadMatButton,14,0,1,2)
+		mainUiBox.addWidget(self.levelButton,3,0,1,2)
+		mainUiBox.addWidget(horizLine1,4,0,1,2)
+		mainUiBox.addWidget(pickLabel,5,0,1,2)
+		mainUiBox.addLayout(reduceBoxlayout,6,0,1,2)
+		mainUiBox.addWidget(self.pickHelpLabel,7,0,1,1)
+		mainUiBox.addWidget(self.pickActiveLabel,7,1,1,1)
+		mainUiBox.addWidget(self.undoLastPickButton,8,0,1,2)
+		mainUiBox.addWidget(self.revertButton,9,0,1,2)
+		mainUiBox.addWidget(horizLine2,10,0,1,2)
+		mainUiBox.addWidget(outputLabel,11,0,1,2)
+		mainUiBox.addWidget(self.refButton,12,0,1,1)
+		mainUiBox.addWidget(self.floatButton,12,1,1,1)
+		mainUiBox.addWidget(self.writeButton,13,0,1,2)
+		mainUiBox.addWidget(horizLine3,14,0,1,2)
+		mainUiBox.addWidget(showLabel,15,0,1,2)
+		mainUiBox.addWidget(self.showRefButton,16,0,1,1)
+		mainUiBox.addWidget(self.showFloatButton,16,1,1,1)
+		mainUiBox.addWidget(self.showButton,17,0,1,2)
+		mainUiBox.addWidget(horizLine4,18,0,1,2)
 
 		lvLayout=QtWidgets.QVBoxLayout()
 		lvLayout.addLayout(mainUiBox)
 		lvLayout.addStretch(1)
-	
 		
 		self.mainlayout.addWidget(self.vtkWidget,0,0,1,1)
 		self.mainlayout.addLayout(lvLayout,0,1,1,1)
@@ -260,6 +258,7 @@ class pnt_interactor(QtWidgets.QWidget):
 		self.ui.writeButton.clicked.connect(lambda: self.write_new())
 		self.ui.revertButton.clicked.connect(lambda: self.undo_revert())
 		self.ui.reduceButton.clicked.connect(lambda: self.reduce_pnts())
+		self.ui.levelButton.clicked.connect(lambda: self.level_pnts())
 		self.ui.showButton.clicked.connect(lambda: self.load_mat())
 	
 	def undo_revert(self):
@@ -294,7 +293,56 @@ class pnt_interactor(QtWidgets.QWidget):
 				#set flag on ui to show that data has been modified
 				self.unsaved_changes=True
 
-					
+	def level_pnts(self):
+		'''
+		Translates outline and profile by the mean of z so that scaling occurs about 0.
+		'''
+		color=(70, 171, 176)
+		self.ren.RemoveActor(self.pointActor)
+		self.ren.RemoveActor(self.outlineActor)
+		#adjust to z mean of outline
+		self.Outline[:,2]=self.Outline[:,2]-np.mean(self.Outline[:,2])
+
+		#adjust to z mean of point cloud
+		self.rawPnts[:,2]=self.rawPnts[:,2]-np.mean(self.rawPnts[:,2])
+		self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
+		
+		#get limits
+		try:
+			RefMin=np.amin(np.hstack((self.Outline,self.rawPnts)),axis=0)
+			RefMax=np.amax(np.hstack((self.Outline,self.rawPnts)),axis=0)
+		except:
+			RefMin=np.amin(self.rawPnts,axis=0)
+			RefMax=np.amax(self.rawPnts,axis=0)
+		
+		extents=RefMax-RefMin #extents
+		rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
+		self.limits=[RefMin[0]-rl, \
+		  RefMax[0]+rl, \
+		  RefMin[1]-rl, \
+		  RefMax[1]+rl, \
+		  RefMin[2],RefMax[2]]
+
+		#add axes
+		self.add_axis(self.limits,[1,1,1])
+		
+		
+		self.vtkPntsPolyData, \
+		self.pointActor, self.colors = \
+		gen_point_cloud(self.rawPnts,color,self.PointSize)
+		
+		self.ren.AddActor(self.pointActor)
+		self.ren.AddActor(self.outlineActor)
+		
+		self.pointActor.Modified()
+		self.outlineActor.Modified()
+		
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+		
+				
 	def reduce_pnts(self):
 		'''
 		Reduces the number of points according to the percentage of what's in the spinbox
@@ -444,7 +492,7 @@ class pnt_interactor(QtWidgets.QWidget):
 			mat_vars=sio.whosmat(self.fileo)
 			if str_d in [item for sublist in mat_vars for item in sublist]: #tell the user that they might overwrite their data
 				ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
-				"The %s dataset has already been written, and will delete all further analysis steps. Continue?"%(str_d), \
+				"There is already data for this step - doing this will invalidate all further existing analysis steps. Continue?"%(str_d), \
 				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
 				if ret == QtWidgets.QMessageBox.No: #don't overwrite
 					return
@@ -470,7 +518,8 @@ class pnt_interactor(QtWidgets.QWidget):
 		
 		#check on write
 		if self.refWritten==True and self.floatWritten==True:
-			self.unsaved_changes==False
+			self.unsaved_changes=False
+
 
 
 			
@@ -560,6 +609,7 @@ class pnt_interactor(QtWidgets.QWidget):
 			self.ren.RemoveActor(self.rActor)
 		if hasattr(self,'fActor'):
 			self.ren.RemoveActor(self.fActor)
+		self.ui.levelButton.setChecked(False)
 		
 		
 		if filep is None:

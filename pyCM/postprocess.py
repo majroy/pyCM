@@ -26,7 +26,7 @@ from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtGui, QtWidgets, QtCore
 from vtk.util.numpy_support import vtk_to_numpy as v2n
 from pkg_resources import Requirement, resource_filename
-from .pyCMcommon import *
+from pyCM.pyCMcommon import *
 
 
 def post_process_tool(*args, **kwargs):
@@ -427,7 +427,7 @@ class pp_interactor(QtWidgets.QWidget):
 		w = vtk.vtkXMLUnstructuredGridWriter()
 		w.SetDataModeToAscii ()
 		w.SetInputConnection(mesh_source.GetOutputPort())
-		self.vtk_file=self.vtk_file[0:-8]+'.'+self.analysis_type+'.vtu'
+		self.vtk_file=self.vtk_file[0:-4]+'.'+self.analysis_type+'.vtu'
 		w.SetFileName(self.vtk_file)
 		w.Write()
 
@@ -481,12 +481,10 @@ class pp_interactor(QtWidgets.QWidget):
 		#get file handle on vtu
 		with open(self.vtk_file, 'r') as f: vtu_text=f.read()
 			
-		print('vtu_text type',type(vtu_text))
 		new={'vtu_filename':self.vtk_file,'vtu':vtu_text}
 			
 		mat_contents.update(new)
 		sio.savemat(self.fileo,mat_contents)
-		print('wrote new vtu')
 
 		#show the result
 		self.load_vtk_XML_file(self.vtk_file,"S33")

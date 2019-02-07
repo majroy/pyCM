@@ -26,11 +26,15 @@ from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
 #Change following to local import for dev
 from pyCM.pyCMcommon import *
+
 from pyCM import point_cloud as pc
 from pyCM import align_average as aa
 from pyCM import fit_surface as sf
 from pyCM import preprocess as pre
 from pyCM import postprocess as post
+
+
+
 
 class Ui_MainWindow(object):
 	def setupUi(self, MainWindow):
@@ -204,7 +208,7 @@ class Ui_MainWindow(object):
 		QtWidgets.QApplication.processEvents()
 		
 		#check the status of alignment/averaging against the surface input file
-		if (self.pcui.refWritten and self.pcui.floatWritten) and self.tabWidget.currentIndex()==1:
+		if not self.pcui.unsaved_changes and self.tabWidget.currentIndex()==1:
 			try:
 				
 				if not hasattr(self,'activeFile'): #otherwise will reload data un-necessarily
@@ -225,7 +229,6 @@ class Ui_MainWindow(object):
 			
 		#check if there are unsaved changes from the point editor
 		if self.pcui.unsaved_changes and self.tabWidget.currentIndex()!=0:
-			print('Triggered.')
 			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
 				"There are unsaved changes pending to a point cloud. Ignore?", \
 				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
@@ -239,7 +242,7 @@ class Ui_MainWindow(object):
 
 
 		#check if there are unsaved changes from alignment/averaging
-		if self.aaui.unsaved_changes and self.tabWidget.currentIndex()!=1:
+		if self.pcui.unsaved_changes and self.tabWidget.currentIndex()!=1:
 			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
 				"There are unsaved changes pending on alignment/averaging. Ignore?", \
 				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)

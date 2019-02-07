@@ -3,6 +3,6 @@ numpy
 scipy
 pyyaml
 matplotlib
-PyQt5<5.10
+PyQt5
 h5py
 pandas

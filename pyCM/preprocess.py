@@ -912,7 +912,7 @@ class msh_interactor(QtWidgets.QWidget):
 				print("Abaqus CAE command failed for some reason.")
 				print(e)
 				self.ui.statLabel.setText("Abaqus CAE call failed . . . Idle")
-		else: self.ui.statLabel.setText("No CAE input file specified . . . Idle")
+		else: self.ui.statLabel.setText("Gmsh employed or no CAE input file specified . . . Idle")
 		self.UndoRigidBody()
 			
 	def WriteGeo(self):
