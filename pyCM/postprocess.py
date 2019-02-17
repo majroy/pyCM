@@ -7,10 +7,11 @@ LMB   - rotate about point cloud centroid.
 MMB   - pan
 RMB   - zoom
 -------------------------------------------------------------------------------
-ver 0.1 21 April 2018
+ver 0.3 21 April 2018
+0.3 - Corrected issue with printing of numpy arrays
 """
-__author__ = "N. Stoyanov"
-__version__ = "0.2"
+__author__ = "N. Stoyanov, M. J. Roy"
+__version__ = "0.3"
 __email__ = "nikola.stoyanov@postgrad.manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, N. Stoyanov 2014-2018"
@@ -230,7 +231,7 @@ class pp_interactor(QtWidgets.QWidget):
 					#get vtk output file - the one written on execution of the FEA
 					vtkbasename=mat_contents['vtk_filename'][0]
 					filename, _ = os.path.splitext(vtkbasename)
-					self.vtk_file=filename[0:-3]+'out.vtk'
+					self.vtk_file=filename+'_out.vtk'
 					if not os.path.exists(self.vtk_file):
 						#attempt to write it from the mat file
 						try:
@@ -435,7 +436,7 @@ class pp_interactor(QtWidgets.QWidget):
 		tree = ET.parse(self.vtk_file)
 		root = tree.getroot()
 		attrib= {'Name': 'S33', 'type': 'Float64', 'format': 'ASCII'}
-		np.set_printoptions(threshold=np.nan,precision=8,suppress=True)
+		np.set_printoptions(threshold=sys.maxsize,precision=8,suppress=True)
 		
 		i=3
 		for component in ['S11', 'S22', 'S33']:
