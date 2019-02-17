@@ -28,19 +28,18 @@ Many researchers have moved from using MATLAB to Python entirely for numerical a
 It is for these reasons the overall aim is to future proof the analysis code by moving towards using Python as the language of choice. To this end, a Python package called pyCM (Python Contour Method) has been developed. The idea is to fully move over from using primarily MATLAB functions/scripts to Python equivalents in a step-by-step manner. The development strategy adopted is to build new tools where required, and allow for existing MATLAB tools to be used on the input and output from these Python tools. This will be accomplished using the SciPy packages which generate binary MATLAB files to store workspace variables, so processing can be partially performed in Python, and shifted back into MATLAB to use existing scripts.
 
 # Latest version
-Alpha release 1.1.0 is currently the latest version which contains a complete toolchain for rectangular specimens with no self-restraint up to the FEA post-processing step of an analysis. NOte that the post-processor is still in a beta form for testing purposes on *quadrilateral meshes only*; if tetrahedral meshes are employed, then the native FEA code's post processor should be employed (GraphiX or Abaqus Viewer).
+Alpha release 1.1.x is currently the latest version which contains a complete toolchain for rectangular specimens with no self-restraint. Note that the post-processor is still in a beta form for testing purposes on *quadrilateral meshes only*; if tetrahedral meshes are employed, then the native FEA code's post processor should be employed (GraphiX or Abaqus Viewer). **It has been confirmed that equivalent results are obtained with both CalculiX and Abaqus**.
 
 # Requirements
 
-1. Python 3.x (last tested on 3.6.0)
+1. Python 3.x 
 2. Numpy
 3. Scipy
 4. VTK
 5. Matplotlib
 6. pyYaml
-7. PyQt5 (<5.10)
-
-PyQt5 support mirrors that which is used by [Spyder](https://github.com/spyder-ide/spyder), a MATLAB-like Integrated Development Environment (IDE) for Python. Later versions of PyQt5 do not work, and installing later versions will break Spyder 3.3.0.
+7. PyQt5
+8. Pandas
 
 Once Python is installed, it is recommended on Windows machines to get numpy, scipy and VTK binaries from Christoph Gohlke's [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/) for the best possible performance. Note that URLs on this site are blocked, you will have to manually select the distribution that you will need. Install them via:
 
