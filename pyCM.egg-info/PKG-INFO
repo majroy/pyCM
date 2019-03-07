@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: pyCM
-Version: 1.1.3
+Version: 1.1.4
 Summary: Python contour method toolkit
 Home-page: https://github.com/majroy/pyCM
 Author: M J Roy
@@ -14,7 +14,7 @@ Classifier: Environment :: Win32 (MS Windows)
 Classifier: Topic :: Scientific/Engineering :: Visualization
 Classifier: License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)
 Classifier: Operating System :: Microsoft :: Windows :: Windows 7
-Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
 Classifier: Framework :: Spyder
 Classifier: Intended Audience :: End Users/Desktop
 Classifier: Natural Language :: English

@@ -18,16 +18,18 @@ c - return to default aspect
 f - flip colors from white on dark to dark on white
 i - save output to .png in current working directory
 a - toggles axes
-o - togles outline (if present)
+o - toggles outline (if present)
+r - starts picking
 -------------------------------------------------------------------------------
 1.1 - Fixed array orientation, clipping issue, compass scaling and sped up writing output
       Added ReadMask
 1.2 - Fixed window handling, now exits cleanly
 1.3 - Modified to run in Python 3.x, uses VTK keyboard interrupts to start picking, Qt button for this function has been commented out.
 1.4 - Added the ability to 'level' incoming data based on AFRC input
+1.5 - Added SVD analysis/transformations
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.4"
+__version__ = "1.5"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
@@ -141,6 +143,10 @@ class pt_main_window(object):
 		scaleBoxlayout.addWidget(self.ysButton,1,2)
 		scaleBoxlayout.addWidget(self.zsButton,1,3)
 		self.levelButton=QtWidgets.QRadioButton("Translate to mean z value")
+		svdLabel=QtWidgets.QLabel("Perform SVD reorientation")
+		svdLabel.setFont(headFont)
+		self.rxButton=QtWidgets.QRadioButton("Rx")
+		self.ryButton=QtWidgets.QRadioButton("Ry")
 		self.reduce = QtWidgets.QSpinBox()
 		self.reduce.setValue(0)
 		self.reduceButton = QtWidgets.QPushButton('Reduce')
@@ -195,24 +201,27 @@ class pt_main_window(object):
 		mainUiBox.addWidget(scalingLabel,1,0,1,2)
 		mainUiBox.addLayout(scaleBoxlayout,2,0,1,2)
 		mainUiBox.addWidget(self.levelButton,3,0,1,2)
-		mainUiBox.addWidget(horizLine1,4,0,1,2)
-		mainUiBox.addWidget(pickLabel,5,0,1,2)
-		mainUiBox.addLayout(reduceBoxlayout,6,0,1,2)
-		mainUiBox.addWidget(self.pickHelpLabel,7,0,1,1)
-		mainUiBox.addWidget(self.pickActiveLabel,7,1,1,1)
-		mainUiBox.addWidget(self.undoLastPickButton,8,0,1,2)
-		mainUiBox.addWidget(self.revertButton,9,0,1,2)
-		mainUiBox.addWidget(horizLine2,10,0,1,2)
-		mainUiBox.addWidget(outputLabel,11,0,1,2)
-		mainUiBox.addWidget(self.refButton,12,0,1,1)
-		mainUiBox.addWidget(self.floatButton,12,1,1,1)
-		mainUiBox.addWidget(self.writeButton,13,0,1,2)
-		mainUiBox.addWidget(horizLine3,14,0,1,2)
-		mainUiBox.addWidget(showLabel,15,0,1,2)
-		mainUiBox.addWidget(self.showRefButton,16,0,1,1)
-		mainUiBox.addWidget(self.showFloatButton,16,1,1,1)
-		mainUiBox.addWidget(self.showButton,17,0,1,2)
-		mainUiBox.addWidget(horizLine4,18,0,1,2)
+		mainUiBox.addWidget(svdLabel,4,0,1,2)
+		mainUiBox.addWidget(self.rxButton,5,0,1,1)
+		mainUiBox.addWidget(self.ryButton,5,1,1,1)
+		mainUiBox.addWidget(horizLine1,6,0,1,2)
+		mainUiBox.addWidget(pickLabel,7,0,1,2)
+		mainUiBox.addLayout(reduceBoxlayout,8,0,1,2)
+		mainUiBox.addWidget(self.pickHelpLabel,9,0,1,1)
+		mainUiBox.addWidget(self.pickActiveLabel,9,1,1,1)
+		mainUiBox.addWidget(self.undoLastPickButton,10,0,1,2)
+		mainUiBox.addWidget(self.revertButton,11,0,1,2)
+		mainUiBox.addWidget(horizLine2,12,0,1,2)
+		mainUiBox.addWidget(outputLabel,13,0,1,2)
+		mainUiBox.addWidget(self.refButton,14,0,1,1)
+		mainUiBox.addWidget(self.floatButton,14,1,1,1)
+		mainUiBox.addWidget(self.writeButton,15,0,1,2)
+		mainUiBox.addWidget(horizLine3,16,0,1,2)
+		mainUiBox.addWidget(showLabel,17,0,1,2)
+		mainUiBox.addWidget(self.showRefButton,18,0,1,1)
+		mainUiBox.addWidget(self.showFloatButton,18,1,1,1)
+		mainUiBox.addWidget(self.showButton,19,0,1,2)
+		mainUiBox.addWidget(horizLine4,20,0,1,2)
 
 		lvLayout=QtWidgets.QVBoxLayout()
 		lvLayout.addLayout(mainUiBox)
@@ -259,7 +268,121 @@ class pnt_interactor(QtWidgets.QWidget):
 		self.ui.revertButton.clicked.connect(lambda: self.undo_revert())
 		self.ui.reduceButton.clicked.connect(lambda: self.reduce_pnts())
 		self.ui.levelButton.clicked.connect(lambda: self.level_pnts())
+		self.ui.rxButton.clicked.connect(lambda: self.svd('x'))
+		self.ui.ryButton.clicked.connect(lambda: self.svd('y'))
 		self.ui.showButton.clicked.connect(lambda: self.load_mat())
+	
+	def svd(self,dir):
+		
+		color=(70, 171, 176)
+		
+		self.ren.RemoveActor(self.pointActor)
+		self.ren.RemoveActor(self.outlineActor)
+		
+
+		#then move all points to have centroid at x,y=0
+		#get translation vector
+		t=np.mean(self.rawPnts,axis=0)
+		RP=self.rawPnts
+		RP[:,0]=RP[:,0]-t[0]
+		RP[:,1]=RP[:,1]-t[1]
+		RP[:,2]=RP[:,2]-t[2]
+		
+		OP=self.Outline
+		OP[:,0]=OP[:,0]-t[0]
+		OP[:,1]=OP[:,1]-t[1]
+		OP[:,2]=OP[:,2]-t[2]
+		
+		# _,_,vh = np.linalg.svd(RP) #vh is transpose from MATLAB's svd, returns normalised vectors
+		# #rows of vh are orthnormal vectors
+		# # print('X:',vh[0,:] / np.linalg.norm(vh[0,:]))
+		# # print('Y:',vh[1,:] / np.linalg.norm(vh[1,:]))
+		# # print('Z:',vh[2,:] / np.linalg.norm(vh[2,:]))
+		
+		# #handles the case if the dataset is net convex vs. concave
+		# if vh[2,-1]<0:
+			# c=np.array([0,0,-1])
+		# else: 
+			# c=np.array([0,0,1])
+		
+		# vh_y_norm = np.array([vh[2,0],0,vh[2,2]]) / np.linalg.norm(np.array([vh[2,0],0,vh[2,2]])) #xz plane projection
+		# vh_x_norm = np.array([0,vh[2,1],vh[2,2]]) / np.linalg.norm(np.array([0,vh[2,1],vh[2,2]])) #yz plane projection
+		
+		# #solve for angle, update console
+		# a_y=np.arccos(np.clip(np.dot(vh_y_norm,c), -1.0, 1.0))
+		# a_x=np.arccos(np.clip(np.dot(vh_x_norm,c), -1.0, 1.0))
+		# print('SVD difference about X and Y axis in degrees prior to transform:\n'a_x*57.3,a_y*57.3)
+		
+		# Ry=np.matrix([[np.cos(-a_y),0,np.sin(-a_y)],[0,1,0],[-np.sin(-a_y),0,np.cos(-a_y)]])
+		# Rx=np.matrix([[1,0,0],[0,np.cos(-a_x),-np.sin(-a_x)],[0,np.sin(-a_x),np.cos(-a_x)]])
+	
+		#debug
+		# if hasattr(self,'svd_arrow_actor'):
+			# self.ren.RemoveActor(self.svd_arrow_actor)
+			# self.ren.RemoveActor(self.ref1_arrow_actor)
+			# self.ren.RemoveActor(self.ref2_arrow_actor)
+		#arrow size is 10% max size of domain
+		# asize=np.maximum(self.limits[1]-self.limits[0],self.limits[3]-self.limits[2])*0.10
+		# self.svd_arrow_actor=draw_arrow(t,asize,-vh[2,:],self.ren,False,(1,0,0))
+		# self.ref1_arrow_actor=draw_arrow(t,asize,-vh[0,:],self.ren,False,(0,1,0)) #xaxis, green
+		# self.ref2_arrow_actor=draw_arrow(t,asize,-vh[1,:],self.ren,False,(0,0,3)) #yaxis, blue
+		
+		#find rotation and pickup which rotation to apply
+		print('Before')
+		Rx,Ry=get_svd_rotation_matrix(RP)
+		
+		if dir == 'y':
+			RP = Ry*RP.T
+			OP = Ry*OP.T
+		else: 
+			RP = Rx*RP.T
+			OP = Ry*OP.T
+			
+		RP = RP.T		
+		OP = OP.T
+		
+		#check rotation
+		print('After')
+		Rx,Ry=get_svd_rotation_matrix(RP)
+		
+		# #add translation back on
+		RP[:,0]=RP[:,0]+t[0]
+		RP[:,1]=RP[:,1]+t[1]
+		RP[:,2]=RP[:,2]+t[2]
+		
+		OP[:,0]=OP[:,0]+t[0]
+		OP[:,1]=OP[:,1]+t[1]
+		OP[:,2]=OP[:,2]+t[2]
+
+		
+		#update everything
+		self.rawPnts = np.asarray(RP)
+		self.Outline = np.asarray(OP)
+		
+		#update both outline and actors
+		self.vtkPntsPolyData, \
+		self.pointActor, self.colors = \
+		gen_point_cloud(self.rawPnts,color,self.PointSize)
+		
+		self.ren.AddActor(self.pointActor)
+		self.ren.AddActor(self.outlineActor)
+		
+		
+		s,nl,axs=self.get_scale()
+
+		self.pointActor.SetScale(s)
+		self.outlineActor.SetScale(s)
+		
+		self.pointActor.Modified()
+		self.outlineActor.Modified()
+
+		self.add_axis(nl,axs)
+		
+		#update
+		self.ren.ResetCamera()
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+	
 	
 	def undo_revert(self):
 		'''
@@ -341,6 +464,8 @@ class pnt_interactor(QtWidgets.QWidget):
 		self.ren.ResetCamera()
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
+		
+		
 		
 				
 	def reduce_pnts(self):
@@ -616,8 +741,11 @@ class pnt_interactor(QtWidgets.QWidget):
 			filep,startdir=get_file('*.txt','Select the *.txt perimeter file (optional):')
 
 		elif not(os.path.isfile(filep)):
+			print(filep)
 			print('Perimeter file invalid.')
 
+		#return focus
+		self.ui.vtkWidget.setFocus()
 		
 		if filec is None:
 			filec,startdir=get_file('*.txt') #get filec
@@ -728,7 +856,10 @@ class pnt_interactor(QtWidgets.QWidget):
 				# self.fActor.SetScale(1,1,self.Zaspect)
 				self.fActor.SetScale(s)
 				self.fActor.Modified()
-			
+			if hasattr(self,'svd_pointActor'):
+				self.svd_pointActor.SetScale(s)
+				self.svd_pointActor.Modified()
+				
 			self.add_axis(nl,axs)
 
 
@@ -818,7 +949,33 @@ class pnt_interactor(QtWidgets.QWidget):
 		if not(self.ren.GetBackground()==(0.1, 0.2, 0.4)):
 			flip_colors(self.ren,self.ax3D)
 
-
+def get_svd_rotation_matrix(RP):
+	'''
+	Returns the rotation matrix about the X or Y axis required to take z component of the orthonormal matrix of RP to either 0,0,1 or 0,0,-1 depending on concavity.
+	'''
+	_,_,vh = np.linalg.svd(RP) #vh is transpose from MATLAB's svd, returns normalised vectors
+	#rows of vh are orthnormal vectors
+	# print('X:',vh[0,:] / np.linalg.norm(vh[0,:]))
+	# print('Y:',vh[1,:] / np.linalg.norm(vh[1,:]))
+	# print('Z:',vh[2,:] / np.linalg.norm(vh[2,:]))
+	
+	#handles the case if the dataset is net convex vs. concave
+	if vh[2,-1]<0:
+		c=np.array([0,0,-1])
+	else: 
+		c=np.array([0,0,1])
+	
+	vh_y_norm = np.array([vh[2,0],0,vh[2,2]]) / np.linalg.norm(np.array([vh[2,0],0,vh[2,2]])) #xz plane projection
+	vh_x_norm = np.array([0,vh[2,1],vh[2,2]]) / np.linalg.norm(np.array([0,vh[2,1],vh[2,2]])) #yz plane projection
+	
+	#solve for angle, update console
+	a_y=np.arccos(np.clip(np.dot(vh_y_norm,c), -1.0, 1.0))
+	a_x=np.arccos(np.clip(np.dot(vh_x_norm,c), -1.0, 1.0))
+	print('SVD difference about X and Y axis in degrees:\n',a_x*57.3,a_y*57.3)
+	
+	Ry=np.matrix([[np.cos(-a_y),0,np.sin(-a_y)],[0,1,0],[-np.sin(-a_y),0,np.cos(-a_y)]])
+	Rx=np.matrix([[1,0,0],[0,np.cos(-a_x),-np.sin(-a_x)],[0,np.sin(-a_x),np.cos(-a_x)]])
+	return Rx,Ry
 
 if __name__ == '__main__':
 	if len(sys.argv)>2:
@@ -830,5 +987,3 @@ if __name__ == '__main__':
 		mask_def(pcloudFile)
 	else:
 		mask_def()
-
-

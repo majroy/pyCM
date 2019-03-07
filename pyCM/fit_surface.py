@@ -13,21 +13,18 @@ RMB - zoom
 z - increase z-aspect ratio
 x - decrease z-aspect ratio
 c - return to default z-aspect
-Shift-z - increase size of points
-Shift-x - decrease size of points
-Shift-c - return to default point size
 f - flip colors from white on dark to dark on white
 i - save output to .png in current working directory
 r - remove/reinstate compass/axes
 o - remove/reinstate outline
-e - write output
 -------------------------------------------------------------------------------
 ver 1.1 17-17-03
 1.1 - Initial release
 1.2 - Refactored for PyQt5 & Python 3.x
+1.3 - Refactored to handle self-restraint features
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.2"
+__version__ = "1.3"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 
@@ -308,10 +305,15 @@ class surf_int(QtWidgets.QWidget):
 			self.fileo=filem
 			
 			try:
-				pts=mat_contents['aa']
+				pts=mat_contents['aa']['pnts'][0][0]
+				refTrans=mat_contents['trans']['ref'][0][0]
+				
 
 				self.pts=pts[~np.isnan(pts).any(axis=1)] #remove all nans
 				self.RefOutline=np.concatenate(mat_contents['ref']['x_out'],axis=0)[0]
+				for transformation in refTrans:
+					self.RefOutline = np.dot(self.RefOutline,transformation[0:3,0:3])+transformation[0:3,-1]
+				
 				RefMin=np.amin(self.RefOutline,axis=0)
 				RefMax=np.amax(self.RefOutline,axis=0)
 				self.limits=[RefMin[0],RefMax[0],RefMin[1],RefMax[1],np.amin(self.pts[:,-1],axis=0),np.amax(self.pts[:,-1],axis=0)]
@@ -930,7 +932,7 @@ def FlipColors(ren,actor,contrast):
 				actor.GetProperty().SetColor(0.8039, 0.3490, 0.2902)
 
 if __name__ == "__main__":
-	if len(sys.argv)>2:
+	if len(sys.argv)>1:
 		sf_def(sys.argv[1])
 	else:
 		sf_def()
