@@ -28,6 +28,7 @@ def get_file(*args):
 	ext=args[0]
 	ftypeName={}
 	ftypeName['*.txt']=["Select the point cloud data file:", "*.txt", "TXT File"]
+	ftypeName['*.csv']=["Select the point cloud data file:", "*.csv", "PC-DMIS point measurement file"]
 	ftypeName['*.mat']=["Select MAT data file:", "*.mat", "MAT File"]
 	ftypeName['*.vtk']=["Select the legacy VTK file:", "*.vtk", "VTK File"]
 	ftypeName['*.dat']=["Select FEA results file:", "*.dat", "DAT File"]
@@ -37,12 +38,15 @@ def get_file(*args):
 	if len(args)==2:
 		ftypeName[ext][0] = args[1]
 		
-	lapp = QApplication.instance()
-	if lapp is None:
-		lapp = QtWidgetsQApplication([])
+	# lapp = QApplication.instance()
+	# if lapp is None:
+		# lapp = QtWidgetsQApplication([])
 	if ext=='*.txt':
 		filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
-         os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;'+ftypeName['*.mat'][2]+' ('+ftypeName['*.mat'][1]+');;All Files (*.*)'))
+         os.getcwd(), \
+		 (ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;' \
+		 +ftypeName['*.csv'][2]+' ('+ftypeName['*.csv'][1]+');;'\
+		 +ftypeName['*.mat'][2]+' ('+ftypeName['*.mat'][1]+');;All Files (*.*)'))
 	else:
 		filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
          os.getcwd(),(ftypeName[ext][2]+' ('+ftypeName[ext][1]+');;All Files (*.*)'))

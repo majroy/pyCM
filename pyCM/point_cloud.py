@@ -27,9 +27,10 @@ r - starts picking
 1.3 - Modified to run in Python 3.x, uses VTK keyboard interrupts to start picking, Qt button for this function has been commented out.
 1.4 - Added the ability to 'level' incoming data based on AFRC input
 1.5 - Added SVD analysis/transformations
+1.6 - Added ability to read PC-DMIS csv files
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.5"
+__version__ = "1.6"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
@@ -44,7 +45,6 @@ import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
 from pyCM.pyCMcommon import *
-
 
 nosio=False
 
@@ -273,13 +273,15 @@ class pnt_interactor(QtWidgets.QWidget):
 		self.ui.showButton.clicked.connect(lambda: self.load_mat())
 	
 	def svd(self,dir):
+		'''
+		Moves point cloud and outline to the centroid of the point cloud, finds SVD difference between X & Y axes of masked point cloud, and applies transformation, and then moves it back to the starting point.
+		'''
 		
 		color=(70, 171, 176)
 		
 		self.ren.RemoveActor(self.pointActor)
 		self.ren.RemoveActor(self.outlineActor)
 		
-
 		#then move all points to have centroid at x,y=0
 		#get translation vector
 		t=np.mean(self.rawPnts,axis=0)
@@ -293,6 +295,7 @@ class pnt_interactor(QtWidgets.QWidget):
 		OP[:,1]=OP[:,1]-t[1]
 		OP[:,2]=OP[:,2]-t[2]
 		
+		#debug
 		# _,_,vh = np.linalg.svd(RP) #vh is transpose from MATLAB's svd, returns normalised vectors
 		# #rows of vh are orthnormal vectors
 		# # print('X:',vh[0,:] / np.linalg.norm(vh[0,:]))
@@ -327,9 +330,9 @@ class pnt_interactor(QtWidgets.QWidget):
 		# self.ref1_arrow_actor=draw_arrow(t,asize,-vh[0,:],self.ren,False,(0,1,0)) #xaxis, green
 		# self.ref2_arrow_actor=draw_arrow(t,asize,-vh[1,:],self.ren,False,(0,0,3)) #yaxis, blue
 		
-		#find rotation and pickup which rotation to apply
-		print('Before')
-		Rx,Ry=get_svd_rotation_matrix(RP)
+		#find rotation and pickup which rotation to apply based on masked points
+		print('Before SVD:')
+		Rx,Ry=get_svd_rotation_matrix(RP[self.bool_pnt,:])
 		
 		if dir == 'y':
 			RP = Ry*RP.T
@@ -342,8 +345,8 @@ class pnt_interactor(QtWidgets.QWidget):
 		OP = OP.T
 		
 		#check rotation
-		print('After')
-		Rx,Ry=get_svd_rotation_matrix(RP)
+		print('After SVD:')
+		Rx,Ry=get_svd_rotation_matrix(RP[self.bool_pnt,:])
 		
 		# #add translation back on
 		RP[:,0]=RP[:,0]+t[0]
@@ -364,6 +367,17 @@ class pnt_interactor(QtWidgets.QWidget):
 		self.pointActor, self.colors = \
 		gen_point_cloud(self.rawPnts,color,self.PointSize)
 		
+		#modify point coloration based on mask
+		#find points to be painted red
+		localind=np.asarray(range(len(self.bool_pnt)))
+		localind=localind[np.where(np.logical_not(self.bool_pnt))]
+		
+		for i in localind:
+			#turn them red
+			self.colors.SetTuple(i,(255,0,0))
+
+		self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
+		self.vtkPntsPolyData.Modified()
 		self.ren.AddActor(self.pointActor)
 		self.ren.AddActor(self.outlineActor)
 		
@@ -738,10 +752,9 @@ class pnt_interactor(QtWidgets.QWidget):
 		
 		
 		if filep is None:
-			filep,startdir=get_file('*.txt','Select the *.txt perimeter file (optional):')
+			filep,startdir=get_file('*.txt','Select the *.txt perimeter file:')
 
 		elif not(os.path.isfile(filep)):
-			print(filep)
 			print('Perimeter file invalid.')
 
 		#return focus
@@ -759,22 +772,31 @@ class pnt_interactor(QtWidgets.QWidget):
 
 
 		if filep != None: #because filediag can be cancelled
-			self.Outline=np.genfromtxt(filep)
+		
+			#get delimiter
+			with open(filep) as f:
+				first_line = f.readline()
+				if ',' in first_line: #NAMRC formatted file
+					self.Outline=np.genfromtxt(filep,delimiter=",")
+					print('NAMRC outline data type recognised.')
+				else:
+					self.Outline=np.genfromtxt(filep)
 			self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
 			self.ren.AddActor(self.outlineActor)			
-			self.filep=filep
-			
+			self.filep=filep	
 		_, ext = os.path.splitext(filec)
 		
-		if ext == '.txt':
+		if ext.lower() == '.txt':		
 			self.rawPnts=np.genfromtxt(filec)
-		elif ext == '.mat':
+		elif ext.lower() == '.mat':
 			try:
 				self.rawPnts, self.Outline = read_mat(filec)
 				self.outlineActor, _ =gen_outline(self.Outline,tuple(np.array(color)/float(255)),self.PointSize)
 				self.ren.AddActor(self.outlineActor)
 			except:
 				print('Could not add actors to visualisation.')
+		elif ext.lower() == '.csv':
+			self.rawPnts=np.genfromtxt(filec,skip_header=1,delimiter=',',usecols=(0,1,2))
 		
 		
 		self.vtkPntsPolyData, \
@@ -965,25 +987,34 @@ def get_svd_rotation_matrix(RP):
 	else: 
 		c=np.array([0,0,1])
 	
-	vh_y_norm = np.array([vh[2,0],0,vh[2,2]]) / np.linalg.norm(np.array([vh[2,0],0,vh[2,2]])) #xz plane projection
-	vh_x_norm = np.array([0,vh[2,1],vh[2,2]]) / np.linalg.norm(np.array([0,vh[2,1],vh[2,2]])) #yz plane projection
 	
-	#solve for angle, update console
-	a_y=np.arccos(np.clip(np.dot(vh_y_norm,c), -1.0, 1.0))
-	a_x=np.arccos(np.clip(np.dot(vh_x_norm,c), -1.0, 1.0))
-	print('SVD difference about X and Y axis in degrees:\n',a_x*57.3,a_y*57.3)
+	try:
+		vh_y_norm = np.array([vh[2,0],0,vh[2,2]]) / np.linalg.norm(np.array([vh[2,0],0,vh[2,2]])) #xz plane projection
+		vh_x_norm = np.array([0,vh[2,1],vh[2,2]]) / np.linalg.norm(np.array([0,vh[2,1],vh[2,2]])) #yz plane projection
+		#solve for angle, update console
+		a_y=np.arccos(np.clip(np.dot(vh_y_norm,c), -1.0, 1.0))
+		a_x=np.arccos(np.clip(np.dot(vh_x_norm,c), -1.0, 1.0))
+		if np.isnan(a_x) or np.isnan(a_y):
+			raise ValueError('Potential division by zero during SVD decomposition.')
+		elif a_x==0 and a_y==0:
+			raise ValueError('Point cloud normals are aligned near working precision to main axes.')
+		else:
+			print('Difference about X and Y axis in degrees:\n',a_x*57.3,a_y*57.3)
+		
+		Ry=np.matrix([[np.cos(-a_y),0,np.sin(-a_y)],[0,1,0],[-np.sin(-a_y),0,np.cos(-a_y)]])
+		Rx=np.matrix([[1,0,0],[0,np.cos(-a_x),-np.sin(-a_x)],[0,np.sin(-a_x),np.cos(-a_x)]])
+		return Rx,Ry
+	except ValueError as err:
+		print(err)
+		return np.asmatrix(np.eye(3,3)),np.asmatrix(np.eye(3,3)) #return identity matrices
+
 	
-	Ry=np.matrix([[np.cos(-a_y),0,np.sin(-a_y)],[0,1,0],[-np.sin(-a_y),0,np.cos(-a_y)]])
-	Rx=np.matrix([[1,0,0],[0,np.cos(-a_x),-np.sin(-a_x)],[0,np.sin(-a_x),np.cos(-a_x)]])
-	return Rx,Ry
+
 
 if __name__ == '__main__':
-	if len(sys.argv)>2:
-		perimFile=sys.argv[1]
-		pcloudFile=sys.argv[2]
-		mask_def(perimFile,pcloudFile)
-	elif len(sys.argv)>1:
-		pcloudFile=sys.argv[1]
-		mask_def(pcloudFile)
+	if len(sys.argv)==3:
+		mask_def(sys.argv[1],sys.argv[2])
+	elif len(sys.argv)==2:
+		mask_def(sys.argv[1])
 	else:
 		mask_def()

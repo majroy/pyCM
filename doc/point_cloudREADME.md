@@ -17,12 +17,39 @@ Analysis starts with loading the perimeter and point cloud for each surface.
 
 Input | Description
 ---  |---
-Perimeter file |	Only text files are supported. If not specified directly, location is acquired via GUI.
-Point cloud file |	Text and MAT-files are supported. Path dependencies are the same as the perimeter file. If not specified directly, location is acquired via GUI.
+Perimeter file |	Text files and PC-DMIS comma seperated variable files permitted. If not specified directly, location is acquired via GUI.
+Point cloud file |	Text,  PC-DMIS comma seperated variable and MAT-files are supported. Path dependencies are the same as the perimeter file. If not specified directly, location is acquired via GUI.
+
+The most common/default way of importing data is via text files with whitespace (standard) or three comma separated variables - note both have a `.TXT` or `.txt` extension. Basically, these are .xyz files without normals. For example:
+
+'0.095155   -43.346  1.5185	
+0.097489   -53.637   1.5185	
+...   ...   ...	'
+
+or
+
+'0.095155, -43.346, 1.5185	
+0.097489, -53.637, 1.5185	
+...   ...   ...	'
+
+
+The other format is a `*.csv` file that can be imported into *non*-DMIS packages such as (confusingly) PC-DMIS, MCOSMOS, Calypso etc. Note that a complete programme will need to be created such as probe selection, intermediate points and so on. The file will contain an appropriate header along with labels according to:
+
+|TYPE	|NAME	|X			|Y		|Z		|I	|J	|K|
+|--- |---|---|---|---|---|---|---|
+|POINT	|PNT1	|0.092801	|-48.491|1.5185	|0	|0	|1|
+|POINT	|PNT2	|0.095155	|-43.346|1.5185	|0	|0	|1|
+|POINT	|PNT3	|0.097489	|-53.637|1.5185	|0	|0	|1|
+|POINT	|PNTn	|...		|...	|...	|0	|0	|1|
+
+Specifying file types is accomplished either through the GUI ([Fig. 1](#fig1)) or specifying the extension directly.
+
+<span>![<span>Flip color</span>](images/PointCloud_selectType.png)</span>  
+*<a name="fig1"></a> Figure 1: Selection options for raw data.*
 
 Output | Description
 ---  |---
-Output file	| A *.mat file will be written to the specified output directory. At minimum, it will contain two data structures needed for subsequent processing, *ref* and *float* which contain the following:<ul><li>x,y,z: Nx1 arrays of the masked coordinate values.</li><li>rawPnts: Nx3 matrix of the points read in via the point cloud file.</li><li>mask: 1xN array of int8 values consisting of 0 and 1 where 0 indicates a masked point. Conversion to a boolean array will provide an index of rawPnts that were masked.</li><li>x_out: Nx3 matrix of the points that comprise the outline</li></ul> 
+Output file	| A .mat file will be written to the specified output directory. At minimum, it will contain two data structures needed for subsequent processing, *ref* and *float* which contain the following:<ul><li>x,y,z: Nx1 arrays of the masked coordinate values.</li><li>rawPnts: Nx3 matrix of the points read in via the point cloud file.</li><li>mask: 1xN array of int8 values consisting of 0 and 1 where 0 indicates a masked point. Conversion to a boolean array will provide an index of rawPnts that were masked.</li><li>x_out: Nx3 matrix of the points that comprise the outline</li></ul> 
 
 There is one main GUI-enabled function, called `mask_def` in this method. This function can also be called from the pyCM main routine, see [main](mainREADME.md).
 
@@ -34,29 +61,29 @@ The function is called from a Python script or in interactive mode, starting by 
 This will launch two GUIs immediately to specify the perimeter file and point cloud files, starting in the  current working directory. Cancelling these GUIs will leave a blank interactor, which new files can be specified by selecting the **New profile** button. The **New profile** button can also be selected to switch to another dataset (*i.e.* switching between reference and floating point clouds. 
 
 ##  Interaction functionality
-The data will appear in a custom VTK interaction window after initializing, with data appearing in white (points) or lines on a dark background. The default view is looking down on the data in the z direction, after which the view can be rotated to show the data in perspective ([Fig. 1](#fig1)) by pressing the left mouse button. The middle mouse button provides a pan function while pressed, and the right mouse button zooms. There are three named views that are accessed via `1`, `2` and `3` looking down the z, x and y directions, respectively. 
+The data will appear in a custom VTK interaction window after initializing, with data appearing in white (points) or lines on a dark background. The default view is looking down on the data in the z direction, after which the view can be rotated to show the data in perspective ([Fig. 2](#fig2)) by pressing the left mouse button. The middle mouse button provides a pan function while pressed, and the right mouse button zooms. There are three named views that are accessed via `1`, `2` and `3` looking down the z, x and y directions, respectively. 
 
 <span>![<span>Main Window</span>](images/PointCloud_m.png)</span>  
-*<a name="fig1"></a> Figure 1: Main default interaction window with a dark background and white data and annotations. Perimeter is shown as a solid line, with axes to show scale.*
+*<a name="fig2"></a> Figure 2: Main default interaction window with a dark background and white data and annotations. Perimeter is shown as a solid line, with axes to show scale.*
 
-For publication purposes, the ability to flip the default color scheme (dark on bright) has been provided. This is obtained by pressing f ([Fig. 2](#fig2)) on the keyboard. Again, for publication purposes, a facility has been provided for printing the interaction window to file. Pressing `i` will print the interaction window to the current working directory as `point_cloud.png`.
+For publication purposes, the ability to flip the default color scheme (dark on bright) has been provided. This is obtained by pressing f ([Fig. 3](#fig3)) on the keyboard. Again, for publication purposes, a facility has been provided for printing the interaction window to file. Pressing `i` will print the interaction window to the current working directory as `point_cloud.png`.
 
 <span>![<span>Flip color</span>](images/PointCloud_f.png)</span>  
-*<a name="fig2"></a> Figure 2: Flipped colour scheme with a white background and black data and annotations. Pressing f on the keyboard when the window is in focus flips to and from this scheme.*
+*<a name="fig3"></a> Figure 3: Flipped colour scheme with a white background and black data and annotations. Pressing f on the keyboard when the window is in focus flips to and from this scheme.*
 
 As contour data has dimensions that are sometimes orders of magnitude larger in x and y, a facility for increasing the x, y and z-aspect of the data has been provided, depending on the radio button selected at the left-hand side of the GUI. Pressing `z` increases the aspect ratio by 2x with each keypress, pressing `x` decreases by half, and `c` returns to the default aspect ratio.
 
-Particularly the case for data coming from coordinate measurement machines, occasionally data may be processed/examined when 'levelled'. The ability to rotate each point cloud according to the relevant component of an orthonormal decomposition has been provided. The `Rx` and `Ry` buttons rotate the relevant component of the surface's normals such that they are aligned with global x & y axes. Compare [Fig. 2](#fig2) depicting a surface in the as-measured state with [Fig. 3](#fig3) that has been rotated about the x & y axis to 'level' according to SVD orthonormals.
+Particularly the case for data coming from coordinate measurement machines, occasionally data may be processed/examined when 'levelled'. The ability to rotate each point cloud according to the relevant component of an orthonormal decomposition has been provided. The `Rx` and `Ry` buttons rotate the relevant component of the surface's normals such that they are aligned with global x & y axes. Compare [Fig. 3](#fig3) depicting a surface in the as-measured state with [Fig. 4](#fig4) that has been rotated about the x & y axis to 'level' according to SVD orthonormals. *NB this SVD operation is carried out on masked data*.
 
 <span>![<span>SVD</span>](images/PointCloud_svd.png)</span>  
-*<a name="fig3"></a> Figure 3: Results of rotating relevant component of orthonormal projection found by Single Value Decomposition. The dataset was rotated about the x and y axes by pressing `Rx` and `Ry` buttons.*
+*<a name="fig4"></a> Figure 4: Results of rotating relevant component of orthonormal projection found by Single Value Decomposition. The dataset was rotated about the x and y axes by pressing `Rx` and `Ry` buttons.*
 
-Masking of points to be discounted in the subsequent analysis can be accomplished with two techniques: a wholesale reduction of points, or more selectively with a picking tool. The `Pick options` pane's first option is to reduce points by a percentage: entering a value in the spinbox beside the `Reduce` button will eliminate that same amount of points, percentage-wise. For example, a value of 10 will leave 90% of the points. Note that these points which are removed are *not* shown as being masked (*i.e.* plotted as red points).
+Masking of points to be discounted in the subsequent analysis can be accomplished with two techniques: a wholesale reduction of points, or more selectively with a picking tool. The `Pick options` pane's first option is to reduce points by a percentage: entering a value in the spinbox beside the `Reduce` button will eliminate that same amount of points, percentage-wise. For example, a value of 10 will leave 90% of the points. Note that these points which are removed are *not* shown as being masked (*i.e.* plotted as red points). *It is recommended that data be masked prior to performing SVD manipulation - only a few spurious points will have a large effect on the decomposition*.
 
-In order to select specific masked points, there is an interaction sequence which is triggered from the VTK interactor window. Pressing `r` will disable rotation such that using the left mouse button will enable the user to draw a rectangular window around points to be masked ([Fig. 4](#fig4)). This rectangle can be drawn and redrawn any number of times; panning and zooming are accessible by deactivating picking mode by pressing `r` once more. The *Pick active* pane will activate when the picker is active. This can be repeated any number of times. If a mistake is made, then the last pick can be undone with the `Undo last pick` button to deselect all highlighted points the last time the picker was active. Note that a hardware selection tool has been employed: only points that are visible in the particular view/orientation will be selected. If a mistake is made, then the entire dataset can be reloaded with the `Undo all/reload` button.
+In order to select specific masked points, there is an interaction sequence which is triggered from the VTK interactor window. Pressing `r` will disable rotation such that using the left mouse button will enable the user to draw a rectangular window around points to be masked ([Fig. 5](#fig5)). This rectangle can be drawn and redrawn any number of times; panning and zooming are accessible by deactivating picking mode by pressing `r` once more. The *Pick active* pane will activate when the picker is active. This can be repeated any number of times. If a mistake is made, then the last pick can be undone with the `Undo last pick` button to deselect all highlighted points the last time the picker was active. Note that a hardware selection tool has been employed: only points that are visible in the particular view/orientation will be selected. If a mistake is made, then the entire dataset can be reloaded with the `Undo all/reload` button.
 
 <span>![<span>ZAspect</span>](images/PointCloud_u.png)</span>  
-*<a name="fig4"></a> Figure 4: Points to be eliminated/dismissed from subsequent analysis can be selected, as can the overall point cloud using the `Pick options` pane.*
+*<a name="fig5"></a> Figure 5: Points to be eliminated/dismissed from subsequent analysis can be selected, as can the overall point cloud using the `Pick options` pane.*
 
 Once the required points have been added to the mask, then the function can then write a *.mat file for the displayed perimeter/point cloud, targeting the structure identified with the radio button in the `Write output` pane. If this *.mat file has not been generated, then a GUI will prompt for a location. If there is already a *Reference* or `Floating* data series in the *.mat file, the user will be asked if they wish to overwrite. If the reference or floating datasets need to be reviewed at any time, then the `Load result` pan can be employed to see what the *.mat file currently contains in terms of a mask, outline and point cloud.
 

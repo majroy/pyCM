@@ -333,7 +333,7 @@ class Ui_MainWindow(object):
 			print("Did not find config file in the pyCM installation directory.")
 		try:
 			with open(self.preui.filec,'r') as ymlfile:
-				readcfg = yaml.load(ymlfile)	
+				readcfg = yaml.load(ymlfile, Loader=yaml.FullLoader)	
 				l=[readcfg['FEA']['abaqusExec'],readcfg['FEA']['gmshExec'],readcfg['FEA']['ccxExec']]
 				self.preui.cfg=pre.GetFEAconfig(l,self.filec)
 		except:

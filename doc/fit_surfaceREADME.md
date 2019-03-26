@@ -6,6 +6,7 @@ Reads data from the align & average step and provides a GUI which is essentially
 ## Initializing
 
 **Input and output descriptors**
+
 Input | Description
 ---  |---
 Input file	| A *.mat file with a `ref` structure containing an `x_out` field, see [point_cloud](point_cloudREADME.md): Nx3 matrix of the points that comprise the outline, and a matrix `aa`, which is an Nx3 matrix of points comprising the aligned and averaged data -  see [align_average](align_averageREADME.md).
@@ -27,7 +28,7 @@ which will provide a GUI to locate the *.mat file with the necessary data accord
 ~~~
 
 ##  Interaction functionality
-On launching, a custom interactor is generated ([Fig. 1](#fig1)) which permits the same types of manipulation as other pyCM tools in terms of view manipulation. The **z**, **x** and **c** keys only affect the view aspect in the z direction, however.
+On launching, a custom interactor is generated ([Fig. 1](#fig1)) which permits the same types of manipulation as other pyCM tools in terms of view manipulation. The z, x and c keys only affect the view aspect in the z direction, however.
 
 <span>![<span>Main Window</span>](images/fit_surface_loaded.png)</span>  
 *<a name="fig1"></a> Figure 1: Loaded data with the reference outline and aligned and averaged data set shown, along with masked data also displayed.*

@@ -26,9 +26,10 @@ ver 19-02-17
 1.0 - Refactored for PyQt5 & Python 3.x
 1.1 - Cleared issue with subprocess
 1.2 - Corrected bug which mis-labelled output files
+1.3 - Removed output to 'geo' for 2D profiles
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.2"
+__version__ = "1.3"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
@@ -120,7 +121,7 @@ class pre_main_window(object):
 		self.numSeed.setMaximum(750)
 		self.numSeed.setValue(100)
 
-		self.updateOutlineButton = QtWidgets.QPushButton('Generate')
+		self.updateOutlineButton = QtWidgets.QPushButton('Update')
 		self.spacingButton=QtWidgets.QRadioButton("Spacing")
 		self.quantityButton=QtWidgets.QRadioButton("Quantity")
 		self.quantityButton.setChecked(True)
@@ -128,11 +129,9 @@ class pre_main_window(object):
 		self.outlineButtonGroup.addButton(self.spacingButton)
 		self.outlineButtonGroup.addButton(self.quantityButton)
 		self.outlineButtonGroup.setExclusive(True)
-		self.geoButton=QtWidgets.QRadioButton("geo")
-		self.dxfButton=QtWidgets.QRadioButton("dxf")
-		self.geoButton.setChecked(True)
+		self.dxfButton=QtWidgets.QRadioButton("Write .dxf")
+		self.dxfButton.setChecked(False)
 		self.outlineButtonGroup = QtWidgets.QButtonGroup()
-		self.outlineButtonGroup.addButton(self.geoButton)
 		self.outlineButtonGroup.addButton(self.dxfButton)
 		self.outlineButtonGroup.setExclusive(True)
 
@@ -213,38 +212,37 @@ class pre_main_window(object):
 		mainUiBox.addWidget(self.seedLengthInput,3,1,1,1)
 		mainUiBox.addWidget(numSeedLabel,4,0,1,1)
 		mainUiBox.addWidget(self.numSeed,4,1,1,1)
-		mainUiBox.addWidget(self.geoButton,5,0,1,1)
+		mainUiBox.addWidget(self.updateOutlineButton,5,0,1,1)
 		mainUiBox.addWidget(self.dxfButton,5,1,1,1)
-		mainUiBox.addWidget(self.updateOutlineButton,6,0,1,2)
-		mainUiBox.addWidget(horizLine2,7,0,1,2)
-		mainUiBox.addWidget(meshscriptLabel,8,0,1,2)
-		mainUiBox.addWidget(self.gmshButton,9,0,1,1)
-		mainUiBox.addWidget(self.abaButton,9,1,1,1)
-		mainUiBox.addWidget(lengthLabel,10,0,1,1)
-		mainUiBox.addWidget(self.lengthInput,10,1,1,1)
-		mainUiBox.addWidget(numPartLabel,11,0,1,1)
-		mainUiBox.addWidget(self.numPart,11,1,1,1)
-		mainUiBox.addWidget(self.quadButton,12,0,1,1)
-		mainUiBox.addWidget(self.tetButton,12,1,1,1)
-		mainUiBox.addWidget(self.meshscriptButton,13,0,1,2)
-		mainUiBox.addWidget(horizLine3,14,0,1,2)
-		mainUiBox.addWidget(bcLabel,15,0,1,2)
-		mainUiBox.addWidget(self.imposeSpline,16,0,1,2)
-		mainUiBox.addWidget(rBLabel,17,0,1,2)
-		mainUiBox.addWidget(self.rigidBodyButton,18,0,1,1)
-		mainUiBox.addWidget(self.rigidBodyUndoButton,18,1,1,1)
-		mainUiBox.addWidget(materialLabel,19,0,1,2)
-		mainUiBox.addWidget(poissonLabel,20,0,1,1)
-		mainUiBox.addWidget(self.poissonInput,20,1,1,1)
-		mainUiBox.addWidget(modulusLabel,21,0,1,1)
-		mainUiBox.addWidget(self.modulusInput,21,1,1,1)
-		mainUiBox.addWidget(horizLine4,22,0,1,2)
-		mainUiBox.addWidget(FEALabel,23,0,1,2)
-		mainUiBox.addWidget(self.CalculixButton,24,0,1,1)
-		mainUiBox.addWidget(self.AbaqusButton,24,1,1,1)
-		mainUiBox.addWidget(self.goButton,25,0,1,1)
-		mainUiBox.addWidget(self.runFEAButton,25,1,1,1)
-		mainUiBox.addWidget(horizLine5,26,0,1,2)
+		mainUiBox.addWidget(horizLine2,6,0,1,2)
+		mainUiBox.addWidget(meshscriptLabel,7,0,1,2)
+		mainUiBox.addWidget(self.gmshButton,8,0,1,1)
+		mainUiBox.addWidget(self.abaButton,8,1,1,1)
+		mainUiBox.addWidget(lengthLabel,9,0,1,1)
+		mainUiBox.addWidget(self.lengthInput,9,1,1,1)
+		mainUiBox.addWidget(numPartLabel,10,0,1,1)
+		mainUiBox.addWidget(self.numPart,10,1,1,1)
+		mainUiBox.addWidget(self.quadButton,11,0,1,1)
+		mainUiBox.addWidget(self.tetButton,11,1,1,1)
+		mainUiBox.addWidget(self.meshscriptButton,12,0,1,2)
+		mainUiBox.addWidget(horizLine3,13,0,1,2)
+		mainUiBox.addWidget(bcLabel,14,0,1,2)
+		mainUiBox.addWidget(self.imposeSpline,15,0,1,2)
+		mainUiBox.addWidget(rBLabel,16,0,1,2)
+		mainUiBox.addWidget(self.rigidBodyButton,17,0,1,1)
+		mainUiBox.addWidget(self.rigidBodyUndoButton,17,1,1,1)
+		mainUiBox.addWidget(materialLabel,18,0,1,2)
+		mainUiBox.addWidget(poissonLabel,19,0,1,1)
+		mainUiBox.addWidget(self.poissonInput,19,1,1,1)
+		mainUiBox.addWidget(modulusLabel,20,0,1,1)
+		mainUiBox.addWidget(self.modulusInput,20,1,1,1)
+		mainUiBox.addWidget(horizLine4,21,0,1,2)
+		mainUiBox.addWidget(FEALabel,22,0,1,2)
+		mainUiBox.addWidget(self.CalculixButton,23,0,1,1)
+		mainUiBox.addWidget(self.AbaqusButton,23,1,1,1)
+		mainUiBox.addWidget(self.goButton,24,0,1,1)
+		mainUiBox.addWidget(self.runFEAButton,24,1,1,1)
+		mainUiBox.addWidget(horizLine5,25,0,1,2)
 		
 
 		lvLayout=QtWidgets.QVBoxLayout()
@@ -292,7 +290,7 @@ class msh_interactor(QtWidgets.QWidget):
 			print("Did not find config file in the pyCM installation directory.")
 		try:
 			with open(self.filec,'r') as ymlfile:
-				self.cfg = yaml.load(ymlfile)	
+				self.cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)	
 		except:
 			try:
 				self.cfg= GetFEAconfig(['','',''],self.filec)
@@ -338,12 +336,12 @@ class msh_interactor(QtWidgets.QWidget):
 					self.ui.statLabel.setText("Loaded pre-existing preprocessing data.")
 					self.Dist = mat_contents['dist'][0]
 					self.rsOutline=mat_contents['outline']
-					self.ofile=mat_contents['outline_filename'][0]
+					
 					self.draw_rsoutline()
 
 					#check if dxf file
-					if mat_contents['outline_filename'][0][-4:]=='.dxf':
-						
+					if 'outline_filename' in mat_contents: #then look for/create dxf file
+						self.ofile=mat_contents['outline_filename'][0]
 						#check if file exists
 						if not os.path.exists(self.ofile):
 							#run relevant extract_from_mat
@@ -351,10 +349,7 @@ class msh_interactor(QtWidgets.QWidget):
 						
 						self.ui.dxfButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 						self.ui.dxfButton.setChecked(True)
-					else:
-						#gmsh doesn't need an outline file
-						self.ui.geoButton.setStyleSheet("background-color :rgb(77, 209, 97);")
-						self.ui.geoButton.setChecked(True)
+
 				else:
 					gs=squareform(pdist(self.Outline[:,:2],'euclidean')) #does the same thing as MATLAB's pdist2
 					self.Dist=np.mean(np.sort(gs)[:,1]) #get length of first element
@@ -373,7 +368,7 @@ class msh_interactor(QtWidgets.QWidget):
 						self.ui.abaButton.setChecked(True)
 					if not os.path.exists(self.vtkFile):
 							#run relevant extract_from_mat
-							print('Extracting vtk file from %s'%self.fileo)
+							print('Extracting legacy vtk format from %s'%self.fileo)
 							extract_from_mat(mat_contents['vtk_filename'][0],self.fileo,'vtk_inp')
 					self.DisplayMesh()
 					self.ImposeSplineFit()
@@ -404,8 +399,8 @@ class msh_interactor(QtWidgets.QWidget):
 				
 			except Exception as e:
 				#debug
-				# print("pyCM pre couldn't read variables from file.")
-				# print(str(e))
+				print("pyCM pre couldn't read variables from file; the error was:")
+				print(str(e))
 				return
 			
 			color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
@@ -642,7 +637,7 @@ class msh_interactor(QtWidgets.QWidget):
 		
 	def ModOutline(self):
 		"""
-		Assumes that outline is unordered, finds corners and sorts, returns a new outline with either the node count indicated or an even number of nodes according to the length indicated. Calls write_outline.
+		Assumes that outline is unordered, finds corners and sorts, returns a new outline with either the node count indicated or an even number of nodes according to the length indicated. Calls write_outline iff 'Write dxf' radio button is selected.
 		"""
 		
 		#if there is already a respaced outline, then remove it from the display
@@ -744,59 +739,77 @@ class msh_interactor(QtWidgets.QWidget):
 		self.Dist=dist
 
 		#run write_outline if this isn't being called from load.
-		self.write_outline()
+		if self.ui.dxfButton.isChecked():
+			dxffile = self.write_outline()
+			new={'dist':self.Dist,'outline':self.rsOutline,'outline_filename':self.ofile,'outline_file':dxffile}
+		else:
+			new={'dist':self.Dist,'outline':self.rsOutline}
+		
+		#write contents of respaced outline, dist, outline format and contents of outline file to *.mat file
+		mat_contents=sio.loadmat(self.fileo)
+		mat_contents.update(new)
+		sio.savemat(self.fileo,mat_contents)
+
+			
+		self.ui.statLabel.setText("Outline details written to .mat file.")
+		
 		
 		#clear anything from the matfile for subsequent steps and reload
 		clear_mat(self.fileo,['FEA','FEA_filename','mesh_extrude_depth','mesh_partitions','mesh_script','mesh_script_filename','Modulus','pickedCornerInd','Poisson','vtk_inp','vtk_filename'])
 		#clear all actors from interactor and set all buttons 'norm'
-		self.ren.RemoveAllViewProps()
+		
 		self.ui.dxfButton.setStyleSheet("background-color :None;")
-		self.ui.geoButton.setStyleSheet("background-color :None;")
 		self.ui.gmshButton.setStyleSheet("background-color :None;")
 		self.ui.abaButton.setStyleSheet("background-color :None;")
 		self.ui.imposeSpline.setStyleSheet("background-color :None;")
 		self.ui.rigidBodyButton.setStyleSheet("background-color :None;")
 		self.ui.AbaqusButton.setStyleSheet("background-color :None;")
 		self.ui.CalculixButton.setStyleSheet("background-color :None;")
-		self.get_input_data(self.fileo)
+		self.ren.RemoveAllViewProps() #clear display
+		self.get_input_data(self.fileo) #reload contents of mat file
 
 	def write_outline(self):
-
+		'''
+		Writes outline to dxf format, previously wrote outline to dxf and/or gmsh format.
+		Meshing with gmsh doesn't require an outline to be written, abaqus does.
+		'''
 		Outline=self.rsOutline
 
 		
 		N=len(Outline)
-		if self.ui.geoButton.isChecked():
-			if not hasattr(self,"ofile"):
-				try:
-					self.ofile,_=get_open_file("*.geo",self.outputd)
-				except Exception as e:
-					self.ui.statLabel.setText("Didn't write geo file.")
-					print(e)
-					return
-			fid = io.StringIO()
-			pc=0
-			lc=0
-			for i in range(N):
-				pc+=1
-				outputline  = "Point(%i) = {%8.8f,%8.8f,%8.8f};\n" \
-								% (pc,Outline[i,0],Outline[i,1],0)
-				fid.write(outputline)
-			for i in range(N-1):
-				lc+=1
-				outputline = "Line(%i) = {%i,%i};\n"%(lc,lc,lc+1)
-				fid.write(outputline)
-			lc+=1
-			fid.write("Line(%i) = {%i,%i};\n"%(lc,lc,lc-N+1)) #last line to enclose
+		
+		#
+		# if self.ui.geoButton.isChecked():
+			# if not hasattr(self,"ofile"):
+				# try:
+					# self.ofile,_=get_open_file("*.geo",self.outputd)
+				# except Exception as e:
+					# self.ui.statLabel.setText("Didn't write geo file.")
+					# print(e)
+					# return
+			# fid = io.StringIO()
+			# pc=0
+			# lc=0
+			# for i in range(N):
+				# pc+=1
+				# outputline  = "Point(%i) = {%8.8f,%8.8f,%8.8f};\n" \
+								# % (pc,Outline[i,0],Outline[i,1],0)
+				# fid.write(outputline)
+			# for i in range(N-1):
+				# lc+=1
+				# outputline = "Line(%i) = {%i,%i};\n"%(lc,lc,lc+1)
+				# fid.write(outputline)
+			# lc+=1
+			# fid.write("Line(%i) = {%i,%i};\n"%(lc,lc,lc-N+1)) #last line to enclose
 
-			fid.write("Line Loop(%i) = {%i:%i};\n" %(N+1,1,lc))
-			sec=N+1
-			#write plane
-			fid.write("Plane Surface(%i) = {%i};\n" %(N+2,N+1))
-			self.ui.geoButton.setStyleSheet("background-color :rgb(77, 209, 97);")
-			self.ui.dxfButton.setStyleSheet("background-color :None;")
+			# fid.write("Line Loop(%i) = {%i:%i};\n" %(N+1,1,lc))
+			# sec=N+1
+			## write plane
+			# fid.write("Plane Surface(%i) = {%i};\n" %(N+2,N+1))
+			# self.ui.geoButton.setStyleSheet("background-color :rgb(77, 209, 97);")
+			# self.ui.dxfButton.setStyleSheet("background-color :None;")
 
-		elif self.ui.dxfButton.isChecked():
+		if self.ui.dxfButton.isChecked():
 			try:
 				self.ofile,_=get_open_file("*.dxf",self.outputd)
 				fid = io.StringIO()
@@ -817,21 +830,15 @@ class msh_interactor(QtWidgets.QWidget):
 						%(Outline[-1,0],Outline[-1,1],0,Outline[0,0],Outline[0,1],0))
 			fid.write("ENDSEC\n0\nEOF\n")
 			self.ui.dxfButton.setStyleSheet("background-color :rgb(77, 209, 97);")
-			self.ui.geoButton.setStyleSheet("background-color :None;")
 			
-		#write contents of respaced outline, dist, outline format and contents of outline file to *.mat file
-		mat_contents=sio.loadmat(self.fileo)
-		new={'dist':self.Dist,'outline':self.rsOutline,'outline_filename':self.ofile,'outline_file':fid.getvalue()}
-		if os.path.exists(self.ofile):
-			with open(self.ofile, 'w+') as f: f.write(fid.getvalue())
-		fid.close()
-		mat_contents.update(new)
+			if os.path.exists(self.ofile):
+				with open(self.ofile, 'w+') as f: f.write(fid.getvalue())
 			
-		sio.savemat(self.fileo,mat_contents)
-
-		
-		self.ui.statLabel.setText("Outline details written to .mat file.")
+			filecontents=fid.getvalue()
 			
+			fid.close()
+			
+			return filecontents
 			
 	def draw_rsoutline(self):
 		"""
@@ -852,7 +859,7 @@ class msh_interactor(QtWidgets.QWidget):
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
 		self.AddAxis(self.limits,1)
-			
+		QtWidgets.QApplication.processEvents()
 	
 	def RunMeshScript(self):
 	
@@ -1159,7 +1166,6 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.ui.AbaqusButton.setStyleSheet("background-color :None;")
 		self.ui.CalculixButton.setStyleSheet("background-color :None;")
 		self.DisplayMesh()
-		# self.get_input_data(self.fileo)
 		
 		
 	def DisplayMesh(self):
@@ -1529,7 +1535,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		elif key == "e":
 			try:
 				with open(self.filec,'r') as ymlfile:
-					readcfg = yaml.load(ymlfile)
+					readcfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
 				l=[readcfg['FEA']['abaqusExec'],readcfg['FEA']['gmshExec'],readcfg['FEA']['ccxExec']]
 				self.cfg=GetFEAconfig(l,self.filec)
 			except:
@@ -1920,7 +1926,7 @@ def GetFEAconfig(inputlist,filec):
 
 	try:
 		with open(filec,'r') as ymlfile:
-			return yaml.load(ymlfile)
+			return yaml.load(ymlfile, Loader=yaml.FullLoader)
 	except:
 		print("Couldn't read config file for some reason.")
 

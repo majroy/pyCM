@@ -1,7 +1,7 @@
 vtk>=6.0
 numpy
 scipy
-pyyaml
+pyyaml>=5.0
 matplotlib
 PyQt5
 h5py
