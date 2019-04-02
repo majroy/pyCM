@@ -27,14 +27,15 @@ ver 19-02-17
 1.1 - Cleared issue with subprocess
 1.2 - Corrected bug which mis-labelled output files
 1.3 - Removed output to 'geo' for 2D profiles
+1.4 - Modified to open Windows-generated files on Linux (and vice-versa)
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.3"
+__version__ = "1.4"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
 
-import os,io,sys,time,yaml
+import os,io,sys,ntpath,time,yaml
 import subprocess as sp
 from pkg_resources import Requirement, resource_filename
 import numpy as np
@@ -315,7 +316,7 @@ class msh_interactor(QtWidgets.QWidget):
 		if filem:
 			self.fileo=filem
 			mat_contents = sio.loadmat(self.fileo)
-			self.outputd=os.path.split(self.fileo) #needed to write ancillary files.
+			self.outputd = os.path.split(self.fileo) #needed to write ancillary files.
 			try:
 				#read in for ImposeSplineFit function
 				bsplinerep=mat_contents['spline_x']['tck'][0][0]
@@ -344,8 +345,12 @@ class msh_interactor(QtWidgets.QWidget):
 						self.ofile=mat_contents['outline_filename'][0]
 						#check if file exists
 						if not os.path.exists(self.ofile):
-							#run relevant extract_from_mat
-							extract_from_mat(mat_contents['outline_filename'][0],self.fileo,'outline_file')
+							#run relevant extract_from_mat - handle cross-platform/multiple systems
+							cwd = os.getcwd()
+							_, fname = ntpath.split(self.ofile)
+							self.ofile = os.path.join(cwd,fname) #overwrite
+							print('Extracting dxf file from %s to %s'%(self.fileo,self.ofile))
+							extract_from_mat(self.ofile,self.fileo,'outline_file')
 						
 						self.ui.dxfButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 						self.ui.dxfButton.setChecked(True)
@@ -367,9 +372,14 @@ class msh_interactor(QtWidgets.QWidget):
 						self.ui.abaButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 						self.ui.abaButton.setChecked(True)
 					if not os.path.exists(self.vtkFile):
-							#run relevant extract_from_mat
-							print('Extracting legacy vtk format from %s'%self.fileo)
-							extract_from_mat(mat_contents['vtk_filename'][0],self.fileo,'vtk_inp')
+							#run relevant extract_from_mat - handle cross-platform/multiple systems
+							cwd = os.getcwd()
+							_, fname = ntpath.split(self.vtkFile)
+							self.vtkFile = os.path.join(cwd,fname) #overwrite
+							print('Extracting legacy vtk format from %s to %s'%(self.fileo,self.vtkFile))
+							
+							extract_from_mat(self.vtkFile,self.fileo,'vtk_inp')
+							
 					self.DisplayMesh()
 					self.ImposeSplineFit()
 					self.ui.lengthInput.setText(str(mat_contents['mesh_extrude_depth'][0][0]))
@@ -392,8 +402,12 @@ class msh_interactor(QtWidgets.QWidget):
 						self.ui.CalculixButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 						self.ui.CalculixButton.setChecked(True)
 					if not os.path.exists(self.ofile_FEA):
-							#run relevant extract_from_mat
-							extract_from_mat(mat_contents['FEA_filename'][0],self.fileo,'FEA')
+							#run relevant extract_from_mat - handle cross-platform/multiple systems
+							cwd = os.getcwd()
+							_, fname = ntpath.split(self.ofile_FEA)
+							self.ofile_FEA = os.path.join(cwd,fname) #overwrite
+							print('Extracting FEA input deck from %s to %s'%(self.fileo,self.ofile_FEA))
+							extract_from_mat(self.ofile_FEA,self.fileo,'FEA')
 					self.preprocessed=True
 				self.unsaved_changes=False
 				

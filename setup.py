@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 
 setup(name = 'pyCM',
-	version = '1.1.5',
+	version = '1.1.6',
 	description = 'Python contour method toolkit',
 	long_description = 'https://github.com/majroy/pyCM',
 	url = 'https://github.com/majroy/pyCM',

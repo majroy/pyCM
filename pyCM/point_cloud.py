@@ -28,9 +28,10 @@ r - starts picking
 1.4 - Added the ability to 'level' incoming data based on AFRC input
 1.5 - Added SVD analysis/transformations
 1.6 - Added ability to read PC-DMIS csv files
+1.7 - Added directions to SVD decomposition.
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.6"
+__version__ = "1.7"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
@@ -145,8 +146,24 @@ class pt_main_window(object):
 		self.levelButton=QtWidgets.QRadioButton("Translate to mean z value")
 		svdLabel=QtWidgets.QLabel("Perform SVD reorientation")
 		svdLabel.setFont(headFont)
-		self.rxButton=QtWidgets.QRadioButton("Rx")
-		self.ryButton=QtWidgets.QRadioButton("Ry")
+				
+		self.rxButton_pos=QtWidgets.QRadioButton("Rx+")
+		self.ryButton_pos=QtWidgets.QRadioButton("Ry+")
+		self.rxButton_neg=QtWidgets.QRadioButton("Rx-")
+		self.ryButton_neg=QtWidgets.QRadioButton("Ry-")
+		
+		svdButtonGroup = QtWidgets.QButtonGroup()
+		svdButtonGroup.addButton(self.rxButton_pos)
+		svdButtonGroup.addButton(self.ryButton_pos)
+		svdButtonGroup.addButton(self.rxButton_neg)
+		svdButtonGroup.addButton(self.ryButton_neg)
+		svdButtonGroup.setExclusive(False)
+		svdBoxlayout = QtWidgets.QGridLayout()
+		svdBoxlayout.addWidget(self.rxButton_pos,1,1)
+		svdBoxlayout.addWidget(self.rxButton_neg,1,2)
+		svdBoxlayout.addWidget(self.ryButton_pos,1,3)
+		svdBoxlayout.addWidget(self.ryButton_neg,1,4)
+		
 		self.reduce = QtWidgets.QSpinBox()
 		self.reduce.setValue(0)
 		self.reduceButton = QtWidgets.QPushButton('Reduce')
@@ -201,15 +218,15 @@ class pt_main_window(object):
 		mainUiBox.addWidget(scalingLabel,1,0,1,2)
 		mainUiBox.addLayout(scaleBoxlayout,2,0,1,2)
 		mainUiBox.addWidget(self.levelButton,3,0,1,2)
-		mainUiBox.addWidget(svdLabel,4,0,1,2)
-		mainUiBox.addWidget(self.rxButton,5,0,1,1)
-		mainUiBox.addWidget(self.ryButton,5,1,1,1)
-		mainUiBox.addWidget(horizLine1,6,0,1,2)
-		mainUiBox.addWidget(pickLabel,7,0,1,2)
-		mainUiBox.addLayout(reduceBoxlayout,8,0,1,2)
-		mainUiBox.addWidget(self.pickHelpLabel,9,0,1,1)
-		mainUiBox.addWidget(self.pickActiveLabel,9,1,1,1)
-		mainUiBox.addWidget(self.undoLastPickButton,10,0,1,2)
+
+		mainUiBox.addWidget(horizLine1,4,0,1,2)
+		mainUiBox.addWidget(pickLabel,5,0,1,2)
+		mainUiBox.addLayout(reduceBoxlayout,6,0,1,2)
+		mainUiBox.addWidget(self.pickHelpLabel,7,0,1,1)
+		mainUiBox.addWidget(self.pickActiveLabel,7,1,1,1)
+		mainUiBox.addWidget(self.undoLastPickButton,8,0,1,2)
+		mainUiBox.addWidget(svdLabel,9,0,1,2)
+		mainUiBox.addLayout(svdBoxlayout,10,0,1,2)
 		mainUiBox.addWidget(self.revertButton,11,0,1,2)
 		mainUiBox.addWidget(horizLine2,12,0,1,2)
 		mainUiBox.addWidget(outputLabel,13,0,1,2)
@@ -268,11 +285,13 @@ class pnt_interactor(QtWidgets.QWidget):
 		self.ui.revertButton.clicked.connect(lambda: self.undo_revert())
 		self.ui.reduceButton.clicked.connect(lambda: self.reduce_pnts())
 		self.ui.levelButton.clicked.connect(lambda: self.level_pnts())
-		self.ui.rxButton.clicked.connect(lambda: self.svd('x'))
-		self.ui.ryButton.clicked.connect(lambda: self.svd('y'))
+		self.ui.rxButton_pos.clicked.connect(lambda: self.svd('x',False))
+		self.ui.ryButton_pos.clicked.connect(lambda: self.svd('y',False))
+		self.ui.rxButton_neg.clicked.connect(lambda: self.svd('x',True))
+		self.ui.ryButton_neg.clicked.connect(lambda: self.svd('y',True))
 		self.ui.showButton.clicked.connect(lambda: self.load_mat())
 	
-	def svd(self,dir):
+	def svd(self,dir,reverse):
 		'''
 		Moves point cloud and outline to the centroid of the point cloud, finds SVD difference between X & Y axes of masked point cloud, and applies transformation, and then moves it back to the starting point.
 		'''
@@ -332,22 +351,25 @@ class pnt_interactor(QtWidgets.QWidget):
 		
 		#find rotation and pickup which rotation to apply based on masked points
 		print('Before SVD:')
-		Rx,Ry=get_svd_rotation_matrix(RP[self.bool_pnt,:])
+		Rx0,Ry0=get_svd_rotation_matrix(RP[self.bool_pnt,:])
+		
+		if reverse:
+			Rx0,Ry0=np.linalg.inv(Rx0),np.linalg.inv(Ry0)
 		
 		if dir == 'y':
-			RP = Ry*RP.T
-			OP = Ry*OP.T
+			RP = Ry0*RP.T
+			OP = Ry0*OP.T
 		else: 
-			RP = Rx*RP.T
-			OP = Ry*OP.T
+			RP = Rx0*RP.T
+			OP = Ry0*OP.T
 			
 		RP = RP.T		
 		OP = OP.T
 		
 		#check rotation
 		print('After SVD:')
-		Rx,Ry=get_svd_rotation_matrix(RP[self.bool_pnt,:])
-		
+		Rx1,Ry1=get_svd_rotation_matrix(RP[self.bool_pnt,:])
+
 		# #add translation back on
 		RP[:,0]=RP[:,0]+t[0]
 		RP[:,1]=RP[:,1]+t[1]
@@ -357,7 +379,11 @@ class pnt_interactor(QtWidgets.QWidget):
 		OP[:,1]=OP[:,1]+t[1]
 		OP[:,2]=OP[:,2]+t[2]
 
-		
+		#update status UI
+		if np.allclose(RP,np.eye(3)):
+			#returned identity matrix and therefore 'aligned'
+			self.ui.statLabel.setText("SVD completed. See console for results.")
+			
 		#update everything
 		self.rawPnts = np.asarray(RP)
 		self.Outline = np.asarray(OP)
@@ -397,6 +423,7 @@ class pnt_interactor(QtWidgets.QWidget):
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
 	
+		self.unsaved_changes=True
 	
 	def undo_revert(self):
 		'''
@@ -973,7 +1000,7 @@ class pnt_interactor(QtWidgets.QWidget):
 
 def get_svd_rotation_matrix(RP):
 	'''
-	Returns the rotation matrix about the X or Y axis required to take z component of the orthonormal matrix of RP to either 0,0,1 or 0,0,-1 depending on concavity.
+	Returns the rotation matrix about the X or Y axis required to take z component of the orthonormal matrix of RP to either 0,0,1 or 0,0,-1 depending on concavity - if reverse is true negative angles are applied. 
 	'''
 	_,_,vh = np.linalg.svd(RP) #vh is transpose from MATLAB's svd, returns normalised vectors
 	#rows of vh are orthnormal vectors
@@ -991,16 +1018,18 @@ def get_svd_rotation_matrix(RP):
 	try:
 		vh_y_norm = np.array([vh[2,0],0,vh[2,2]]) / np.linalg.norm(np.array([vh[2,0],0,vh[2,2]])) #xz plane projection
 		vh_x_norm = np.array([0,vh[2,1],vh[2,2]]) / np.linalg.norm(np.array([0,vh[2,1],vh[2,2]])) #yz plane projection
+
 		#solve for angle, update console
 		a_y=np.arccos(np.clip(np.dot(vh_y_norm,c), -1.0, 1.0))
 		a_x=np.arccos(np.clip(np.dot(vh_x_norm,c), -1.0, 1.0))
+
 		if np.isnan(a_x) or np.isnan(a_y):
 			raise ValueError('Potential division by zero during SVD decomposition.')
 		elif a_x==0 and a_y==0:
 			raise ValueError('Point cloud normals are aligned near working precision to main axes.')
 		else:
 			print('Difference about X and Y axis in degrees:\n',a_x*57.3,a_y*57.3)
-		
+
 		Ry=np.matrix([[np.cos(-a_y),0,np.sin(-a_y)],[0,1,0],[-np.sin(-a_y),0,np.cos(-a_y)]])
 		Rx=np.matrix([[1,0,0],[0,np.cos(-a_x),-np.sin(-a_x)],[0,np.sin(-a_x),np.cos(-a_x)]])
 		return Rx,Ry
