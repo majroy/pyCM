@@ -131,6 +131,39 @@ class post_main_window(object):
 		self.updateButton = QtWidgets.QPushButton('Update')
 		self.updateButton.setMinimumWidth(50)
 
+		# line extraction from surface
+		extract_data_label = QtWidgets.QLabel("Extract")
+		extract_data_label.setFont(headFont)
+		extract_data_label.setWordWrap(True)
+		extract_data_label.setMinimumWidth(50)
+
+		# enter x and y of first point
+		point1_label = QtWidgets.QLabel("Point 1")
+		point1_label.setFont(headFont)
+		point1_label.setWordWrap(True)
+		point1_label.setMinimumWidth(50)
+		point1_x_label = QtWidgets.QLabel("X:")
+		self.point1_x_coord = QtWidgets.QLineEdit()
+		self.point1_x_coord.setMinimumWidth(50)
+		point1_y_label = QtWidgets.QLabel("Y:")
+		self.point1_y_coord = QtWidgets.QLineEdit()
+		self.point1_y_coord.setMinimumWidth(50)
+
+		# enter x and y of second point
+		point2_label = QtWidgets.QLabel("Point 2")
+		point2_label.setFont(headFont)
+		point2_label.setWordWrap(True)
+		point2_label.setMinimumWidth(50)
+		point2_x_label = QtWidgets.QLabel("X:")
+		self.point2_x_coord = QtWidgets.QLineEdit()
+		self.point2_x_coord.setMinimumWidth(50)
+		point2_y_label = QtWidgets.QLabel("Y:")
+		self.point2_y_coord = QtWidgets.QLineEdit()
+		self.point2_y_coord.setMinimumWidth(50)
+
+		# extract plot button
+		self.extractPlot = QtWidgets.QPushButton('Plot')
+		self.extractPlot.setMinimumWidth(50)
 
 		self.statLabel = QtWidgets.QLabel("Idle")
 		self.statLabel.setWordWrap(True)
@@ -153,6 +186,18 @@ class post_main_window(object):
 		mainUiBox.addWidget(self.inp_max_stress,9,1,1,1)
 		mainUiBox.addWidget(self.updateButton,9,0,1,2)
 		mainUiBox.addWidget(horiz_line2,10,0,1,2)
+		mainUiBox.addWidget(extract_data_label,11,0,1,1)
+		mainUiBox.addWidget(point1_label,12,0,1,1)
+		mainUiBox.addWidget(point1_x_label,13,0,1,1)
+		mainUiBox.addWidget(self.point1_x_coord,13,1,1,1)
+		mainUiBox.addWidget(point1_y_label,14,0,1,1)
+		mainUiBox.addWidget(self.point1_y_coord,14,1,1,1)
+		mainUiBox.addWidget(point2_label,15,0,1,1)
+		mainUiBox.addWidget(point2_x_label,16,0,1,1)
+		mainUiBox.addWidget(self.point2_x_coord,16,1,1,1)
+		mainUiBox.addWidget(point2_y_label,17,0,1,1)
+		mainUiBox.addWidget(self.point2_y_coord,17,1,1,1)
+		mainUiBox.addWidget(self.extractPlot,18,0,1,2)
 
 		lvLayout=QtWidgets.QVBoxLayout()
 		lvLayout.addLayout(mainUiBox)
