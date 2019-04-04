@@ -986,7 +986,7 @@ class pp_interactor(QtWidgets.QWidget):
 		for a line plot, however, it is implemented with vtkCellArray and vtkPolyData
 		to allow for polyline plots.
 		"""
-		field="S33"
+
 		if not self.vtk_file == None:
 				_, file_extension = os.path.splitext(self.vtk_file)
 				if file_extension == '.vtu' and os.path.isfile(self.vtk_file):
