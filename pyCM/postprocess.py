@@ -1014,6 +1014,8 @@ class pp_interactor(QtWidgets.QWidget):
 					points, U = self.probe_interpolation(pointsDict)
 
 					plt.plot(points[:,1], U[:]) #plot the data
+					plt.ylabel(self.active_scalar_field)
+					plt.xlabel("Distance along probe line")
 					plt.show()
 				else:
 					msg=QtWidgets.QMessageBox()
