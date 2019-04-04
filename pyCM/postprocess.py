@@ -256,6 +256,7 @@ class pp_interactor(QtWidgets.QWidget):
 				if not os.path.exists(self.vtk_file):
 					extract_from_mat(mat_contents['vtu_filename'][0],self.fileo,'vtu')
 				self.load_vtk_XML_file(self.vtk_file,'S33')
+				self.active_scalar_field = "S33"
 				
 			except Exception as e:
 				if 'FEA' in mat_contents: #there might be a dat file to read
@@ -534,7 +535,8 @@ class pp_interactor(QtWidgets.QWidget):
 		sio.savemat(self.fileo,mat_contents)
 
 		#show the result
-		self.load_vtk_XML_file(self.vtk_file,"S33")
+		self.active_scalar_field = "S33"
+		self.load_vtk_XML_file(self.vtk_file, active_scalar_field)
 		self.ui.statLabel.setText("Idle.")
 		
 	def update_stress_shown(self,field):
@@ -552,6 +554,9 @@ class pp_interactor(QtWidgets.QWidget):
 					self.mesh_mapper.SetScalarRange(scalar_range)
 					#update scale bar title
 					self.sbActor.SetTitle(field)
+					
+					#store active field
+					self.active_scalar_field = field
 
 					#update ui
 					self.ui.inp_min_stress.setText("%4.1f"%self.mesh_mapper.GetScalarRange()[0])
@@ -1073,7 +1078,7 @@ class pp_interactor(QtWidgets.QWidget):
 		probe.Update()
 
 		# get the data from the VTK-object (probe) to an numpy array
-		q = v2n(probe.GetOutput().GetPointData().GetArray('S33'))
+		q = v2n(probe.GetOutput().GetPointData().GetArray(self.active_scalar_field))
 		numPoints = probe.GetOutput().GetNumberOfPoints() # get the number of points on the line
 		
 		# intialise the points on the line    
