@@ -974,6 +974,37 @@ class pp_interactor(QtWidgets.QWidget):
 
 		return shape_function_matrix
 
+	def probeOverLine(self, line):
+		"""
+		Interpolate the data from the VTK-file on the created line.
+		"""
+		data = self.mesh_reader_output
+		
+		probe = vtk.vtkProbeFilter()
+		#probe.SetInputConnection(line.GetOutputPort())
+		probe.SetInputConnection(line.GetOutputPort())
+		probe.SetSourceData(data)
+
+		probe.Update()
+
+		# get the data from the VTK-object (probe) to an numpy array
+		q = v2n(probe.GetOutput().GetPointData().GetArray('S33'))
+		numPoints = probe.GetOutput().GetNumberOfPoints() # get the number of points on the line
+		
+		# intialise the points on the line    
+		x = np.zeros(numPoints)
+		y = np.zeros(numPoints)
+		z = np.zeros(numPoints)
+		points = np.zeros((numPoints , 3))
+		
+		# get the coordinates of the points on the line
+		for i in range(numPoints):
+			x[i], y[i], z[i] = probe.GetOutput().GetPoint(i)
+			points[i, 0] = x[i]
+			points[i, 1] = y[i]
+			points[i, 2] = z[i]
+		return points, q
+
 	def Keypress(self,obj, event):
 		key = obj.GetKeySym()
 		
