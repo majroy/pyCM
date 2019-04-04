@@ -1005,6 +1005,17 @@ class pp_interactor(QtWidgets.QWidget):
 			points[i, 2] = z[i]
 		return points, q
 
+	def createLine(self, p1, p2, numPoints):
+		"""
+		Create the sample line
+		"""  
+		line = vtk.vtkLineSource()
+		line.SetResolution(numPoints)
+		line.SetPoint1(p1)
+		line.SetPoint2(p2)
+		line.Update()
+		return line
+
 	def Keypress(self,obj, event):
 		key = obj.GetKeySym()
 		
