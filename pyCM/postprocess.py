@@ -1001,8 +1001,8 @@ class pp_interactor(QtWidgets.QWidget):
 					start_point_y = float(self.ui.point1_y_coord.text())
 					end_point_x = float(self.ui.point2_x_coord.text())
 					end_point_y = float(self.ui.point2_y_coord.text())
-					start_point = np.array([start_point_x, start_point_y, 0.])
-					end_point = np.array([end_point_x, end_point_y, 0.])
+					start_point = np.array([start_point_x, start_point_y, 1.])
+					end_point = np.array([end_point_x, end_point_y, 1.])
 					
 					# create points
 					points = vtk.vtkPoints()
