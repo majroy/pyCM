@@ -990,6 +990,12 @@ class pp_interactor(QtWidgets.QWidget):
 		if not self.vtk_file == None:
 				_, file_extension = os.path.splitext(self.vtk_file)
 				if file_extension == '.vtu' and os.path.isfile(self.vtk_file):
+
+					# the line actor will persist so if the extraction has been performed once already
+					# we need to remove it so only the new probe is plotted
+					if hasattr(self, "polyline_actor"):
+						self.ren.RemoveActor(self.polyline_actor)
+
 					# get start and end point coordinates
 					start_point_x = float(self.ui.point1_x_coord.text())
 					start_point_y = float(self.ui.point1_y_coord.text())
