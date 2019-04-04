@@ -1015,6 +1015,13 @@ class pp_interactor(QtWidgets.QWidget):
 		line.SetPoint2(p2)
 		line.Update()
 		return line
+		
+	def setZeroToNaN(self, array):
+		"""
+		Escape zero value data as NaN
+		"""  
+		array[array==0] = np.nan
+		return array
 
 	def Keypress(self,obj, event):
 		key = obj.GetKeySym()
