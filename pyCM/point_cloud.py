@@ -380,7 +380,7 @@ class pnt_interactor(QtWidgets.QWidget):
 		OP[:,2]=OP[:,2]+t[2]
 
 		#update status UI
-		if np.allclose(RP,np.eye(3)):
+		if np.allclose(Rx1,np.eye(3)) and np.allclose(Ry1,np.eye(3)):
 			#returned identity matrix and therefore 'aligned'
 			self.ui.statLabel.setText("SVD completed. See console for results.")
 			
