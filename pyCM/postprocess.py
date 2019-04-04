@@ -239,6 +239,7 @@ class pp_interactor(QtWidgets.QWidget):
 		self.ui.display_button11.clicked.connect(lambda: self.update_stress_shown("S11"))
 		self.ui.display_button22.clicked.connect(lambda: self.update_stress_shown("S22"))
 		self.ui.display_button33.clicked.connect(lambda: self.update_stress_shown("S33"))
+		self.ui.extractPlot.clicked.connect(lambda: self.extract_plot())
 
 	def get_input_data(self,filem):
 		if filem == None:
@@ -973,6 +974,90 @@ class pp_interactor(QtWidgets.QWidget):
 														* nat_coord_quadrature_points[shape_matrix_index, 3]
 
 		return shape_function_matrix
+	
+	def extract_plot(self):
+		"""
+		Extracts the displayed stress along a line. Currently it supports two points
+		for a line plot, however, it is implemented with vtkCellArray and vtkPolyData
+		to allow for polyline plots.
+		"""
+		field="S33"
+		if not self.vtk_file == None:
+				_, file_extension = os.path.splitext(self.vtk_file)
+				if file_extension == '.vtu' and os.path.isfile(self.vtk_file):
+					# get start and end point coordinates
+					start_point_x = float(self.ui.point1_x_coord.text())
+					start_point_y = float(self.ui.point1_y_coord.text())
+					end_point_x = float(self.ui.point2_x_coord.text())
+					end_point_y = float(self.ui.point2_y_coord.text())
+					start_point = np.array([start_point_x, start_point_y, 0.])
+					end_point = np.array([end_point_x, end_point_y, 0.])
+					
+					# create points
+					points = vtk.vtkPoints()
+					points.SetNumberOfPoints(2)
+					points.SetPoint(0, start_point_x, start_point_y, 0.)
+					points.SetPoint(1, end_point_x, end_point_y, 0.)
+
+					# create line as cell array to allow multiple points to be plotted
+					# when this function is extended for batch processing
+					# vtkCellArray is a cell array structure which represents cell connectivity
+					# of the form (n, id1, id2, ... , idn)
+					lines = vtk.vtkCellArray()
+					lines.InsertNextCell(2)
+					lines.InsertCellPoint(0)
+					lines.InsertCellPoint(1)
+
+					# polyline representing geometric structure of vertices and lines
+					polyline = vtk.vtkPolyData()
+					polyline.SetPoints(points)
+					polyline.SetLines(lines)
+					black_col = [0, 0, 0]
+					black_col_obgj = vtk.vtkUnsignedCharArray()
+					black_col_obgj.SetNumberOfComponents(3)
+					black_col_obgj.InsertNextTypedTuple(black_col)
+					polyline.GetCellData().SetScalars(black_col_obgj)
+
+					# create the polyline mapper
+					polyline_mapper = vtk.vtkPolyDataMapper()
+					polyline_mapper.SetInputData(polyline)
+					polyline_mapper.Update()
+
+					# create the polyline actor
+					self.polyline_actor = vtk.vtkActor()
+					self.polyline_actor.SetMapper(polyline_mapper)
+					self.polyline_actor.GetProperty().SetLineWidth(3)
+
+					# display actor
+					self.ren.AddActor(self.polyline_actor)
+
+					#force update of vtk interactor
+					self.ui.vtkWidget.update()
+					self.ui.vtkWidget.setFocus()
+					
+					p1 = [start_point_x, start_point_y, 1.]
+					p2 = [end_point_x, end_point_y, 1.]
+					numPoints = 1000
+
+					line = self.createLine(p1, p2, numPoints) # Create the line
+					points,U =  self.probeOverLine(line) # interpolate the data over the line
+					U = self.setZeroToNaN(U) # Set the zero's to NaN's
+					plt.plot(points[:,1], U[:]) #plot the data
+					plt.show()
+				else:
+					msg=QtWidgets.QMessageBox()
+					msg.setIcon(QtWidgets.QMessageBox.Information)
+					msg.setText("No *.vtu file found or has moved. 'Extract' to generate.")
+					msg.setWindowTitle("pyCM Error")
+					msg.exec_()
+					return
+		else:
+			msg=QtWidgets.QMessageBox()
+			msg.setIcon(QtWidgets.QMessageBox.Information)
+			msg.setText("No *.vtu file found. 'Extract' necessary data first.")
+			msg.setWindowTitle("pyCM Error")
+			msg.exec_()
+			return
 
 	def probeOverLine(self, line):
 		"""
@@ -1015,7 +1100,7 @@ class pp_interactor(QtWidgets.QWidget):
 		line.SetPoint2(p2)
 		line.Update()
 		return line
-		
+
 	def setZeroToNaN(self, array):
 		"""
 		Escape zero value data as NaN
