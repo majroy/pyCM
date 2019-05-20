@@ -28,10 +28,9 @@ r - starts picking
 1.4 - Added the ability to 'level' incoming data based on AFRC input
 1.5 - Added SVD analysis/transformations
 1.6 - Added ability to read PC-DMIS csv files
-1.7 - Added directions to SVD decomposition.
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.7"
+__version__ = "1.6"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
@@ -218,15 +217,14 @@ class pt_main_window(object):
 		mainUiBox.addWidget(scalingLabel,1,0,1,2)
 		mainUiBox.addLayout(scaleBoxlayout,2,0,1,2)
 		mainUiBox.addWidget(self.levelButton,3,0,1,2)
-
-		mainUiBox.addWidget(horizLine1,4,0,1,2)
-		mainUiBox.addWidget(pickLabel,5,0,1,2)
-		mainUiBox.addLayout(reduceBoxlayout,6,0,1,2)
-		mainUiBox.addWidget(self.pickHelpLabel,7,0,1,1)
-		mainUiBox.addWidget(self.pickActiveLabel,7,1,1,1)
-		mainUiBox.addWidget(self.undoLastPickButton,8,0,1,2)
-		mainUiBox.addWidget(svdLabel,9,0,1,2)
-		mainUiBox.addLayout(svdBoxlayout,10,0,1,2)
+		mainUiBox.addWidget(svdLabel,4,0,1,2)
+		mainUiBox.addLayout(svdBoxlayout,5,0,1,2)
+		mainUiBox.addWidget(horizLine1,6,0,1,2)
+		mainUiBox.addWidget(pickLabel,7,0,1,2)
+		mainUiBox.addLayout(reduceBoxlayout,8,0,1,2)
+		mainUiBox.addWidget(self.pickHelpLabel,9,0,1,1)
+		mainUiBox.addWidget(self.pickActiveLabel,9,1,1,1)
+		mainUiBox.addWidget(self.undoLastPickButton,10,0,1,2)
 		mainUiBox.addWidget(self.revertButton,11,0,1,2)
 		mainUiBox.addWidget(horizLine2,12,0,1,2)
 		mainUiBox.addWidget(outputLabel,13,0,1,2)
@@ -383,7 +381,7 @@ class pnt_interactor(QtWidgets.QWidget):
 		if np.allclose(Rx1,np.eye(3)) and np.allclose(Ry1,np.eye(3)):
 			#returned identity matrix and therefore 'aligned'
 			self.ui.statLabel.setText("SVD completed. See console for results.")
-			
+		
 		#update everything
 		self.rawPnts = np.asarray(RP)
 		self.Outline = np.asarray(OP)
@@ -423,7 +421,6 @@ class pnt_interactor(QtWidgets.QWidget):
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()
 	
-		self.unsaved_changes=True
 	
 	def undo_revert(self):
 		'''
@@ -557,6 +554,9 @@ class pnt_interactor(QtWidgets.QWidget):
 		if hasattr(self,'outlineActor'):
 			self.ren.RemoveActor(self.outlineActor)
 		
+		if not hasattr(self,'fileo'):
+			self.fileo, _, =get_file('*.mat')
+		
 		if hasattr(self,'fileo'): #check variables
 			if self.fileo == None:
 				return
@@ -658,7 +658,7 @@ class pnt_interactor(QtWidgets.QWidget):
 			mat_vars=sio.whosmat(self.fileo)
 			if str_d in [item for sublist in mat_vars for item in sublist]: #tell the user that they might overwrite their data
 				ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
-				"There is already data for this step - doing this will invalidate all further existing analysis steps. Continue?"%(str_d), \
+				"There is already data for this step - doing this will invalidate all further existing analysis steps. Continue?", \
 				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
 				if ret == QtWidgets.QMessageBox.No: #don't overwrite
 					return
@@ -924,7 +924,7 @@ class pnt_interactor(QtWidgets.QWidget):
 			if hasattr(self,'fActor'):
 				self.fActor.SetScale(s)
 				self.fActor.Modified()
-			# nl=np.append(self.limits[0:4],[self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect])
+
 			self.add_axis(nl,axs)
 
 
@@ -972,6 +972,9 @@ class pnt_interactor(QtWidgets.QWidget):
 				self.picking =True
 				self.show_picking()
 				self.start_pick()
+		
+		elif key=="l":
+			self.load_mat()
 		
 		self.ui.vtkWidget.update()
 		self.ui.vtkWidget.setFocus()

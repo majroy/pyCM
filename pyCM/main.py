@@ -10,10 +10,10 @@ See documentation for the following main methods in this package:
 ver 1.0 17-01-04 - contains all elements except for a post-processor
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.1"
+__version__ = "1.2"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-__copyright__ = "(c) M. J. Roy, 2014-2018"
+__copyright__ = "(c) M. J. Roy, 2014-2019"
 
 import sys, os.path, shutil
 import subprocess as sp
@@ -218,8 +218,9 @@ class Ui_MainWindow(object):
 
 			except:
 				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
-				"Loading alignment and averaging step failed.", \
+				"Either no point cloud data, or loading alignment and averaging data failed.", \
 				QtWidgets.QMessageBox.Ok)
+				self.tabWidget.setCurrentIndex(0)
 		elif not (self.pcui.refWritten and self.pcui.floatWritten) and self.tabWidget.currentIndex()>0:
 			ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
 				"Insufficient point cloud data available for this step.", \
@@ -281,7 +282,7 @@ class Ui_MainWindow(object):
 		#check the status of alignment/averaging against the surface input file
 		if self.aaui.averaged and self.tabWidget.currentIndex()==2:
 			try:
-				if not self.sfui.unsaved_changes:
+				if self.sfui.unsaved_changes:
 					self.sfui.get_input_data(self.activeFile)
 					# print('reloaded fitted surface') #debug
 
@@ -298,7 +299,7 @@ class Ui_MainWindow(object):
 		#check the status of surface fitting 
 		if self.sfui.fitted and self.tabWidget.currentIndex()==3:
 			try:
-				if not self.preui.unsaved_changes:
+				if self.preui.unsaved_changes:
 					self.preui.get_input_data(self.activeFile)
 			except:
 				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
@@ -313,7 +314,7 @@ class Ui_MainWindow(object):
 		#check the status of the FEA
 		if self.preui.preprocessed and self.tabWidget.currentIndex()==4:
 			try:
-				if not self.preui.unsaved_changes:
+				if self.preui.unsaved_changes:
 					self.postui.get_input_data(self.activeFile)
 			except:
 				ret=QtWidgets.QMessageBox.warning(MainWindow, "pyCM Warning", \
@@ -377,6 +378,7 @@ class Ui_MainWindow(object):
 		# sp.call(sys.executable + ' "' + os.path.realpath(__file__) + '"')
 
 if __name__ == "__main__":
+
 	app = QtWidgets.QApplication(sys.argv)
 
 	
@@ -396,5 +398,17 @@ if __name__ == "__main__":
 	MainWindow.show()
 	splash.finish(MainWindow)
 	
-	sys.exit(app.exec_())
+	ow = vtk.vtkFileOutputWindow();
+	ow.SetFileName("vtk_errors.txt");
+	ow.SetInstance(ow);
+	#send to console instead
+	# ow = vtk.vtkOutputWindow();
+	# ow.SendToStdErrOn()
+	
+	ret = app.exec_()
+	
+	if sys.stdin.isatty() and not hasattr(sys,'ps1'):
+		del MainWindow
+		sys.exit(ret)
+
 

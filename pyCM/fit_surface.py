@@ -656,7 +656,7 @@ class surf_int(QtWidgets.QWidget):
 			writer.SetInputConnection(im.GetOutputPort())
 			writer.SetFileName("spline_fit.png")
 			writer.Write()
-			print("Screen output saved to %s" %os.path.join(currentdir,'spline_fit.png'))
+			print("Screen output saved to %s" %os.path.join(os.getcwd(),'spline_fit.png'))
 		
 		elif key=="a":
 			FlipVisible(self.ax3D)

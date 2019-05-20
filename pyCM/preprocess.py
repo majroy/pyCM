@@ -27,7 +27,7 @@ ver 19-02-17
 1.1 - Cleared issue with subprocess
 1.2 - Corrected bug which mis-labelled output files
 1.3 - Removed output to 'geo' for 2D profiles
-1.4 - Modified to open Windows-generated files on Linux (and vice-versa)
+1.4 - Updated workflow significantly; bugfix
 '''
 __author__ = "M.J. Roy"
 __version__ = "1.4"
@@ -35,7 +35,7 @@ __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
 
-import os,io,sys,ntpath,time,yaml
+import os,io,sys,time,yaml
 import subprocess as sp
 from pkg_resources import Requirement, resource_filename
 import numpy as np
@@ -115,7 +115,9 @@ class pre_main_window(object):
 		headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
 		outlineLabel.setFont(headFont)
 		seedLengthLabel=QtWidgets.QLabel("Spacing")
-		self.seedLengthInput = QtWidgets.QLineEdit()
+		self.seedLengthInput = QtWidgets.QDoubleSpinBox()
+		self.seedLengthInput.setMinimum(0.01)
+		self.seedLengthInput.setMaximum(1000)
 		numSeedLabel=QtWidgets.QLabel("Quantity")
 		self.numSeed = QtWidgets.QSpinBox()
 		self.numSeed.setMinimum(4)
@@ -142,7 +144,7 @@ class pre_main_window(object):
 		meshscriptLabel=QtWidgets.QLabel("Generate mesh")
 		meshscriptLabel.setFont(headFont)
 		lengthLabel=QtWidgets.QLabel("Length")
-		self.lengthInput = QtWidgets.QLineEdit()
+		self.lengthInput = QtWidgets.QDoubleSpinBox()
 		numPartLabel=QtWidgets.QLabel("Partitions")
 		self.numPart = QtWidgets.QSpinBox()
 		self.numPart.setValue(10)
@@ -177,10 +179,15 @@ class pre_main_window(object):
 		materialLabel=QtWidgets.QLabel("Material properties")
 		poissonLabel=QtWidgets.QLabel("Poisson's ratio, v")
 		modulusLabel=QtWidgets.QLabel("Modulus, E (MPa)")
-		self.poissonInput = QtWidgets.QLineEdit()
-		self.poissonInput.setText("%.3f"%(0.3))
-		self.modulusInput = QtWidgets.QLineEdit()
-		self.modulusInput.setText("%7.0f"%(200000))
+		self.poissonInput = QtWidgets.QDoubleSpinBox()
+		self.poissonInput.setValue(0.3)
+		self.poissonInput.setMaximum(0.5)
+		self.poissonInput.setMinimum(0.15)
+		self.modulusInput = QtWidgets.QDoubleSpinBox()
+		self.modulusInput.setValue(200000)
+		self.modulusInput.setMaximum(1000000)
+		self.modulusInput.setMinimum(0.01)
+		self.modulusInput.setDecimals(0)
 
 		horizLine4=QtWidgets.QFrame()
 		horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)
@@ -316,7 +323,7 @@ class msh_interactor(QtWidgets.QWidget):
 		if filem:
 			self.fileo=filem
 			mat_contents = sio.loadmat(self.fileo)
-			self.outputd = os.path.split(self.fileo) #needed to write ancillary files.
+			self.outputd=os.path.split(self.fileo) #needed to write ancillary files.
 			try:
 				#read in for ImposeSplineFit function
 				bsplinerep=mat_contents['spline_x']['tck'][0][0]
@@ -330,7 +337,7 @@ class msh_interactor(QtWidgets.QWidget):
 				RefMax=np.amax(self.Outline,axis=0)
 				self.limits=[RefMin[0],RefMax[0],RefMin[1],RefMax[1],1,1]
 				minLength=np.minimum(self.limits[1]-self.limits[0],self.limits[3]-self.limits[2])
-				self.ui.lengthInput.setText(str(round(3*minLength)))
+				self.ui.lengthInput.setValue(round(3*minLength))
 				#check if outline exists, load relevant data & turn corresponding button green
 				self.ui.statLabel.setText("Ready for outline processing and mesh generation.")
 				if 'outline' in mat_contents:
@@ -345,12 +352,20 @@ class msh_interactor(QtWidgets.QWidget):
 						self.ofile=mat_contents['outline_filename'][0]
 						#check if file exists
 						if not os.path.exists(self.ofile):
-							#run relevant extract_from_mat - handle cross-platform/multiple systems
-							cwd = os.getcwd()
-							_, fname = ntpath.split(self.ofile)
-							self.ofile = os.path.join(cwd,fname) #overwrite
-							print('Extracting dxf file from %s to %s'%(self.fileo,self.ofile))
-							extract_from_mat(self.ofile,self.fileo,'outline_file')
+							print("Couldn't find .dxf file associated with analysis.")
+							#run relevant extract_from_mat
+							try:
+								extract_from_mat(mat_contents['outline_filename'][0],self.fileo,'outline_file')
+								self.ofile = mat_contents['outline_filename'][0]
+								print('Wrote to %s'%self.ofile)
+							except:
+								self.ofile = os.path.abspath(os.path.join(os.path.dirname(self.fileo),os.path.basename(mat_contents['outline_filename'][0])))
+								extract_from_mat(self.ofile,self.fileo,'vtk_inp')
+								mat_contents=sio.loadmat(self.fileo)
+								new={'outline_filename':self.ofile}
+								mat_contents.update(new)
+								sio.savemat(self.fileo,mat_contents)
+								print('Wrote to %s\nUpdated record.'%self.ofile)							
 						
 						self.ui.dxfButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 						self.ui.dxfButton.setChecked(True)
@@ -358,11 +373,42 @@ class msh_interactor(QtWidgets.QWidget):
 				else:
 					gs=squareform(pdist(self.Outline[:,:2],'euclidean')) #does the same thing as MATLAB's pdist2
 					self.Dist=np.mean(np.sort(gs)[:,1]) #get length of first element
-					self.ui.seedLengthInput.setText("%4.4f"%self.Dist)
+					self.ui.seedLengthInput.setValue(self.Dist)
 					self.ui.numSeed.setValue(len(self.Outline))
+					print('Found outline.')
 					
 				if 'vtk_inp' in mat_contents: #load in the mesh if it exists
 					self.vtkFile=mat_contents['vtk_filename'][0]
+					if not os.path.exists(self.vtkFile):
+							# run relevant extract_from_mat
+							print("Couldn't find %s" %self.vtkFile)
+							print('Extracting legacy vtk format from %s'%self.fileo)
+							try: 
+								extract_from_mat(mat_contents['vtk_filename'][0],self.fileo,'vtk_inp')
+								print('Wrote to %s'%mat_contents['vtk_filename'][0])
+							except:
+								self.vtkFile = os.path.abspath(os.path.join(os.path.dirname(self.fileo),os.path.basename(mat_contents['vtk_filename'][0])))
+								extract_from_mat(self.vtkFile,self.fileo,'vtk_inp')
+								mat_contents=sio.loadmat(self.fileo)
+								new={'vtk_filename':self.vtkFile}
+								mat_contents.update(new)
+								sio.savemat(self.fileo,mat_contents)
+								print('Wrote to %s\nUpdated record.'%self.vtkFile)
+					
+					if not os.path.exists(mat_contents['mesh_script_filename'][0]):
+						print("Couldn't find %s" %mat_contents['mesh_script_filename'][0])
+						try:
+							extract_from_mat(mat_contents['mesh_script_filename'][0],self.fileo,'mesh_script')
+							print('Wrote to %s'%mat_contents['mesh_script_filename'][0])
+						except:
+							newpath = os.path.abspath(os.path.join(os.path.dirname(self.fileo),os.path.basename(mat_contents['mesh_script_filename'][0])))
+							extract_from_mat(newpath,self.fileo,'mesh_script')
+							mat_contents=sio.loadmat(self.fileo)
+							new={'mesh_script_filename':newpath}
+							mat_contents.update(new)
+							sio.savemat(self.fileo,mat_contents)
+							print('Wrote to %s\nUpdated record.'%newpath)
+					
 					if mat_contents['mesh_script_filename'][0][-4:]=='.geo':
 						self.geofile=mat_contents['mesh_script_filename'][0]
 						self.ui.gmshButton.setStyleSheet("background-color :rgb(77, 209, 97);")
@@ -371,30 +417,21 @@ class msh_interactor(QtWidgets.QWidget):
 						self.abapyfile=mat_contents['mesh_script_filename'][0]
 						self.ui.abaButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 						self.ui.abaButton.setChecked(True)
-					if not os.path.exists(self.vtkFile):
-							#run relevant extract_from_mat - handle cross-platform/multiple systems
-							cwd = os.getcwd()
-							_, fname = ntpath.split(self.vtkFile)
-							self.vtkFile = os.path.join(cwd,fname) #overwrite
-							print('Extracting legacy vtk format from %s to %s'%(self.fileo,self.vtkFile))
-							
-							extract_from_mat(self.vtkFile,self.fileo,'vtk_inp')
-							
 					self.DisplayMesh()
 					self.ImposeSplineFit()
-					self.ui.lengthInput.setText(str(mat_contents['mesh_extrude_depth'][0][0]))
+					self.ui.lengthInput.setValue(mat_contents['mesh_extrude_depth'][0][0])
 					self.ui.numPart.setValue(mat_contents['mesh_partitions'])
-
-				if 'pickedCornerInd' in mat_contents: #get the appropriate rigid body bc's
+					
+				if 'pickedCornerInd' in mat_contents: #get the appropriate rigid body bc's, imposesplinefit may not have been run
 					self.pickedCornerInd = mat_contents['pickedCornerInd'][0]
 					self.corners = mat_contents['corners']
 					self.draw_rigid_body_from_load()
-
+					# print('Rendering boundary conditions.')
 				
 				if 'FEA' in mat_contents: #then an FEA script has been generated, but may not have been run
 					self.ofile_FEA=mat_contents['FEA_filename'][0]
-					self.ui.modulusInput.setText("%7.0f"%(mat_contents['Modulus']))
-					self.ui.poissonInput.setText("%.3f"%(mat_contents['Poisson']))
+					self.ui.modulusInput.setValue(mat_contents['Modulus'])
+					self.ui.poissonInput.setValue(mat_contents['Poisson'])
 					if self.ofile_FEA[-7:]=='abq.inp':
 						self.ui.AbaqusButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 						self.ui.AbaqusButton.setChecked(True)
@@ -402,19 +439,22 @@ class msh_interactor(QtWidgets.QWidget):
 						self.ui.CalculixButton.setStyleSheet("background-color :rgb(77, 209, 97);")
 						self.ui.CalculixButton.setChecked(True)
 					if not os.path.exists(self.ofile_FEA):
-							#run relevant extract_from_mat - handle cross-platform/multiple systems
-							cwd = os.getcwd()
-							_, fname = ntpath.split(self.ofile_FEA)
-							self.ofile_FEA = os.path.join(cwd,fname) #overwrite
-							print('Extracting FEA input deck from %s to %s'%(self.fileo,self.ofile_FEA))
+							#run relevant extract_from_mat
+							print("Couldn't find %s" %self.ofile_FEA)
+							self.ofile_FEA = os.path.abspath(os.path.join(os.path.dirname(self.fileo),os.path.basename(mat_contents['FEA_filename'][0])))	
 							extract_from_mat(self.ofile_FEA,self.fileo,'FEA')
+							new={'FEA_filename':self.ofile_FEA}
+							mat_contents.update(new)
+							sio.savemat(self.fileo,mat_contents)
+							print('Wrote to %s\nUpdated record.'%self.ofile_FEA)
 					self.preprocessed=True
 				self.unsaved_changes=False
+
 				
 			except Exception as e:
 				#debug
 				print("pyCM pre couldn't read variables from file; the error was:")
-				print(str(e))
+				print(e)
 				return
 			
 			color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
@@ -769,7 +809,7 @@ class msh_interactor(QtWidgets.QWidget):
 		
 		
 		#clear anything from the matfile for subsequent steps and reload
-		clear_mat(self.fileo,['FEA','FEA_filename','mesh_extrude_depth','mesh_partitions','mesh_script','mesh_script_filename','Modulus','pickedCornerInd','Poisson','vtk_inp','vtk_filename'])
+		clear_mat(self.fileo,['FEA','FEA_filename','mesh_extrude_depth','mesh_partitions','mesh_script','mesh_script_filename','Modulus','pickedCornerInd','corners','Poisson','vtk_inp','vtk_out','vtk_filename','vtu_filename','vtu'])
 		#clear all actors from interactor and set all buttons 'norm'
 		
 		self.ui.dxfButton.setStyleSheet("background-color :None;")
@@ -779,6 +819,7 @@ class msh_interactor(QtWidgets.QWidget):
 		self.ui.rigidBodyButton.setStyleSheet("background-color :None;")
 		self.ui.AbaqusButton.setStyleSheet("background-color :None;")
 		self.ui.CalculixButton.setStyleSheet("background-color :None;")
+		self.UndoRigidBody()
 		self.ren.RemoveAllViewProps() #clear display
 		self.get_input_data(self.fileo) #reload contents of mat file
 
@@ -865,7 +906,7 @@ class msh_interactor(QtWidgets.QWidget):
 		#display and get respaced outline actor
 		self.respacedOutlineActor, _ =gen_outline(self.rsOutline,(1,0,0),self.PointSize+3)
 		#update GUI to report back the number of points
-		self.ui.seedLengthInput.setText("%4.4f"%self.Dist)
+		self.ui.seedLengthInput.setValue(self.Dist)
 		self.ui.numSeed.setValue(len(self.rsOutline))
 		
 		self.ren.AddActor(self.respacedOutlineActor)
@@ -1190,8 +1231,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 			del self.mesh
 			if hasattr(self,"BCactor"):
 				self.ren.RemoveActor(self.BCactor)
-				if hasattr(self,"corners"):
-					del self.corners
+				del self.corners
 			if hasattr(self,"pickedCornerInd"):
 				self.UndoRigidBody()
 				
@@ -1204,6 +1244,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		self.meshSource=vtk.vtkUnstructuredGridReader()
 		self.meshSource.SetFileName(self.vtkFile)
 		self.meshSource.Update()
+		
 		self.ui.statLabel.setText("Filtering out non volumetric elements . . .")
 		QtWidgets.QApplication.processEvents()
 		#mesh as-read
@@ -1434,7 +1475,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		
 		#create np matrix to store surface points (and find corners) -> *FIX*
 		self.BCpnts=v2n(BCpnts.GetData()) #BCsearch will be fast
-
+		
 		allNodes=v2n(self.mesh.GetPoints().GetData())
 
 		c_target=np.array([
@@ -1445,7 +1486,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		])
 		
 		self.OutlineIsCCW=False #always will be false based on the order of c_target above
-		
+
 		ind=np.array([])
 		for i in c_target:
 			d=np.array([])
@@ -1579,6 +1620,19 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		"""
 		Packages up/writes either Abaqus or Calculix FEA input deck - subtle difference between the two in terms of how integration points are reported, however both share the same extension. Will call RunFEA if it's been specified
 		"""
+		
+		#Delete any post processing results from results file
+		mat_vars=sio.whosmat(self.fileo)
+		if not set(['FEA', 'FEA_filename', 'vtu_filename', 'vtu']).isdisjoint([item for sublist in mat_vars for item in sublist]): #tell the user that they might overwrite their data
+			ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
+				"There is already data associated with this analysis step saved. Overwrite and invalidate subsequent steps?", \
+				QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+			if ret == QtWidgets.QMessageBox.No: #don't overwrite
+				return
+			else:
+				#delete fitting parameters with pyCMcommon helper function, which negates FEA pre-processing as well.
+				clear_mat(self.fileo,['FEA', 'FEA_filename', 'vtu_filename', 'vtu']) 
+				
 		#so either there isn't a 'pick' attribute or the number of picks is insufficient
 		if not hasattr(self,"picks"):
 			msg=QtWidgets.QMessageBox()
@@ -1721,6 +1775,8 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 		
 		self.ui.vtkWidget.update()
 		self.ui.statLabel.setText("Updated .mat file with FEA details.")
+		
+		
 		
 		if self.ui.runFEAButton.isChecked() and os.path.exists(self.ofile_FEA):
 			self.RunFEA()

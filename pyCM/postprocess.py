@@ -9,9 +9,10 @@ RMB   - zoom
 -------------------------------------------------------------------------------
 ver 0.3 21 April 2018
 0.3 - Corrected issue with printing of numpy arrays
+0.4 - Added capability to perform a line trace, plot with matplotlib and export as csv
 """
 __author__ = "N. Stoyanov, M. J. Roy"
-__version__ = "0.3"
+__version__ = "0.4"
 __email__ = "nikola.stoyanov@postgrad.manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, N. Stoyanov 2014-2018"
@@ -47,6 +48,9 @@ def post_process_tool(*args, **kwargs):
 	app.processEvents()
 
 	window = pp_interactor(None)
+	if len(args)==1: pp_interactor.get_input_data(window,args[0])
+	else: pp_interactor.get_input_data(window,None)
+
 	window.show()
 	splash.finish(window)
 	window.iren.Initialize()
@@ -80,7 +84,8 @@ class post_main_window(object):
 		self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
 		
 		mainUiBox = QtWidgets.QGridLayout()
-		
+		extractBox = QtWidgets.QGridLayout()
+	
 		self.vtkWidget.setMinimumSize(QtCore.QSize(1050, 600))
 		sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
 		sizePolicy.setHorizontalStretch(10)
@@ -100,7 +105,7 @@ class post_main_window(object):
 
 		display_label = QtWidgets.QLabel("Display")
 		display_label.setFont(headFont)
-		self.extract_button = QtWidgets.QPushButton('Extract')
+
 		self.display_button33 = QtWidgets.QPushButton('S33 - Longitudinal')
 		self.display_button11 = QtWidgets.QPushButton('S11')
 		self.display_button22 = QtWidgets.QPushButton('S22')
@@ -108,12 +113,10 @@ class post_main_window(object):
 		stress_label = QtWidgets.QLabel("Contours")
 		stress_label.setFont(headFont)
 		stress_label.setWordWrap(True)
-		stress_label.setMinimumWidth(50)
 
 		# enter minimum stress to update the display
 		inp_min_stress_label = QtWidgets.QLabel("Min:")
 		self.inp_min_stress = QtWidgets.QLineEdit()
-		self.inp_min_stress.setMinimumWidth(50)
 		
 		num_contours_label = QtWidgets.QLabel("Number:")
 		self.numContour = QtWidgets.QSpinBox()
@@ -124,20 +127,42 @@ class post_main_window(object):
 		# enter maximum stress to update the display
 		inp_max_stress_label = QtWidgets.QLabel("Max:")
 		self.inp_max_stress = QtWidgets.QLineEdit()
-		self.inp_max_stress.setMinimumWidth(50)
 		
 
 		# stress update button
 		self.updateButton = QtWidgets.QPushButton('Update')
-		self.updateButton.setMinimumWidth(50)
 
+
+		# line extraction from surface
+		extract_data_label = QtWidgets.QLabel("Extract")
+		extract_data_label.setFont(headFont)
+
+		# enter x and y of first point
+		point1_x_label = QtWidgets.QLabel("x0:")
+		self.point1_x_coord = QtWidgets.QLineEdit()
+		point1_y_label = QtWidgets.QLabel("y0:")
+		self.point1_y_coord = QtWidgets.QLineEdit()
+
+		# enter x and y of second point
+		point2_x_label = QtWidgets.QLabel("x1:")
+		self.point2_x_coord = QtWidgets.QLineEdit()
+		point2_y_label = QtWidgets.QLabel("y1:")
+		self.point2_y_coord = QtWidgets.QLineEdit()
+
+		interval_label=QtWidgets.QLabel("Interval:")
+		self.extract_interval=QtWidgets.QSpinBox()
+		self.extract_interval.setValue(50)
+		self.extract_interval.setMinimum(3)
+		self.extract_interval.setMaximum(1000)
+		
+		# extract plot button
+		self.extractPlot = QtWidgets.QPushButton('Plot')
 
 		self.statLabel = QtWidgets.QLabel("Idle")
 		self.statLabel.setWordWrap(True)
 		self.statLabel.setFont(QtGui.QFont("Helvetica", italic=True))
-		self.statLabel.setMinimumWidth(50)
 
-		mainUiBox.addWidget(self.extract_button,0,0,1,2)
+		mainUiBox.addWidget(horiz_line1,0,0,1,2)
 		mainUiBox.addWidget(display_label,1,0,1,2)
 		mainUiBox.addWidget(self.display_button33,2,0,1,2)
 		mainUiBox.addWidget(self.display_button11,3,0,1,1)
@@ -153,6 +178,21 @@ class post_main_window(object):
 		mainUiBox.addWidget(self.inp_max_stress,9,1,1,1)
 		mainUiBox.addWidget(self.updateButton,9,0,1,2)
 		mainUiBox.addWidget(horiz_line2,10,0,1,2)
+		mainUiBox.addLayout(extractBox,11,0,1,2)
+		
+		extractBox.addWidget(extract_data_label,0,0,1,4)
+		extractBox.addWidget(point1_x_label,1,0,1,1)
+		extractBox.addWidget(self.point1_x_coord,1,1,1,1)
+		extractBox.addWidget(point1_y_label,1,2,1,1)
+		extractBox.addWidget(self.point1_y_coord,1,3,1,1)
+		extractBox.addWidget(point2_x_label,2,0,1,1)
+		extractBox.addWidget(self.point2_x_coord,2,1,1,1)
+		extractBox.addWidget(point2_y_label,2,2,1,1)
+		extractBox.addWidget(self.point2_y_coord,2,3,1,1)
+		extractBox.addWidget(interval_label,3,0,1,1)
+		extractBox.addWidget(self.extract_interval,3,1,1,1)
+		
+		extractBox.addWidget(self.extractPlot,3,2,1,2)
 
 		lvLayout=QtWidgets.QVBoxLayout()
 		lvLayout.addLayout(mainUiBox)
@@ -189,11 +229,11 @@ class pp_interactor(QtWidgets.QWidget):
 
 		self.vtk_file = None
 
-		self.ui.extract_button.clicked.connect(lambda: self.load_integration_points())
 		self.ui.updateButton.clicked.connect(lambda: self.update_stress_display())
 		self.ui.display_button11.clicked.connect(lambda: self.update_stress_shown("S11"))
 		self.ui.display_button22.clicked.connect(lambda: self.update_stress_shown("S22"))
 		self.ui.display_button33.clicked.connect(lambda: self.update_stress_shown("S33"))
+		self.ui.extractPlot.clicked.connect(lambda: self.extract_plot())
 
 	def get_input_data(self,filem):
 		if filem == None:
@@ -203,13 +243,17 @@ class pp_interactor(QtWidgets.QWidget):
 			mat_contents = sio.loadmat(filem)
 			self.fileo=filem
 
-		if not filem == None: #if the user cancels the file dialog
+		if not filem == None: #if the user doesn't cancel the file dialog
 		
 			try:
 				self.vtk_file = mat_contents['vtu_filename'][0]
 				if not os.path.exists(self.vtk_file):
-					extract_from_mat(mat_contents['vtu_filename'][0],self.fileo,'vtu')
+					#create new path to extract the vtu file to
+					newVtu = os.path.join(os.path.dirname(self.fileo),os.path.basename(self.vtk_file))
+					extract_from_mat(newVtu,self.fileo,'vtu')
+					self.vtk_file = newVtu
 				self.load_vtk_XML_file(self.vtk_file,'S33')
+				self.active_scalar_field = "S33"
 				
 			except Exception as e:
 				if 'FEA' in mat_contents: #there might be a dat file to read
@@ -272,6 +316,7 @@ class pp_interactor(QtWidgets.QWidget):
 
 		self.mesh_mapper.SetScalarRange(min_stress, max_stress)
 		self.sbActor.SetNumberOfLabels(self.ui.numContour.value())
+		self.sbActor.SetNumberOfLabels(self.ui.numContour.value())
 		self.ui.vtkWidget.update()
 		self.ui.statLabel.setText("Updated stress intervals on contour. Idle.")
 
@@ -326,10 +371,8 @@ class pp_interactor(QtWidgets.QWidget):
 
 		# #the scalar bar widget is associated with the qt interactor box
 		scalar_bar_widget = vtk.vtkScalarBarWidget()
-		scalar_bar_widget.SetInteractor(self.iren)
-		scalar_bar_widget.SetEnabled(True)
-		scalar_bar_widget.RepositionableOn()
-		scalar_bar_widget.On()
+		
+
 		
 		# define scalar bar actor
 		self.sbActor=scalar_bar_widget.GetScalarBarActor()
@@ -350,11 +393,11 @@ class pp_interactor(QtWidgets.QWidget):
 		propT.BoldOn()
 		propL.BoldOff()
 		propL.SetFontSize(1)
-		propT.SetFontSize(2)
+		propT.SetFontSize(1)
 		self.sbActor.SetTitleTextProperty(propT);
 		self.sbActor.SetLabelTextProperty(propL);
-		self.sbActor.GetLabelTextProperty().SetFontSize(7)
-		self.sbActor.GetTitleTextProperty().SetFontSize(7)
+		self.sbActor.GetLabelTextProperty().SetFontSize(1)
+		self.sbActor.GetTitleTextProperty().SetFontSize(1)
 		self.sbActor.SetLabelFormat("%.1f")
 
 		#define the mesh actor properties
@@ -365,6 +408,14 @@ class pp_interactor(QtWidgets.QWidget):
 		#display the actors
 		self.ren.AddActor(self.mesh_actor)
 		self.ren.AddActor(self.sbActor)
+		self.ui.vtkWidget.update()
+		
+		#Add to interactor
+		scalar_bar_widget.SetInteractor(self.iren)
+		scalar_bar_widget.SetEnabled(True)
+		scalar_bar_widget.RepositionableOn()
+		scalar_bar_widget.On()
+
 		
 		#get boundary of mesh
 		self.limits = self.mesh_reader_output.GetBounds()
@@ -377,8 +428,7 @@ class pp_interactor(QtWidgets.QWidget):
 		self.ui.statLabel.setText("Loaded results. Idle.")
 		self.ui.inp_min_stress.setText("%4.1f"%self.mesh_mapper.GetScalarRange()[0])
 		self.ui.inp_max_stress.setText("%4.1f"%self.mesh_mapper.GetScalarRange()[1])
-		#set extract button green
-		self.ui.extract_button.setStyleSheet("background-color :rgb(77, 209, 97);")
+
 		QtWidgets.QApplication.processEvents()
 		
 	def load_integration_points(self):
@@ -488,7 +538,8 @@ class pp_interactor(QtWidgets.QWidget):
 		sio.savemat(self.fileo,mat_contents)
 
 		#show the result
-		self.load_vtk_XML_file(self.vtk_file,"S33")
+		self.active_scalar_field = "S33"
+		self.load_vtk_XML_file(self.vtk_file, self.active_scalar_field)
 		self.ui.statLabel.setText("Idle.")
 		
 	def update_stress_shown(self,field):
@@ -506,6 +557,9 @@ class pp_interactor(QtWidgets.QWidget):
 					self.mesh_mapper.SetScalarRange(scalar_range)
 					#update scale bar title
 					self.sbActor.SetTitle(field)
+					
+					#store active field
+					self.active_scalar_field = field
 
 					#update ui
 					self.ui.inp_min_stress.setText("%4.1f"%self.mesh_mapper.GetScalarRange()[0])
@@ -928,6 +982,195 @@ class pp_interactor(QtWidgets.QWidget):
 														* nat_coord_quadrature_points[shape_matrix_index, 3]
 
 		return shape_function_matrix
+	
+	def extract_plot(self):
+		"""
+		Extracts the displayed stress along a line. Currently it supports two points
+		for a line plot, however, it is implemented with vtkCellArray and vtkPolyData
+		to allow for polyline plots.
+		"""
+
+		if not self.vtk_file == None:
+				_, file_extension = os.path.splitext(self.vtk_file)
+				if file_extension == '.vtu' and os.path.isfile(self.vtk_file):
+
+					# the line actor will persist so if the extraction has been performed once already
+					# we need to remove it so only the new probe is plotted
+					if hasattr(self, "polyline_actor"):
+						self.ren.RemoveActor(self.polyline_actor)
+
+					# get start and end point coordinates
+					start_point_x = float(self.ui.point1_x_coord.text())
+					start_point_y = float(self.ui.point1_y_coord.text())
+					end_point_x = float(self.ui.point2_x_coord.text())
+					end_point_y = float(self.ui.point2_y_coord.text())
+					start_point = np.array([start_point_x, start_point_y, 1.])
+					end_point = np.array([end_point_x, end_point_y, 1.])
+				
+					pointsDict = {
+							 'start_point_x': start_point_x,
+							 'end_point_x': end_point_x,
+							 'start_point_y': start_point_y,
+							 'end_point_y': end_point_y,
+							 }
+					
+					points, U = self.probe_interpolation(pointsDict,self.ui.extract_interval.value())
+
+					plt.scatter(points[:,1], U[:]) #plot the data
+					plt.ylabel(self.active_scalar_field)
+					plt.xlabel("Distance along probe line")
+					plt.show()
+					
+					#export to csv file
+					np.savetxt('pyCM_line_probe_%s.csv'%self.active_scalar_field,np.c_[points[:,0:1],U],delimiter=',')
+					print('Wrote csv to:',os.getcwd()+'\pyCM_line_probe_%s.csv'%self.active_scalar_field)
+					
+				else:
+					msg=QtWidgets.QMessageBox()
+					msg.setIcon(QtWidgets.QMessageBox.Information)
+					msg.setText("No *.vtu file found or has moved. Reload to generate.")
+					msg.setWindowTitle("pyCM Error")
+					msg.exec_()
+					return
+		else:
+			msg=QtWidgets.QMessageBox()
+			msg.setIcon(QtWidgets.QMessageBox.Information)
+			msg.setText("No *.vtu file found. Reload.")
+			msg.setWindowTitle("pyCM Error")
+			msg.exec_()
+			return
+
+	def probe_interpolation(self, pointsDict, numPoints):
+		"""
+		Generates interpolated values between two points for the active scalar field
+		Args:
+			pointsDict (Dictonary): dictionary storing the points
+				{
+					'start_point_x': start_point_x,
+					'end_point_x': end_point_x,
+					'start_point_y': start_point_y,
+					'end_point_y': end_point_y,
+				}
+			numPoints (int): number of points in the probe line
+		
+		Returns:
+			points (float[]): array (x, y, z) of the interpolated coordinate points
+			U (float[]): array (N) of the interpoated scalar field
+		Example:
+			>>> pointsDict = {
+							 'start_point_x': 30.,
+							 'end_point_x': 30.,
+							 'start_point_y': 100.,
+							 'end_point_y': 120.,
+							 }
+			>>> probe_interpolation(pointsDict)
+		"""
+
+		# load point values
+		start_point_x = pointsDict['start_point_x']
+		end_point_x = pointsDict['end_point_x']
+		start_point_y = pointsDict['start_point_y']
+		end_point_y = pointsDict['end_point_y']
+
+		# create points
+		points = vtk.vtkPoints()
+		points.SetNumberOfPoints(2)
+		points.SetPoint(0, start_point_x, start_point_y, 1.)
+		points.SetPoint(1, end_point_x, end_point_y, 1.)
+
+		# create line as cell array to allow multiple points to be plotted
+		# when this function is extended for batch processing
+		# vtkCellArray is a cell array structure which represents cell connectivity
+		# of the form (n, id1, id2, ... , idn)
+		lines = vtk.vtkCellArray()
+		lines.InsertNextCell(2)
+		lines.InsertCellPoint(0)
+		lines.InsertCellPoint(1)
+
+		# polyline representing geometric structure of vertices and lines
+		polyline = vtk.vtkPolyData()
+		polyline.SetPoints(points)
+		polyline.SetLines(lines)
+		black_col = [0, 0, 0]
+		black_col_obgj = vtk.vtkUnsignedCharArray()
+		black_col_obgj.SetNumberOfComponents(3)
+		black_col_obgj.InsertNextTypedTuple(black_col)
+		polyline.GetCellData().SetScalars(black_col_obgj)
+
+		# create the polyline mapper
+		polyline_mapper = vtk.vtkPolyDataMapper()
+		polyline_mapper.SetInputData(polyline)
+		polyline_mapper.Update()
+
+		# create the polyline actor
+		self.polyline_actor = vtk.vtkActor()
+		self.polyline_actor.SetMapper(polyline_mapper)
+		self.polyline_actor.GetProperty().SetLineWidth(3)
+
+		# display actor
+		self.ren.AddActor(self.polyline_actor)
+
+		#force update of vtk interactor
+		self.ui.vtkWidget.update()
+		self.ui.vtkWidget.setFocus()
+		
+		p1 = [start_point_x, start_point_y, 1.]
+		p2 = [end_point_x, end_point_y, 1.]
+
+		line = self.createLine(p1, p2, numPoints) # Create the line
+		points, U =  self.probeOverLine(line) # interpolate the data over the line
+		U = self.setZeroToNaN(U) # Set the zero's to NaN's		
+
+		return points, U
+
+	def probeOverLine(self, line):
+		"""
+		Interpolate the data from the VTK-file on the created line.
+		"""
+		data = self.mesh_reader_output
+		
+		probe = vtk.vtkProbeFilter()
+		#probe.SetInputConnection(line.GetOutputPort())
+		probe.SetInputConnection(line.GetOutputPort())
+		probe.SetSourceData(data)
+
+		probe.Update()
+
+		# get the data from the VTK-object (probe) to an numpy array
+		q = v2n(probe.GetOutput().GetPointData().GetArray(self.active_scalar_field))
+		numPoints = probe.GetOutput().GetNumberOfPoints() # get the number of points on the line
+		
+		# intialise the points on the line    
+		x = np.zeros(numPoints)
+		y = np.zeros(numPoints)
+		z = np.zeros(numPoints)
+		points = np.zeros((numPoints , 3))
+		
+		# get the coordinates of the points on the line
+		for i in range(numPoints):
+			x[i], y[i], z[i] = probe.GetOutput().GetPoint(i)
+			points[i, 0] = x[i]
+			points[i, 1] = y[i]
+			points[i, 2] = z[i]
+		return points, q
+
+	def createLine(self, p1, p2, numPoints):
+		"""
+		Create the sample line
+		"""  
+		line = vtk.vtkLineSource()
+		line.SetResolution(numPoints)
+		line.SetPoint1(p1)
+		line.SetPoint2(p2)
+		line.Update()
+		return line
+
+	def setZeroToNaN(self, array):
+		"""
+		Escape zero value data as NaN
+		"""  
+		array[array==0] = np.nan
+		return array
 
 	def Keypress(self,obj, event):
 		key = obj.GetKeySym()
@@ -941,7 +1184,10 @@ class pp_interactor(QtWidgets.QWidget):
 		elif key =="3":
 			xzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
 		elif key == "Up":
-			self.ren.GetActiveCamera().Roll(90)
+			self.ren.GetActiveCamera().Roll(30)
+			self.ren.ResetCamera()
+		elif key == "Down":
+			self.ren.GetActiveCamera().Roll(-30)
 			self.ren.ResetCamera()
 
 		elif key=="i":
@@ -959,6 +1205,14 @@ class pp_interactor(QtWidgets.QWidget):
 			
 		elif key =="f": #flip color scheme for printing
 			flip_colors(self.ren,self.ax3D)
+			if self.ren.GetBackground()==(0.1, 0.2, 0.4):
+				self.sbActor.GetTitleTextProperty().SetColor(1,1,1)
+				self.sbActor.GetLabelTextProperty().SetColor(1,1,1)
+			else:
+				self.sbActor.GetTitleTextProperty().SetColor(0,0,0)
+				self.sbActor.GetLabelTextProperty().SetColor(0,0,0)
+			
+			
 				
 
 		self.ui.vtkWidget.update()
@@ -978,4 +1232,8 @@ class pp_interactor(QtWidgets.QWidget):
 		self.ax3D.SetFlyModeToOuterEdges()
 
 if __name__ == "__main__":
-	post_process_tool()
+	
+	if len(sys.argv)>1:
+		post_process_tool(sys.argv[1])
+	else:
+		post_process_tool()

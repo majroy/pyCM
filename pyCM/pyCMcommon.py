@@ -14,7 +14,7 @@ import vtk.util.numpy_support as vtk_to_numpy
 import numpy as np
 import scipy.io as sio
 from scipy.interpolate import interp1d
-# from sklearn.neighbors import NearestNeighbors
+from sklearn.neighbors import NearestNeighbors
 import h5py
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -192,7 +192,7 @@ def xyview_post(renderer, camera,cp,fp):
 	# print('cp',cp,'fp',fp)
 	camera.SetPosition(0,0,-cp[2]+0)
 	camera.SetFocalPoint(fp)
-	camera.SetViewUp(0,-1,0)
+	camera.SetViewUp(0,1,0)
 	camera.OrthogonalizeViewUp()
 	camera.ParallelProjectionOn()
 	renderer.ResetCamera()
