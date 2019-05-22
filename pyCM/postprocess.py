@@ -132,39 +132,6 @@ class post_main_window(object):
 		# stress update button
 		self.updateButton = QtWidgets.QPushButton('Update')
 
-		# line extraction from surface
-		extract_data_label = QtWidgets.QLabel("Extract")
-		extract_data_label.setFont(headFont)
-		extract_data_label.setWordWrap(True)
-		extract_data_label.setMinimumWidth(50)
-
-		# enter x and y of first point
-		point1_label = QtWidgets.QLabel("Point 1")
-		point1_label.setFont(headFont)
-		point1_label.setWordWrap(True)
-		point1_label.setMinimumWidth(50)
-		point1_x_label = QtWidgets.QLabel("X:")
-		self.point1_x_coord = QtWidgets.QLineEdit()
-		self.point1_x_coord.setMinimumWidth(50)
-		point1_y_label = QtWidgets.QLabel("Y:")
-		self.point1_y_coord = QtWidgets.QLineEdit()
-		self.point1_y_coord.setMinimumWidth(50)
-
-		# enter x and y of second point
-		point2_label = QtWidgets.QLabel("Point 2")
-		point2_label.setFont(headFont)
-		point2_label.setWordWrap(True)
-		point2_label.setMinimumWidth(50)
-		point2_x_label = QtWidgets.QLabel("X:")
-		self.point2_x_coord = QtWidgets.QLineEdit()
-		self.point2_x_coord.setMinimumWidth(50)
-		point2_y_label = QtWidgets.QLabel("Y:")
-		self.point2_y_coord = QtWidgets.QLineEdit()
-		self.point2_y_coord.setMinimumWidth(50)
-
-		# extract plot button
-		self.extractPlot = QtWidgets.QPushButton('Plot')
-		self.extractPlot.setMinimumWidth(50)
 
 		# line extraction from surface
 		extract_data_label = QtWidgets.QLabel("Extract")
@@ -211,7 +178,6 @@ class post_main_window(object):
 		mainUiBox.addWidget(self.inp_max_stress,9,1,1,1)
 		mainUiBox.addWidget(self.updateButton,9,0,1,2)
 		mainUiBox.addWidget(horiz_line2,10,0,1,2)
-<<<<<<< HEAD
 		mainUiBox.addLayout(extractBox,11,0,1,2)
 		
 		extractBox.addWidget(extract_data_label,0,0,1,4)
@@ -227,20 +193,6 @@ class post_main_window(object):
 		extractBox.addWidget(self.extract_interval,3,1,1,1)
 		
 		extractBox.addWidget(self.extractPlot,3,2,1,2)
-=======
-		mainUiBox.addWidget(extract_data_label,11,0,1,1)
-		mainUiBox.addWidget(point1_label,12,0,1,1)
-		mainUiBox.addWidget(point1_x_label,13,0,1,1)
-		mainUiBox.addWidget(self.point1_x_coord,13,1,1,1)
-		mainUiBox.addWidget(point1_y_label,14,0,1,1)
-		mainUiBox.addWidget(self.point1_y_coord,14,1,1,1)
-		mainUiBox.addWidget(point2_label,15,0,1,1)
-		mainUiBox.addWidget(point2_x_label,16,0,1,1)
-		mainUiBox.addWidget(self.point2_x_coord,16,1,1,1)
-		mainUiBox.addWidget(point2_y_label,17,0,1,1)
-		mainUiBox.addWidget(self.point2_y_coord,17,1,1,1)
-		mainUiBox.addWidget(self.extractPlot,18,0,1,2)
->>>>>>> 0b0cf5824102b5e5c019b556b81fb075b064ec3b
 
 		lvLayout=QtWidgets.QVBoxLayout()
 		lvLayout.addLayout(mainUiBox)
@@ -587,11 +539,7 @@ class pp_interactor(QtWidgets.QWidget):
 
 		#show the result
 		self.active_scalar_field = "S33"
-<<<<<<< HEAD
 		self.load_vtk_XML_file(self.vtk_file, self.active_scalar_field)
-=======
-		self.load_vtk_XML_file(self.vtk_file, active_scalar_field)
->>>>>>> 0b0cf5824102b5e5c019b556b81fb075b064ec3b
 		self.ui.statLabel.setText("Idle.")
 		
 	def update_stress_shown(self,field):
@@ -1066,7 +1014,6 @@ class pp_interactor(QtWidgets.QWidget):
 							 'end_point_y': end_point_y,
 							 }
 					
-<<<<<<< HEAD
 					points, U = self.probe_interpolation(pointsDict,self.ui.extract_interval.value())
 
 					plt.scatter(points[:,1], U[:]) #plot the data
@@ -1082,43 +1029,20 @@ class pp_interactor(QtWidgets.QWidget):
 					msg=QtWidgets.QMessageBox()
 					msg.setIcon(QtWidgets.QMessageBox.Information)
 					msg.setText("No *.vtu file found or has moved. Reload to generate.")
-=======
-					points, U = self.probe_interpolation(pointsDict)
-
-					plt.plot(points[:,1], U[:]) #plot the data
-					plt.ylabel(self.active_scalar_field)
-					plt.xlabel("Distance along probe line")
-					plt.show()
-				else:
-					msg=QtWidgets.QMessageBox()
-					msg.setIcon(QtWidgets.QMessageBox.Information)
-					msg.setText("No *.vtu file found or has moved. 'Extract' to generate.")
->>>>>>> 0b0cf5824102b5e5c019b556b81fb075b064ec3b
 					msg.setWindowTitle("pyCM Error")
 					msg.exec_()
 					return
 		else:
 			msg=QtWidgets.QMessageBox()
 			msg.setIcon(QtWidgets.QMessageBox.Information)
-<<<<<<< HEAD
 			msg.setText("No *.vtu file found. Reload.")
-=======
-			msg.setText("No *.vtu file found. 'Extract' necessary data first.")
->>>>>>> 0b0cf5824102b5e5c019b556b81fb075b064ec3b
 			msg.setWindowTitle("pyCM Error")
 			msg.exec_()
 			return
 
-<<<<<<< HEAD
 	def probe_interpolation(self, pointsDict, numPoints):
 		"""
 		Generates interpolated values between two points for the active scalar field
-=======
-	def probe_interpolation(self, pointsDict, numPoints = 1000):
-		"""
-		Generates interpolated values between two points for the active scalar field
-
->>>>>>> 0b0cf5824102b5e5c019b556b81fb075b064ec3b
 		Args:
 			pointsDict (Dictonary): dictionary storing the points
 				{
@@ -1132,10 +1056,6 @@ class pp_interactor(QtWidgets.QWidget):
 		Returns:
 			points (float[]): array (x, y, z) of the interpolated coordinate points
 			U (float[]): array (N) of the interpoated scalar field
-<<<<<<< HEAD
-=======
-
->>>>>>> 0b0cf5824102b5e5c019b556b81fb075b064ec3b
 		Example:
 			>>> pointsDict = {
 							 'start_point_x': 30.,
