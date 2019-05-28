@@ -28,9 +28,10 @@ ver 19-02-17
 1.2 - Corrected bug which mis-labelled output files
 1.3 - Removed output to 'geo' for 2D profiles
 1.4 - Updated workflow significantly; bugfix
+1.5 - Patched maximum length of extruded mesh.
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.4"
+__version__ = "1.5"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
@@ -145,6 +146,7 @@ class pre_main_window(object):
 		meshscriptLabel.setFont(headFont)
 		lengthLabel=QtWidgets.QLabel("Length")
 		self.lengthInput = QtWidgets.QDoubleSpinBox()
+		self.numPart.setMaximum(10000)
 		numPartLabel=QtWidgets.QLabel("Partitions")
 		self.numPart = QtWidgets.QSpinBox()
 		self.numPart.setValue(10)

@@ -7,10 +7,10 @@ See documentation for the following main methods in this package:
 -fit_surface
 -preprocess
 -------------------------------------------------------------------------------
-ver 1.0 17-01-04 - contains all elements except for a post-processor
+1.3 - vtk errors now piped to log file
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.2"
+__version__ = "1.3"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
