@@ -146,11 +146,12 @@ class pre_main_window(object):
 		meshscriptLabel.setFont(headFont)
 		lengthLabel=QtWidgets.QLabel("Length")
 		self.lengthInput = QtWidgets.QDoubleSpinBox()
-		self.numPart.setMaximum(10000)
+
 		numPartLabel=QtWidgets.QLabel("Partitions")
 		self.numPart = QtWidgets.QSpinBox()
 		self.numPart.setValue(10)
 		self.numPart.setMinimum(3)
+		self.numPart.setMaximum(10000)
 		self.gmshButton=QtWidgets.QRadioButton("Gmsh")
 		self.abaButton=QtWidgets.QRadioButton("Abaqus")
 		self.gmshButton.setChecked(True)
