@@ -10,9 +10,10 @@ RMB   - zoom
 ver 0.3 21 April 2018
 0.3 - Corrected issue with printing of numpy arrays
 0.4 - Added capability to perform a line trace, plot with matplotlib and export as csv
+0.4.1 - Fixed line extraction bug to use euclidean's norm as plot distance
 """
 __author__ = "N. Stoyanov, M. J. Roy"
-__version__ = "0.4"
+__version__ = "0.4.1"
 __email__ = "nikola.stoyanov@postgrad.manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, N. Stoyanov 2014-2018"
@@ -1013,12 +1014,18 @@ class pp_interactor(QtWidgets.QWidget):
 							 'start_point_y': start_point_y,
 							 'end_point_y': end_point_y,
 							 }
-					
-					points, U = self.probe_interpolation(pointsDict,self.ui.extract_interval.value())
 
-					plt.scatter(points[:,1], U[:]) #plot the data
+					spacing_interval = self.ui.extract_interval.value()
+					points, U = self.probe_interpolation(pointsDict,spacing_interval)
+
+					# get the line plot distance from the entry points
+					plot_distance = np.sqrt((points[0, 0] - points[-1, 0])**2 + (points[0, 1] - points[-1, 1])**2)
+					plot_axis = np.linspace(0.,plot_distance,spacing_interval+1)
+
+					# plot data
+					plt.scatter(plot_axis, U[:])
 					plt.ylabel(self.active_scalar_field)
-					plt.xlabel("Distance along probe line")
+					plt.xlabel("Distance along probe line -a")
 					plt.show()
 					
 					#export to csv file
@@ -1237,3 +1244,4 @@ if __name__ == "__main__":
 		post_process_tool(sys.argv[1])
 	else:
 		post_process_tool()
+
