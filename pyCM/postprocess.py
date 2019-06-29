@@ -1024,8 +1024,8 @@ class pp_interactor(QtWidgets.QWidget):
 
 					# plot data
 					plt.scatter(plot_axis, U[:])
-					plt.ylabel(self.active_scalar_field)
-					plt.xlabel("Distance along probe line -a")
+					plt.ylabel("Stress component: " + self.active_scalar_field)
+					plt.xlabel("Distance along probe line")
 					plt.show()
 					
 					#export to csv file
