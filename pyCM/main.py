@@ -7,10 +7,10 @@ See documentation for the following main methods in this package:
 -fit_surface
 -preprocess
 -------------------------------------------------------------------------------
-1.3 - vtk errors now piped to log file
+1.4 - loading between tabs improved
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.3"
+__version__ = "1.4"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"

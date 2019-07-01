@@ -146,7 +146,7 @@ class pre_main_window(object):
 		meshscriptLabel.setFont(headFont)
 		lengthLabel=QtWidgets.QLabel("Length")
 		self.lengthInput = QtWidgets.QDoubleSpinBox()
-
+		self.lengthInput.setMaximum(10000)
 		numPartLabel=QtWidgets.QLabel("Partitions")
 		self.numPart = QtWidgets.QSpinBox()
 		self.numPart.setValue(10)
