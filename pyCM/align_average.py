@@ -90,6 +90,7 @@ class ali_avg(object):
 	
 	def setupUi(self, MainWindow):
 		MainWindow.setWindowTitle("pyCM - Alignment and averaging tool v%s" %__version__)
+        MainWindow.setWindowIcon(QtGui.QIcon(resource_filename("pyCM","meta/pyCM_icon.png")))
 		self.centralWidget = QtWidgets.QWidget(MainWindow)
 		if hasattr(MainWindow,'setCentralWidget'):
 			MainWindow.setCentralWidget(self.centralWidget)

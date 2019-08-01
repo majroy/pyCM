@@ -31,36 +31,30 @@ It is for these reasons the overall aim is to future proof the analysis code by 
 Alpha release 1.1.x is currently the latest version which contains a complete toolchain for rectangular specimens with no self-restraint. Note that the post-processor is still in a beta form for testing purposes on *quadrilateral meshes only*; if tetrahedral meshes are employed, then the native FEA code's post processor should be employed (GraphiX or Abaqus Viewer). **It has been confirmed that equivalent results are obtained with both CalculiX and Abaqus**.
 
 # Requirements
+Python 3.x with pip working correctly will install most functionality, as tested on Linux (Ubuntu) and Windows 10. If outline processing is required, then there is package that is needed that cannot be installed on Windows via pip - see below.
 
-1. Python 3.x 
-2. Numpy
-3. Scipy
-4. VTK
-5. Matplotlib
-6. pyYaml
-7. PyQt5
-8. Pandas
-
-Once Python is installed, it is recommended on Windows machines to get numpy, scipy and VTK binaries from Christoph Gohlke's [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/) for the best possible performance. Note that URLs on this site are blocked, you will have to manually select the distribution that you will need. Install them via:
+In order to optimize performance on Windows, it is recommended to get numpy, scipy and VTK binaries from Christoph Gohlke's [Unofficial Windows Binaries for Python Extension Packages](http://www.lfd.uci.edu/~gohlke/pythonlibs/). Install them via:
 
 ~~~
 pip install <pkg_prefix>.whl
 ~~~
 
-However, **the sources which arrive from PyPI are acceptable for most purposes and should automatically install** - see next section.
+However, **the sources which arrive from PyPI are acceptable for most purposes and should automatically install**, with the exception of [shapely](https://pypi.org/project/Shapely/). Shapely is required for outline processing - see "Outline processing" over view for [point_cloud](doc/point_cloudREADME.md#Outline-processing).
+
+
 
 # Installation
 
 These instructions cover the steps needed to install all dependencies and then add the pyCM components to your Python PATH. This permits calling the pyCM components anywhere on a host machine.
 
-1. Clone this repository to a location on the host machine.
-2. Change directory to this location and from the command line, run `pip install pyCM-*` where `pyCM-*` is the most recent tarball from the `dist` directory where you've cloned the repository. For example:
+1. Copy the appropriate pyCM-<version>.tar.gz file located in the *dist* folder.
+2. From the command line, run `pip install pyCM-*` where `pyCM-*` file that was copied.
 
 ~~~
 pip install pyCM-<version>.tar.gz
 ~~~
 
-The remainder of the requisite packages will be installed from PyPI.
+The remainder of the requisite packages will be installed from PyPI **with the exception of Shapely**. This latter package needs to be installed manually.
 
 3. Check if it installed properly by trying to import the pyCM library from any working directory at the Python prompt/IDLE:
 ~~~
