@@ -27,7 +27,7 @@ setup(name = 'pyCM',
     license = 'Creative Commons Attribution-Noncommercial-Share Alike license',
     keywords = 'residual stress contour method VTK',
     packages=['pyCM', 'pyCM.meta'],
-    package_data = {'pyCM' : ['README.MD',], 'pyCM.meta' : ['pyCM_logo.png','pyCM_icon.png',] },
+    package_data = {'pyCM' : ['README.MD',], 'pyCM.meta' : ['*.png',] },
     include_package_data=True
 
     )

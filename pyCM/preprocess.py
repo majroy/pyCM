@@ -331,7 +331,7 @@ class msh_interactor(QtWidgets.QWidget):
         if filem:
             self.fileo=filem
             mat_contents = sio.loadmat(self.fileo)
-            self.outputd=os.path.split(self.fileo) #needed to write ancillary files.
+            self.outputd=os.path.split(self.fileo)[0] #needed to write ancillary files.
             try:
                 #read in for ImposeSplineFit function
                 bsplinerep=mat_contents['spline_x']['tck'][0][0]
