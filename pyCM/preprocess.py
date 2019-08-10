@@ -961,7 +961,7 @@ class msh_interactor(QtWidgets.QWidget):
                 return False
                 
         #Run equivalent Abaqus command chain, with the addition to converting mesh to legacy VTK file
-        if self.ui.abaButton.isChecked() and hasattr(self,'abapyfile'):
+        elif self.ui.abaButton.isChecked() and hasattr(self,'abapyfile'):
             self.ui.statLabel.setText("Running Abaqus CAE script . . .")
             QtWidgets.QApplication.processEvents()
             execStr=(self.cfg['FEA']['abaqusExec'])#.encode('string-escape')
