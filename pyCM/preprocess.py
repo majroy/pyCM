@@ -29,9 +29,10 @@ ver 19-02-17
 1.3 - Removed output to 'geo' for 2D profiles
 1.4 - Updated workflow significantly; bugfix
 1.5 - Patched maximum length of extruded mesh.
+1.6 - Changed 2nd order tets to 1st order (linear) tets
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.5"
+__version__ = "1.6"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014-2019"
@@ -47,7 +48,7 @@ import vtk
 from vtk.util.numpy_support import vtk_to_numpy as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCM.pyCMcommon import *
+from pyCMcommon import *
 
 
 
@@ -941,7 +942,7 @@ class msh_interactor(QtWidgets.QWidget):
             try:
                 if self.ui.tetButton.isChecked():
                     #make sure second order tets are generated
-                    out=sp.check_output([execStr,"-3","-order","2",self.geofile,"-o",self.vtkFile], shell=True)
+                    out=sp.check_output([execStr,"-3","-order","1",self.geofile,"-o",self.vtkFile], shell=True)
                 else:
                     out=sp.check_output([execStr,"-3",self.geofile,"-o",self.vtkFile], shell=True)
                 print("Gmsh output log:")
@@ -965,6 +966,7 @@ class msh_interactor(QtWidgets.QWidget):
             self.ui.statLabel.setText("Running Abaqus CAE script . . .")
             QtWidgets.QApplication.processEvents()
             execStr=(self.cfg['FEA']['abaqusExec'])#.encode('string-escape')
+            print('running',self.abapyfile)
             currentPath=os.getcwd()
             abaqusCAEfile=os.path.basename(self.abapyfile)
             abaqusrunloc=os.path.dirname(self.abapyfile)
@@ -1020,7 +1022,7 @@ class msh_interactor(QtWidgets.QWidget):
             if not hasattr(self,'abapyfile'):
                 try:
                     self.abapyfile,_=get_open_file("*.py",self.outputd)
-
+                    print('new abapyfile',self.abapyfile)
                 except:
                     return
         QtWidgets.QApplication.processEvents()
@@ -1092,7 +1094,7 @@ class msh_interactor(QtWidgets.QWidget):
             if self.ui.quadButton.isChecked():
                 ElemType="C3D8"
             else:
-                ElemType="C3D10"
+                ElemType="C3D4"
             #move to metadata once dist channels are sorted
             s1="""
 # RawInpWriter.py
@@ -1280,9 +1282,9 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
         #get cell types
         tcs=vtk.vtkCellTypes()
         om.GetCellTypes(tcs)
-        #gmsh will return non uniform element types. if it's not a 1st order quad or 2nd order tet
-        if tcs.IsType(24)==1:
-            self.mainCellType=24 #2nd order tet
+        #gmsh will return non uniform element types. if it's not a 1st order quad or 1st order tet
+        if tcs.IsType(10)==1:
+            self.mainCellType=10 #2nd order tet
             self.ui.tetButton.setChecked(True)
         else:
             self.mainCellType=12 #1st order quad
@@ -1392,9 +1394,9 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
             SurfPoints=np.resize(rawPIds,(int(len(rawPIds)/float(9)),9))
             BCunit=4
             
-        elif self.mainCellType == 24: #2nd order tets
-            SurfPoints=np.resize(rawPIds,(int(len(rawPIds)/float(11)),11))
-            BCunit=6
+        elif self.mainCellType == 10: #tets
+            SurfPoints=np.resize(rawPIds,(int(len(rawPIds)/float(5)),5))
+            BCunit=3
         
         #remove point count column
         SurfPoints=SurfPoints[:,1::]
@@ -1866,7 +1868,7 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
                 currentPath=os.getcwd()
                 abaqusrunloc,abaqusinpfile=os.path.split(self.ofile_FEA)
                 os.chdir(abaqusrunloc)
-                out=sp.check_output(["abaqus","job="+abaqusinpfile[:-4],"int"],shell=True)
+                out=sp.check_output([execStr,"job="+abaqusinpfile[:-4],"int"],shell=True)
 
                 print("Abaqus output log:")
                 print("----------------")
@@ -1893,7 +1895,7 @@ def ConvertInptoVTK(infile,outfile):
     #map abaqus mesh types to vtk objects
     vtkType={}
     vtkType['C3D8']=12
-    vtkType['C3D10']=24
+    vtkType['C3D4']=10
 
     #create counter for all lines in the inp file, and array to store their location
     i=0
