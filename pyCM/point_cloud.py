@@ -47,6 +47,11 @@ import vtk.util.numpy_support as vtk_to_numpy
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
 from pyCM.pyCMcommon import *
+try:
+    from shapely.ops import cascaded_union, polygonize
+    import shapely.geometry as geometry
+except:
+    print('Package missing for outline processing.')
 
 nosio=False
 
@@ -1143,8 +1148,6 @@ class pnt_interactor(QtWidgets.QWidget):
         (De)Activates outline processing
         '''
         if state:
-            from shapely.ops import cascaded_union, polygonize
-            import shapely.geometry as geometry
             self.ui.z_cutoff.setEnabled(True)
             self.ui.impose_z_cutoff.setEnabled(True)
             self.ui.norm_cutoff.setEnabled(True)
@@ -1258,9 +1261,7 @@ class pnt_interactor(QtWidgets.QWidget):
                 print('Calculating Delaunay . . .')
                 self.tri = Delaunay(self.rawPnts[self.bool_pnt][:,0:2])
                 print('Delaunay complete')
-                print('Calculating triangulation normals . . .')
                 self.tri_normals,dist = normal_z(self.rawPnts,self.tri)
-                print('Normal calculation complete')
                 self.ui.triLabel.setStyleSheet("background-color :rgb(77, 209, 97);")
                 if self.ui.alpha_cutoff.value() == 0:
                     self.ui.alpha_cutoff.setValue(4*dist)
@@ -1270,14 +1271,15 @@ class pnt_interactor(QtWidgets.QWidget):
             #if it has an outline already, remove it
             if hasattr(self,'outlineActor'):
                 self.ren.RemoveActor(self.outlineActor)
-            
+            if 'Delaunay' in sys.modules: print('Import happened.')
             print('Calculating hull . . .')
-            try:
-                chull = alpha_shape(self.rawPnts[self.bool_pnt][:,0:2],self.tri,self.ui.alpha_cutoff.value())
-                x,y = chull.exterior.coords.xy
-            except:
-                print('Hull failed, try increasing cutoff.')
-                return
+            # try:
+            chull = alpha_shape(self.rawPnts[self.bool_pnt][:,0:2],self.tri,self.ui.alpha_cutoff.value())
+            x,y = chull.exterior.coords.xy
+            # except Exception as e:
+                # print('Hull failed, try increasing cutoff.')
+                # print(e)
+                # return
             print('Hull calculated.')
             
             self.Outline = np.column_stack((x,y,np.zeros(len(x)))) #outline appears at z=0
