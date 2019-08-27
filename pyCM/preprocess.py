@@ -48,7 +48,7 @@ import vtk
 from vtk.util.numpy_support import vtk_to_numpy as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCMcommon import *
+from pyCM.pyCMcommon import *
 
 
 
