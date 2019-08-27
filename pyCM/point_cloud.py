@@ -1271,15 +1271,14 @@ class pnt_interactor(QtWidgets.QWidget):
             #if it has an outline already, remove it
             if hasattr(self,'outlineActor'):
                 self.ren.RemoveActor(self.outlineActor)
-            if 'Delaunay' in sys.modules: print('Import happened.')
             print('Calculating hull . . .')
-            # try:
-            chull = alpha_shape(self.rawPnts[self.bool_pnt][:,0:2],self.tri,self.ui.alpha_cutoff.value())
-            x,y = chull.exterior.coords.xy
-            # except Exception as e:
-                # print('Hull failed, try increasing cutoff.')
-                # print(e)
-                # return
+            try:
+                chull = alpha_shape(self.rawPnts[self.bool_pnt][:,0:2],self.tri,self.ui.alpha_cutoff.value())
+                x,y = chull.exterior.coords.xy
+            except Exception as e:
+                print('Hull failed, try increasing cutoff. Error returned:')
+                print(e)
+                return
             print('Hull calculated.')
             
             self.Outline = np.column_stack((x,y,np.zeros(len(x)))) #outline appears at z=0
