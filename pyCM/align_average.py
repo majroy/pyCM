@@ -326,27 +326,18 @@ class aa_interactor(QtWidgets.QWidget):
         self.ren.AddActor(self.fOutlineActor)
     
     def update_limits(self):
-        # recalculate extents of interactor
-        RefMin=np.amin(np.vstack((self.flp,self.rp)),axis=0)
-        RefMax=np.amax(np.vstack((self.flp,self.rp)),axis=0)
 
-        extents=RefMax-RefMin #extents
-        rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
-        self.limits=[RefMin[0]-rl, \
-        RefMax[0]+rl, \
-        RefMin[1]-rl, \
-        RefMax[1]+rl, \
-        RefMin[2],RefMax[2]]
-
-        #add axes
-        self.add_axis(self.limits,[1,1,1])
+        self.limits = get_limits(np.vstack((self.flp,self.rp,self.rO_local,self.fO_local)))
         
         s,nl,axs=self.get_scale()
 
         self.fActor.SetScale(s)
         self.fActor.Modified()
 
-        self.add_axis(nl,axs)
+        #add axes
+        try: self.ren.RemoveActor(self.axisActor)
+        except: pass
+        self.axisActor = add_axis(self.ren,nl,axs)
 
         #update
         self.ui.vtkWidget.update()
@@ -834,6 +825,8 @@ class aa_interactor(QtWidgets.QWidget):
                 self.aActor.SetScale(s)
                 self.aActor.Modified()
                 
+                self.limits = get_limits(np.vstack((self.flp,self.rp)))
+                
                 self.update_limits()
                 self.ren.ResetCamera()
 
@@ -884,19 +877,11 @@ class aa_interactor(QtWidgets.QWidget):
                     self.fOutlineActor, self.fOPC = gen_outline(self.fO_local,color,self.PointSize)
                     self.ren.AddActor(self.fOutlineActor)
                     
-                    RefMin=np.amin(np.vstack((self.flp,self.rp)),axis=0)
-                    RefMax=np.amax(np.vstack((self.flp,self.rp)),axis=0)
-
-                    extents=RefMax-RefMin #extents
-                    rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
-                    self.limits=[RefMin[0]-rl, \
-                    RefMax[0]+rl, \
-                    RefMin[1]-rl, \
-                    RefMax[1]+rl, \
-                    RefMin[2],RefMax[2]]
+                    self.limits = get_limits(np.vstack((self.flp,self.rp,self.fO_local,self.rO_local)))
 
                     #add axes
-                    self.add_axis(self.limits,[1,1,1])
+                    self.ren.RemoveActor(self.axisActor)
+                    self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
                     
                     #initialize both transformation matrices
                     self.refTrans=[]
@@ -941,7 +926,8 @@ class aa_interactor(QtWidgets.QWidget):
                 self.aActor.SetScale(s)
                 self.aActor.Modified()
             
-            self.add_axis(nl,axs)
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,nl,axs)
 
         elif key=="x":
             self.Zaspect=self.Zaspect*0.5
@@ -958,7 +944,8 @@ class aa_interactor(QtWidgets.QWidget):
                 self.aActor.SetScale(s)
                 self.aActor.Modified()
 
-            self.add_axis(nl,axs)
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,nl,axs)
 
 
         elif key=="c":
@@ -976,7 +963,8 @@ class aa_interactor(QtWidgets.QWidget):
                 # self.fActor.SetScale(1,1,self.Zaspect)
                 self.aActor.SetScale(s)
                 self.aActor.Modified()
-            self.add_axis(self.limits,[1,1,1])
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
             self.ren.ResetCamera()
 
         elif key=="i":
@@ -990,16 +978,13 @@ class aa_interactor(QtWidgets.QWidget):
             print("Screen output saved to %s" %os.path.join(os.getcwd(),'Avg_aligned.png'))
 
         elif key=="a":
-            if hasattr(self,'ax3D'):
-                flip_visible(self.ax3D)
+            flip_visible(self.axisActor)
             
         elif key == "o":
-            if hasattr(self,'outlineActor'):
-                flip_visible(self.outlineActor)
+            flip_visible(self.outlineActor)
         
         elif key == "f":
-            if hasattr(self,'ax3D'):
-                flip_colors(self.ren,self.ax3D)
+            flip_colors(self.ren,self.axisActor)
                 
                 
         elif key=="l":
@@ -1027,25 +1012,6 @@ class aa_interactor(QtWidgets.QWidget):
             axs=np.array([1,1,1/self.Zaspect])
         return s,nl,axs
 
-    def add_axis(self,limits,scale):
-        if hasattr(self,"ax3D"):
-            self.ren.RemoveActor(self.ax3D)
-        self.ax3D = vtk.vtkCubeAxesActor()
-        self.ax3D.ZAxisTickVisibilityOn()
-        self.ax3D.SetXTitle('X')
-        self.ax3D.SetXUnits('mm')
-        self.ax3D.SetYTitle('Y')
-        self.ax3D.SetYUnits('mm')
-        self.ax3D.SetZTitle('Z')
-        self.ax3D.SetZUnits('mm')
-        self.ax3D.SetBounds(limits)
-        self.ax3D.SetZAxisRange(limits[-2]*scale[2],limits[-1]*scale[2])
-        self.ax3D.SetXAxisRange(limits[0]*scale[0],limits[1]*scale[0])
-        self.ax3D.SetYAxisRange(limits[2]*scale[1],limits[3]*scale[1])
-        self.ax3D.SetCamera(self.ren.GetActiveCamera())
-        self.ren.AddActor(self.ax3D)
-        if not(self.ren.GetBackground()==(0.1, 0.2, 0.4)):
-            flip_colors(self.ren,self.ax3D)
 
 def apply_trans(P,T):
     '''

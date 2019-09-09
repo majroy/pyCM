@@ -27,11 +27,11 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 #Change following to local import for dev
 from pyCM.pyCMcommon import *
 
-from pyCM import point_cloud as pc
-from pyCM import align_average as aa
-from pyCM import fit_surface as sf
-from pyCM import preprocess as pre
-from pyCM import postprocess as post
+import pyCM.point_cloud as pc
+import pyCM.align_average as aa
+import pyCM.fit_surface as sf
+import pyCM.preprocess as pre
+import pyCM.postprocess as post
 
 
 
@@ -39,7 +39,7 @@ from pyCM import postprocess as post
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow, width, height):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.setWindowTitle("pyCM v%s" %__version__)
+        MainWindow.setWindowTitle("pyCM - main v%s" %__version__)
         MainWindow.setWindowIcon(QtGui.QIcon(resource_filename("pyCM","meta/pyCM_icon.png")))
         MainWindow.setEnabled(True)
         MainWindow.resize(width, height)

@@ -91,7 +91,7 @@ def get_open_file(ext,outputd):
         lapp = QApplication([])
 
     filer = QFileDialog.getSaveFileName(None, "Save as:", outputd,str(ftypeName[ext]+' ('+ext+')'))
-    
+
     if filer == '':
         filer = None
         startdir = None
@@ -101,11 +101,11 @@ def get_open_file(ext,outputd):
         filer=str(filer[0])
         if filer.endswith(ext[-4:]) and not filer.endswith(ext[-8:]):
             filer=filer[:-4]+ext.split('*')[-1]
-        else: filer=filer[:-8]+ext.split('*')[-1]
-
-        
+        elif filer.endswith(ext[-8:]): 
+            filer=filer[:-8]+ext.split('*')[-1]
+            
     
-        return filer, os.path.dirname(filer)
+    return filer, os.path.dirname(filer)
 
 def extract_from_mat(targetfile,matfile,field):
     '''
@@ -165,7 +165,7 @@ def get_limits(pts):
 
     
     extents=RefMax-RefMin #extents
-    rl=0.1*(np.amin(extents)) #linear 'scale' to set up interactor
+    rl=0.15*(np.amin(extents)) #linear 'scale' to set up interactor
     return [RefMin[0]-rl, \
       RefMax[0]+rl, \
       RefMin[1]-rl, \
@@ -247,6 +247,18 @@ def flip_visible(actor):
     else:
         actor.VisibilityOn()    
 
+def add_axis(ren,limits,scale):
+
+    ax3D = vtk.vtkCubeAxesActor()
+    ax3D.ZAxisTickVisibilityOn()
+    ax3D.SetXTitle('X')
+    ax3D.SetYTitle('Y')
+    ax3D.SetZTitle('Z')
+    ax3D.SetBounds(limits)
+    ax3D.SetZAxisRange(limits[-2]*scale[-1],limits[-1]*scale[-1])
+    ren.AddActor(ax3D)
+    ax3D.SetCamera(ren.GetActiveCamera())
+    return ax3D
         
 def flip_colors(ren,actor):
     if ren.GetBackground()==(0.1, 0.2, 0.4):
@@ -254,7 +266,7 @@ def flip_colors(ren,actor):
             actor.GetTitleTextProperty(0).SetColor(0,0,0)
             actor.GetLabelTextProperty(0).SetColor(0,0,0)
             actor.GetXAxesLinesProperty().SetColor(0,0,0)
-            actor.SetXTitle('x') #there's a vtk bug here . . .
+            actor.SetXTitle('X') #there's a vtk bug here . . .
             
             actor.GetTitleTextProperty(1).SetColor(0,0,0)
             actor.GetLabelTextProperty(1).SetColor(0,0,0)
@@ -269,16 +281,20 @@ def flip_colors(ren,actor):
             actor.GetTitleTextProperty(0).SetColor(1,1,1)
             actor.GetLabelTextProperty(0).SetColor(1,1,1)
             actor.GetXAxesLinesProperty().SetColor(1,1,1)
-            actor.SetXTitle('X')
+            actor.GetLabelTextProperty(0).BoldOn()
+            actor.GetLabelTextProperty(0).SetFontSize(200)
             
             actor.GetTitleTextProperty(1).SetColor(1,1,1)
             actor.GetLabelTextProperty(1).SetColor(1,1,1)
             actor.GetYAxesLinesProperty().SetColor(1,1,1)
-            actor.SetYTitle('Y')
+            actor.GetLabelTextProperty(1).BoldOn()
+            actor.GetLabelTextProperty(1).SetFontSize(200)
             
             actor.GetTitleTextProperty(2).SetColor(1,1,1)
             actor.GetLabelTextProperty(2).SetColor(1,1,1)
             actor.GetZAxesLinesProperty().SetColor(1,1,1)
+            actor.GetLabelTextProperty(1).BoldOn()
+            actor.GetLabelTextProperty(1).SetFontSize(200)
             ren.SetBackground(0.1, 0.2, 0.4)
             
             

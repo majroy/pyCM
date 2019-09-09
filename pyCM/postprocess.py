@@ -427,7 +427,7 @@ class pp_interactor(QtWidgets.QWidget):
         
         #Add to interactor
         scalar_bar_widget.SetInteractor(self.iren)
-        scalar_bar_widget.SetEnabled(True)
+        # scalar_bar_widget.SetEnabled(True)
         # scalar_bar_widget.RepositionableOn()
         scalar_bar_widget.On()
 
@@ -437,7 +437,7 @@ class pp_interactor(QtWidgets.QWidget):
         
         
         self.ui.vtkWidget.setFocus()
-        self.AddAxis(self.limits,1)
+        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
         xyview_post(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp) #sorts out the camera issue
         self.ui.vtkWidget.update()
         self.ui.statLabel.setText("Loaded results. Idle.")
@@ -1195,35 +1195,22 @@ class pp_interactor(QtWidgets.QWidget):
             self.ui.statLabel.setText("Screen output saved to %s" %os.path.join(os.getcwd(),'postprocessed.png'))
         
         elif key=="r":
-            flip_visible(self.ax3D)
+            flip_visible(self.axisActor)
             
         elif key =="f": #flip color scheme for printing
-            flip_colors(self.ren,self.ax3D)
+            flip_colors(self.ren,self.axisActor)
             if self.ren.GetBackground()==(0.1, 0.2, 0.4):
                 self.sbActor.GetTitleTextProperty().SetColor(1,1,1)
                 self.sbActor.GetLabelTextProperty().SetColor(1,1,1)
             else:
                 self.sbActor.GetTitleTextProperty().SetColor(0,0,0)
                 self.sbActor.GetLabelTextProperty().SetColor(0,0,0)
-            
+            self.axisActor.Modified()
             
                 
 
         self.ui.vtkWidget.update()
 
-    def AddAxis(self,limits,scale):
-        if hasattr(self,"ax3D"):
-            self.ren.RemoveActor(self.ax3D)
-        self.ax3D = vtk.vtkCubeAxesActor()
-        self.ax3D.ZAxisTickVisibilityOn()
-        self.ax3D.SetXTitle('X (11)')
-        self.ax3D.SetYTitle('Y (22)')
-        self.ax3D.SetZTitle('Z')
-        self.ax3D.SetBounds(limits)
-        self.ax3D.SetZAxisRange(limits[-2]*scale,limits[-1]*scale)
-        self.ax3D.SetCamera(self.ren.GetActiveCamera())
-        self.ren.AddActor(self.ax3D)
-        self.ax3D.SetFlyModeToOuterEdges()
 
 if __name__ == "__main__":
     

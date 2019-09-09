@@ -329,10 +329,9 @@ class surf_int(QtWidgets.QWidget):
                 for transformation in refTrans:
                     self.RefOutline = np.dot(self.RefOutline,transformation[0:3,0:3])+transformation[0:3,-1]
                 
-                RefMin=np.amin(self.RefOutline,axis=0)
-                RefMax=np.amax(self.RefOutline,axis=0)
-                self.limits=[RefMin[0],RefMax[0],RefMin[1],RefMax[1],np.amin(self.pts[:,-1],axis=0),np.amax(self.pts[:,-1],axis=0)]
-                self.RefMin,self.RefMax=RefMin,RefMax
+                self.RefMin=np.amin(self.RefOutline,axis=0)
+                self.RefMax=np.amax(self.RefOutline,axis=0)
+                self.limits=get_limits(np.vstack((self.pts,self.RefOutline)))
                 self.ui.xMin.setText('%.3f'%self.limits[0])
                 self.ui.xMax.setText('%.3f'%self.limits[1])
                 self.ui.yMin.setText('%.3f'%self.limits[2])
@@ -352,7 +351,7 @@ class surf_int(QtWidgets.QWidget):
                 self.ren.AddActor(self.outlineActor)
 
                 #add axes
-                self.add_axis(self.limits,[1,1,1])
+                self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
                 
                 if 'spline_x' in mat_contents: #then it can be displayed & settings displayed
                     bsplinerep=mat_contents['spline_x']['tck'][0][0]
@@ -582,10 +581,10 @@ class surf_int(QtWidgets.QWidget):
 
         if hasattr(self,'Smapper'):
             self.Smapper.SetClippingPlanes(planeCollection)
-        nl=np.array(self.ax3D.GetBounds())
-        self.ren.RemoveActor(self.ax3D)
+        nl=np.array(self.axisActor.GetBounds())
+        self.ren.RemoveActor(self.axisActor)
         #add axes
-        self.add_axis(self.limits,[1,1,1])
+        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
 
         
         #update
@@ -604,9 +603,9 @@ class surf_int(QtWidgets.QWidget):
         Pmapper.RemoveAllClippingPlanes()
         if hasattr(self,'Smapper'):
             self.Smapper.RemoveAllClippingPlanes()
-        self.ren.RemoveActor(self.ax3D)
+        self.ren.RemoveActor(self.axisActor)
         #add axes
-        self.add_axis(self.limits,[1,1,1])
+        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
 
         
         #update
@@ -634,8 +633,8 @@ class surf_int(QtWidgets.QWidget):
             if hasattr(self,'pointActor'):
                 self.pointActor.SetScale(s)
                 self.pointActor.Modified()
-
-            self.add_axis(nl,axs)
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,nl,axs)
 
         elif key=="x":
             self.Zaspect=self.Zaspect*0.5
@@ -646,8 +645,8 @@ class surf_int(QtWidgets.QWidget):
             if hasattr(self,'pointActor'):
                 self.pointActor.SetScale(s)
                 self.pointActor.Modified()
-
-            self.add_axis(nl,axs)
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,nl,axs)
 
         elif key=="c":
             self.Zaspect=1.0
@@ -659,7 +658,8 @@ class surf_int(QtWidgets.QWidget):
                 self.pointActor.SetScale(s)
                 self.pointActor.Modified()
 
-            self.add_axis(self.limits,[1,1,1])
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
             self.ren.ResetCamera()
 
         elif key=="i":
@@ -673,10 +673,10 @@ class surf_int(QtWidgets.QWidget):
             print("Screen output saved to %s" %os.path.join(os.getcwd(),'spline_fit.png'))
         
         elif key=="a":
-            FlipVisible(self.ax3D)
+            FlipVisible(self.axisActor)
             
         elif key =="f": #flip color scheme for printing
-            FlipColors(self.ren,self.ax3D,None)
+            FlipColors(self.ren,self.axisActor,None)
             FlipColors(self.ren,self.pointActor,1)
             if hasattr(self,'splineActor'):
                 FlipColors(self.ren,self.splineActor,0)
@@ -837,23 +837,6 @@ class surf_int(QtWidgets.QWidget):
         axs=np.array([1,1,1/self.Zaspect])
         return s,nl,axs        
             
-    def add_axis(self,limits,scale):
-        if hasattr(self,"ax3D"):
-            self.ren.RemoveActor(self.ax3D)
-        self.ax3D = vtk.vtkCubeAxesActor()
-        self.ax3D.ZAxisTickVisibilityOn()
-        self.ax3D.SetXTitle('X')
-        self.ax3D.SetXUnits('mm')
-        self.ax3D.SetYTitle('Y')
-        self.ax3D.SetYUnits('mm')
-        self.ax3D.SetZTitle('Z')
-        self.ax3D.SetZUnits('mm')
-        self.ax3D.SetBounds(limits)
-        self.ax3D.SetZAxisRange(limits[-2]*scale[2],limits[-1]*scale[2])
-        self.ax3D.SetCamera(self.ren.GetActiveCamera())
-        self.ren.AddActor(self.ax3D)
-        if not(self.ren.GetBackground()==(0.1, 0.2, 0.4)):
-            flip_colors(self.ren,self.ax3D)
 
 
 

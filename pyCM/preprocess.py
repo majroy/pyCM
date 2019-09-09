@@ -342,9 +342,10 @@ class msh_interactor(QtWidgets.QWidget):
                     self.tck=self.tck+tuple(bsplinerep[0,j])
                 #outline for mesh generation
                 self.Outline=mat_contents['x_out']
-                RefMin=np.amin(self.Outline,axis=0)
-                RefMax=np.amax(self.Outline,axis=0)
-                self.limits=[RefMin[0],RefMax[0],RefMin[1],RefMax[1],1,1]
+                self.limits = get_limits(self.Outline)
+                # RefMin=np.amin(self.Outline,axis=0)
+                # RefMax=np.amax(self.Outline,axis=0)
+                # self.limits=[RefMin[0],RefMax[0],RefMin[1],RefMax[1],1,1]
                 minLength=np.minimum(self.limits[1]-self.limits[0],self.limits[3]-self.limits[2])
                 self.ui.lengthInput.setValue(round(3*minLength))
                 #check if outline exists, load relevant data & turn corresponding button green
@@ -461,9 +462,9 @@ class msh_interactor(QtWidgets.QWidget):
 
                 
             except Exception as e:
-                ##debug
-                # print("pyCM pre couldn't read variables from file; the error was:")
-                # print(e)
+                #debug
+                print("pyCM pre couldn't read variables from file; the error was:")
+                print(e)
                 return
             
             color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
@@ -496,7 +497,8 @@ class msh_interactor(QtWidgets.QWidget):
         del self.pickedActorInd
         l=self.limits
         self.limits[0:4]=[l[0]+self.asize,l[1]-self.asize,l[2]+self.asize,l[3]-self.asize]
-        self.AddAxis(np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect]),1/self.Zaspect)
+        self.ren.RemoveActor(self.axisActor)
+        self.axisActor = add_axis(self.ren,np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect]),[1,1,1/self.Zaspect])
         
         
         self.ui.rigidBodyButton.setStyleSheet("background-color :None;")
@@ -551,7 +553,9 @@ class msh_interactor(QtWidgets.QWidget):
         l=self.limits
         self.limits[0:4]=[l[0]-self.asize,l[1]+self.asize,l[2]-self.asize,l[3]+self.asize]
         #there will be a BCactor, so BClimits will exist
-        self.AddAxis(np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect]),1/self.Zaspect)
+        try: self.ren.RemoveActor(self.axisActor)
+        except: pass
+        self.axisActor = add_axis(self.ren,np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect]),[1,1,1/self.Zaspect])
         self.ui.vtkWidget.update()
         
         self.picks=0
@@ -691,7 +695,9 @@ class msh_interactor(QtWidgets.QWidget):
         l=self.limits
         self.limits[0:4]=[l[0]-self.asize,l[1]+self.asize,l[2]-self.asize,l[3]+self.asize]
         #there will be a BCactor, so BClimits will exist
-        self.AddAxis(np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect]),1/self.Zaspect)
+        try: self.ren.RemoveActor(self.axisActor)
+        except: pass
+        self.axisActor = add_axis(self.ren,np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect]),[1,1,1/self.Zaspect])
         self.ui.vtkWidget.update()
         self.ui.statLabel.setText("Loaded pre-existing preprocessing data.")
         self.ui.rigidBodyButton.setStyleSheet("background-color :rgb(77, 209, 97);")
@@ -929,7 +935,9 @@ class msh_interactor(QtWidgets.QWidget):
         # self.respacedOutlineActor.GetProperty().SetPointSize(12)
         self.ui.vtkWidget.update()
         self.ui.vtkWidget.setFocus()
-        self.AddAxis(self.limits,1)
+        try: self.ren.RemoveActor(self.axisActor)
+        except: pass
+        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
         QtWidgets.QApplication.processEvents()
     
     def RunMeshScript(self):
@@ -1335,7 +1343,9 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
         #update z extents of interactor limits
         self.limits[4]=bounds[4]
         self.limits[5]=bounds[5]
-        self.AddAxis(self.limits,1)
+        try: self.ren.RemoveActor(self.axisActor)
+        except: pass
+        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
         self.ui.vtkWidget.update()
         self.ui.statLabel.setText("Mesh displayed . . . Idle")
         self.mesh_changed=True
@@ -1497,7 +1507,8 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
 
         #make new ax3D to cover the extents of the BC surface
         self.BClimits=BCpnts.GetBounds()
-        self.AddAxis(self.BClimits,1)
+        self.ren.RemoveActor(self.axisActor)
+        self.axisActor = add_axis(self.ren,self.BClimits,[1,1,1])
         self.ui.vtkWidget.update()
         QtWidgets.QApplication.processEvents()
         
@@ -1580,7 +1591,8 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
             if hasattr(self,'BCactor'):
                 self.BCactor.SetScale(1,1,self.Zaspect)
                 nl=np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect])
-            self.AddAxis(nl,1/self.Zaspect)
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,nl,[1,1,1/self.Zaspect])
 
         elif key=="x":
             self.Zaspect=self.Zaspect*0.5
@@ -1588,7 +1600,8 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
             if hasattr(self,'BCactor'):
                 self.BCactor.SetScale(1,1,self.Zaspect)
                 nl=np.append(self.limits[0:4],[self.BClimits[-2]*self.Zaspect,self.BClimits[-1]*self.Zaspect])
-            self.AddAxis(nl,1/self.Zaspect)
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,nl,[1,1,1/self.Zaspect])
 
         elif key=="c":
             self.Zaspect=1.0
@@ -1596,7 +1609,8 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
             if hasattr(self,'BCactor'):
                 self.BCactor.SetScale(1,1,self.Zaspect)
                 nl=np.append(self.limits[0:4],self.BClimits[-2::])
-                self.AddAxis(nl,1)
+                self.ren.RemoveActor(self.axisActor)
+                self.axisActor = add_axis(self.ren,nl,[1,1,1])
 
         elif key=="i":
             im = vtk.vtkWindowToImageFilter()
@@ -1606,13 +1620,14 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
             writer.SetInputConnection(im.GetOutputPort())
             writer.SetFileName("mesh.png")
             writer.Write()
-            self.ui.statLabel.setText("Screen output saved to %s" %os.path.join(currentdir,'mesh.png'))
+            self.ui.statLabel.setText("Screen output saved to %s" %os.path.join(os.getcwd(),'mesh.png'))
         
         elif key=="r":
-            flip_visible(self.ax3D)
+            flip_visible(self.axisActor)
             
         elif key =="f": #flip color scheme for printing
-            flip_colors(self.ren,self.ax3D)
+            flip_colors(self.ren,self.axisActor)
+            self.axisActor.Modified()
                 
         elif key == "o":
             flip_visible(self.outlineActor)
@@ -1631,20 +1646,6 @@ session.viewports['Viewport: 1'].view.fitView()\n"""
             self.DisplayMesh()
             
         self.ui.vtkWidget.update()
-
-    def AddAxis(self,limits,scale):
-        if hasattr(self,"ax3D"):
-            self.ren.RemoveActor(self.ax3D)
-        self.ax3D = vtk.vtkCubeAxesActor()
-        self.ax3D.ZAxisTickVisibilityOn()
-        self.ax3D.SetXTitle('X')
-        self.ax3D.SetYTitle('Y')
-        self.ax3D.SetZTitle('Z')
-        self.ax3D.SetBounds(limits)
-        self.ax3D.SetZAxisRange(limits[-2]*scale,limits[-1]*scale)
-        self.ax3D.SetCamera(self.ren.GetActiveCamera())
-        self.ren.AddActor(self.ax3D)
-        self.ax3D.SetFlyModeToOuterEdges()
 
     def doFEA(self):
         """

@@ -520,8 +520,9 @@ class pnt_interactor(QtWidgets.QWidget):
         
         self.pointActor.Modified()
         self.outlineActor.Modified()
-
-        self.add_axis(nl,axs)
+        
+        self.ren.RemoveActor(self.axisActor)
+        self.axisActor = add_axis(self.ren,nl,axs)
         
         #update
         self.ren.ResetCamera()
@@ -654,7 +655,8 @@ class pnt_interactor(QtWidgets.QWidget):
         self.pointActor.Modified()
         self.outlineActor.Modified()
 
-        self.add_axis(nl,axs)
+        self.ren.RemoveActor(self.axisActor)
+        self.axisActor = add_axis(self.ren,nl,axs)
         
         #update
         self.ren.ResetCamera()
@@ -713,12 +715,13 @@ class pnt_interactor(QtWidgets.QWidget):
         
         #get limits
         try: 
-            self.limits = get_limits(np.hstack((self.Outline,self.rawPnts)))
+            self.limits = get_limits(np.vstack((self.Outline,self.rawPnts)))
         except: 
             self.limits = get_limits(self.rawPnts)
 
         #add axes
-        self.add_axis(self.limits,[1,1,1])
+        self.ren.RemoveActor(self.axisActor)
+        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
         
         
         self.vtkPntsPolyData, \
@@ -786,8 +789,9 @@ class pnt_interactor(QtWidgets.QWidget):
             
             self.pointActor.SetScale(s)
             self.pointActor.Modified()
-
-            self.add_axis(nl,axs)
+            
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,nl,axs)
         
             #update
             self.ren.ResetCamera()
@@ -876,15 +880,17 @@ class pnt_interactor(QtWidgets.QWidget):
                 QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
                 "The %s dataset could not be loaded."%(str_d))
             
-            #get limits
+            
         #get limits
         try: 
-            self.limits = get_limits(np.hstack((self.Outline,self.rawPnts)))
+            self.limits = get_limits(np.vstack((self.Outline,self.rawPnts)))
         except: 
             self.limits = get_limits(self.rawPnts)
 
-            #add axes
-            self.add_axis(self.limits,[1,1,1])
+        #add axes
+        try: self.ren.RemoveActor(self.axisActor)
+        except: pass
+        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
         
         #update
         self.manage_tri()
@@ -1128,12 +1134,14 @@ class pnt_interactor(QtWidgets.QWidget):
         
         #get limits
         try: 
-            self.limits = get_limits(np.hstack((self.Outline,self.rawPnts)))
+            self.limits = get_limits(np.vstack((self.Outline,self.rawPnts)))
         except: 
             self.limits = get_limits(self.rawPnts)
 
         #add axes
-        self.add_axis(self.limits,[1,1,1])
+        try: self.ren.RemoveActor(self.axisActor) 
+        except: pass
+        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
         
         #update status
         self.ui.statLabel.setText("Current perimeter file:%s    Current point cloud file:%s"%(self.filep,self.filec))
@@ -1226,7 +1234,9 @@ class pnt_interactor(QtWidgets.QWidget):
             self.pointActor.SetScale(s)
             self.pointActor.Modified()
 
-            self.add_axis(nl,axs)
+            try: self.ren.RemoveActor(self.axisActor)
+            except: pass
+            self.axisActor = add_axis(self.ren,nl,axs)
         
             #update
             self.ren.ResetCamera()
@@ -1271,14 +1281,15 @@ class pnt_interactor(QtWidgets.QWidget):
             #if it has an outline already, remove it
             if hasattr(self,'outlineActor'):
                 self.ren.RemoveActor(self.outlineActor)
+            if 'Delaunay' in sys.modules: print('Import happened.')
             print('Calculating hull . . .')
-            try:
-                chull = alpha_shape(self.rawPnts[self.bool_pnt][:,0:2],self.tri,self.ui.alpha_cutoff.value())
-                x,y = chull.exterior.coords.xy
-            except Exception as e:
-                print('Hull failed, try increasing cutoff. Error returned:')
-                print(e)
-                return
+            # try:
+            chull = alpha_shape(self.rawPnts[self.bool_pnt][:,0:2],self.tri,self.ui.alpha_cutoff.value())
+            x,y = chull.exterior.coords.xy
+            # except Exception as e:
+                # print('Hull failed, try increasing cutoff.')
+                # print(e)
+                # return
             print('Hull calculated.')
             
             self.Outline = np.column_stack((x,y,np.zeros(len(x)))) #outline appears at z=0
@@ -1355,7 +1366,9 @@ class pnt_interactor(QtWidgets.QWidget):
                 self.svd_pointActor.SetScale(s)
                 self.svd_pointActor.Modified()
                 
-            self.add_axis(nl,axs)
+            try: self.ren.RemoveActor(self.axisActor)
+            except: pass
+            self.axisActor = add_axis(self.ren,nl,axs)
 
 
 
@@ -1371,7 +1384,8 @@ class pnt_interactor(QtWidgets.QWidget):
                 self.fActor.SetScale(s)
                 self.fActor.Modified()
 
-            self.add_axis(nl,axs)
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,nl,axs)
 
 
         elif key=="c":
@@ -1385,7 +1399,8 @@ class pnt_interactor(QtWidgets.QWidget):
             if hasattr(self,'fActor'):
                 self.fActor.SetScale(s)
                 self.fActor.Modified()
-            self.add_axis(self.limits,[1,1,1])
+            self.ren.RemoveActor(self.axisActor)
+            self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
             self.ren.ResetCamera()
 
         elif key=="i":
@@ -1399,16 +1414,14 @@ class pnt_interactor(QtWidgets.QWidget):
             print('Screen output saved to %s' %os.path.join(os.getcwd(),'point_cloud.png'))
 
         elif key=="a":
-            if hasattr(self,'ax3D'):
-                flip_visible(self.ax3D)
+            flip_visible(self.ax3D)
             
         elif key == "o":
             if hasattr(self,'outlineActor'):
                 flip_visible(self.outlineActor)
         
         elif key == "f":
-            if hasattr(self,'ax3D'):
-                flip_colors(self.ren,self.ax3D)
+                flip_colors(self.ren,self.axisActor)
                 
         elif key == "r":
             if self.picking == True:
@@ -1427,25 +1440,7 @@ class pnt_interactor(QtWidgets.QWidget):
     
 
     
-    def add_axis(self,limits,scale):
-        if hasattr(self,"ax3D"):
-            self.ren.RemoveActor(self.ax3D)
-        self.ax3D = vtk.vtkCubeAxesActor()
-        self.ax3D.ZAxisTickVisibilityOn()
-        self.ax3D.SetXTitle('X')
-        self.ax3D.SetXUnits('mm')
-        self.ax3D.SetYTitle('Y')
-        self.ax3D.SetYUnits('mm')
-        self.ax3D.SetZTitle('Z')
-        self.ax3D.SetZUnits('mm')
-        self.ax3D.SetBounds(limits)
-        self.ax3D.SetZAxisRange(limits[-2]*scale[2],limits[-1]*scale[2])
-        self.ax3D.SetXAxisRange(limits[0]*scale[0],limits[1]*scale[0])
-        self.ax3D.SetYAxisRange(limits[2]*scale[1],limits[3]*scale[1])
-        self.ax3D.SetCamera(self.ren.GetActiveCamera())
-        self.ren.AddActor(self.ax3D)
-        if not(self.ren.GetBackground()==(0.1, 0.2, 0.4)):
-            flip_colors(self.ren,self.ax3D)
+
 
 def get_svd_rotation_matrix(RP):
     '''
