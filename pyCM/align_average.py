@@ -880,7 +880,8 @@ class aa_interactor(QtWidgets.QWidget):
                     self.limits = get_limits(np.vstack((self.flp,self.rp,self.fO_local,self.rO_local)))
 
                     #add axes
-                    self.ren.RemoveActor(self.axisActor)
+                    try: self.ren.RemoveActor(self.axisActor)
+                    except: pass
                     self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
                     
                     #initialize both transformation matrices
