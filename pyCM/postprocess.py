@@ -326,8 +326,8 @@ class pp_interactor(QtWidgets.QWidget):
         """
         QtWidgets.QApplication.processEvents()
 
-        min_stress = float(self.ui.inp_min_stress.text())
-        max_stress = float(self.ui.inp_max_stress.text())
+        min_stress = self.ui.inp_min_stress.value()
+        max_stress = self.ui.inp_max_stress.value()
 
         self.mesh_mapper.SetScalarRange(min_stress, max_stress)
         self.sbActor.SetNumberOfLabels(self.ui.numContour.value())
@@ -988,10 +988,10 @@ class pp_interactor(QtWidgets.QWidget):
                         self.ren.RemoveActor(self.polyline_actor)
 
                     # get start and end point coordinates
-                    start_point_x = float(self.ui.point1_x_coord.text())
-                    start_point_y = float(self.ui.point1_y_coord.text())
-                    end_point_x = float(self.ui.point2_x_coord.text())
-                    end_point_y = float(self.ui.point2_y_coord.text())
+                    start_point_x = self.ui.point1_x_coord.value()
+                    start_point_y = self.ui.point1_y_coord.value()
+                    end_point_x = self.ui.point2_x_coord.value()
+                    end_point_y = self.ui.point2_y_coord.value()
                     start_point = np.array([start_point_x, start_point_y, 1.])
                     end_point = np.array([end_point_x, end_point_y, 1.])
                 
