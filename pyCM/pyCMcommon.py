@@ -39,13 +39,7 @@ def get_file(*args):
     ftypeName['*.abq.dat']=["Select Abaqus results file:", "*.dat", "DAT File"]
     ftypeName['*.inp']=["Select FEA input file:", "*.inp", "INP File"]
     ftypeName['*.vtu']=["Select postprocessing file to view:", "*.vtu", "VTK XML unstructured grid file"]
-
-    if len(args)==2:
-        ftypeName[ext][0] = args[1]
-        
-    # lapp = QApplication.instance()
-    # if lapp is None:
-        # lapp = QtWidgetsQApplication([])
+    
     if ext=='*.txt':
         filer = QFileDialog.getOpenFileName(None, ftypeName[ext][0], 
          launchdir, \

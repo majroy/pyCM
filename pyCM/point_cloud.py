@@ -34,7 +34,7 @@ __author__ = "M.J. Roy"
 __version__ = "1.7"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-__copyright__ = "(c) M. J. Roy, 2014-2019"
+__copyright__ = "(c) M. J. Roy, 2014-2020"
 
 import sys
 import os.path
@@ -51,7 +51,7 @@ try:
     from shapely.ops import cascaded_union, polygonize
     import shapely.geometry as geometry
 except:
-    print('Package missing for outline processing.')
+    print('The Shapely package is missing for outline processing.')
 
 nosio=False
 
@@ -1044,7 +1044,7 @@ class pnt_interactor(QtWidgets.QWidget):
         '''
         Read in a variety of different potential types of data, either a pair of files (outline/perimeter followed by point cloud) or an unregistered point cloud that requires outline processing. Can call activate_outline & generate a triagulation as required if unregistered.
         '''
-        self.registered = True #whether or not an outline has been generated
+        self.registered = True #assume that there is no outline unless proven true
         self.activate_outline(False)
         color=(70, 171, 176)
         if hasattr(self,'pointActor'):
@@ -1066,12 +1066,6 @@ class pnt_interactor(QtWidgets.QWidget):
         if not(os.path.isfile(filep)):
             print('Data file invalid.')
             return
-
-        #test if filep returned a dat file
-        _, ext = os.path.splitext(filep)
-        if ext.lower() == '.dat':
-            #then this is a nanofocus type file
-            self.registered = False
         
 
         #return focus
@@ -1080,7 +1074,15 @@ class pnt_interactor(QtWidgets.QWidget):
         
         if filec is None and self.registered:
             filec,startdir=get_file('*.txt',startdir) #get filec
-
+            
+            # if filec returns none, then tell the user and set registration as false
+            if filec == None:
+                msg=QtWidgets.QMessageBox()
+                msg.setIcon(QtWidgets.QMessageBox.Information)
+                msg.setText("Analysis can proceed on the basis that an outline will be extracted from the file indicated. If you already have an outline/perimeter file, please load this file at the first file prompt, followed by the contour/surface data at the second.")
+                msg.setWindowTitle("pyCM Information")
+                msg.exec_()
+                self.registered = False
         
         
         #catch if cancel was pressed on file dialog or if a bad path was specified
@@ -1107,21 +1109,30 @@ class pnt_interactor(QtWidgets.QWidget):
                 self.ren.AddActor(self.outlineActor)            
                 self.filep=filep
         
-            else:
-                self.rawPnts=np.genfromtxt(filep,skip_header=1) / 1e3 #convert from micron to mm
+            else: #this is a dat file, or a text file with no outline.
+                _, ext = os.path.splitext(filep)
+                
+                if ext.lower() == '.dat': #then its in micron
+                    self.rawPnts=np.genfromtxt(filep,skip_header=1) / 1e3 #convert from micron to mm
+                else:
+                    self.rawPnts=np.genfromtxt(filep) #assume in mm
                 self.filep = 'Not applicable'
                 self.filec = filep #to eliminate getting another file
                 #activate outline processing
                 self.activate_outline(True)
         
+        #special case if its been registered.
         if self.registered:
-            _, ext = os.path.splitext(filec)
-            
+            _, ext = os.path.splitext(filec) #if invalid or None (the user cancelled), then the exception will be raised.
             if ext.lower() == '.txt':
                 self.rawPnts=np.genfromtxt(filec)
             elif ext.lower() == '.csv':
                 self.rawPnts=np.genfromtxt(filec,skip_header=1,delimiter=',',usecols=(0,1,2))
             self.filec=filec
+            
+
+            
+
         
         
         self.vtkPntsPolyData, \
