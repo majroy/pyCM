@@ -1,4 +1,16 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0) 
+
+- [Introduction](#introduction)
+  * [Contour method](#contour-method)
+  * [Analysis code](#analysis-code)
+  * [Moving forward](#moving-forward)
+- [Latest version](#latest-version)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Modules](#modules)
+- [Contributions and extensions](#contributions-and-extensions)
+- [Acknowledgements](#acknowledgements)
+
 # Introduction
 
 ## Contour method
@@ -79,7 +91,7 @@ pip uninstall pyCM
 # Contributions and extensions
 This project is intended to best serve the overall residual stress community, so feel free to adjust as needed and add functionality. Please contact me directly by email prior to submitting pull requests so that we can discuss overall structure further.
 
-Currently, this project has only been tested on Windows 7 x64, but there is nothing to suggest that it will not work across all platforms.
+Currently, this project has only been tested on Windows 10 x64 and limited Linux distributions. It is expected, but not tested to be compatible with all platforms.
 
 # Acknowledgements
 A number of these tools have been developed based on MATLAB code written by Greg Johnson, Chris Gill, Matt Fox, Philip Frankel and Yuan-Sheng Xiong (and probably others) at the University of Manchester between 2004-2013.
