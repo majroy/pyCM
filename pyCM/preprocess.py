@@ -335,11 +335,12 @@ class msh_interactor(QtWidgets.QWidget):
             self.outputd=os.path.split(self.fileo)[0] #needed to write ancillary files.
             try:
                 #read in for ImposeSplineFit function
-                bsplinerep=mat_contents['spline_x']['tck'][0][0]
-                #recast tck as a tuple
-                self.tck=tuple()
-                for j in range(5):
-                    self.tck=self.tck+tuple(bsplinerep[0,j])
+                order=mat_contents['spline_x']['order'][0][0][0]
+                #build tck list from mat contents
+                self.tck = [mat_contents['spline_x']['tck_x'][0][0][0], \
+                mat_contents['spline_x']['tck_y'][0][0][0], \
+                mat_contents['spline_x']['tck_c'][0][0][0], \
+                order[0], order[1]]
                 #outline for mesh generation
                 self.Outline=mat_contents['x_out']
                 self.limits = get_limits(self.Outline)
@@ -430,7 +431,7 @@ class msh_interactor(QtWidgets.QWidget):
                     self.DisplayMesh()
                     self.ImposeSplineFit()
                     self.ui.lengthInput.setValue(mat_contents['mesh_extrude_depth'][0][0])
-                    self.ui.numPart.setValue(mat_contents['mesh_partitions'])
+                    self.ui.numPart.setValue(int(mat_contents['mesh_partitions'][0][0]))
                     
                 if 'pickedCornerInd' in mat_contents: #get the appropriate rigid body bc's, imposesplinefit may not have been run
                     self.pickedCornerInd = mat_contents['pickedCornerInd'][0]
@@ -462,7 +463,7 @@ class msh_interactor(QtWidgets.QWidget):
 
                 
             except Exception as e:
-                #debug
+                # debug
                 print("pyCM pre couldn't read variables from file; the error was:")
                 print(e)
                 return

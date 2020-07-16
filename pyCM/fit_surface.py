@@ -22,9 +22,10 @@ ver 1.1 17-17-03
 1.1 - Initial release
 1.2 - Refactored for PyQt5 & Python 3.x
 1.3 - Refactored to handle self-restraint features
+1.4 - Fixed deprecated scipy/numpy 'list-like' issues when saving the spline
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.3"
+__version__ = "1.4"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 
@@ -354,13 +355,13 @@ class surf_int(QtWidgets.QWidget):
                 self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
                 
                 if 'spline_x' in mat_contents: #then it can be displayed & settings displayed
-                    bsplinerep=mat_contents['spline_x']['tck'][0][0]
-                    #recast tck as a tuple
-                    self.tck=tuple()
-                    for j in range(5):
-                        self.tck=self.tck+tuple(bsplinerep[0,j])
-                    spacing=mat_contents['spline_x']['kspacing'][0][0][0]
                     order=mat_contents['spline_x']['order'][0][0][0]
+                    #build tck list from mat contents
+                    self.tck = [mat_contents['spline_x']['tck_x'][0][0][0], \
+                    mat_contents['spline_x']['tck_y'][0][0][0], \
+                    mat_contents['spline_x']['tck_c'][0][0][0], \
+                    order[0], order[1]]
+                    spacing=mat_contents['spline_x']['kspacing'][0][0][0]
                     # smoothing=mat_contents['spline_x']['smooth'][0][0]
                     self.gx,self.gy=spacing[0],spacing[1]
                     self.ui.numEdit1.setValue(self.gx)
@@ -387,7 +388,8 @@ class surf_int(QtWidgets.QWidget):
                     self.fitted=False
                     self.ui.updateButton.setStyleSheet("background-color : None")
                     
-            except Exception as e: 
+            except Exception as e:
+                print('Load from pyCM fit_surface failed; error message returned:')
                 print(str(e))
                 
                 
@@ -435,7 +437,7 @@ class surf_int(QtWidgets.QWidget):
         self.DisplayFit()
             
     def DisplayFit(self):
-
+        
         try:
             #now evaluate for show
             if not hasattr(self,'dryval'): #then it won't have drxval
@@ -815,11 +817,14 @@ class surf_int(QtWidgets.QWidget):
             mat_contents=sio.loadmat(self.fileo)
             coefs=[np.reshape(self.tck[2],(len(self.tck[0])-self.tck[3]-1,-1))]
             number=np.array([len(self.tck[0]),len(self.tck[1])])
-            order=np.array([self.tck[3], self.tck[4]])
-            new={'spline_x': {'form': 'B-', 'knots': [self.tck[0], self.tck[1]], 'kspacing': [self.gx, self.gy], 'coefs': coefs, 'number': number, 'order':order, 'dim': 1, 'tck': self.tck},  'x_out':self.RefOutline, 'aa_mask':self.bool_pnt}
+
+            #16/07/2020 - scipy.io.savemat does not support 'list-like' arrays. Therefore the spline object now contains the elements of the tck list.
+            new={'spline_x': {'form': 'B-', 'kspacing': [self.gx, self.gy], 'coefs': coefs, 'number': number, 'tck_x': self.tck[0],'tck_y': self.tck[1], 'tck_c': self.tck[3], 'order':np.array([self.tck[3],self.tck[4]])},  'x_out':self.RefOutline, 'aa_mask':self.bool_pnt}
+            
+            
+            
             
             mat_contents.update(new)
-            
             sio.savemat(self.fileo,mat_contents)
             
             self.ui.statLabel.setText("Output written.")
