@@ -23,9 +23,10 @@ ver 1.1 17-17-03
 1.2 - Refactored for PyQt5 & Python 3.x
 1.3 - Refactored to handle self-restraint features
 1.4 - Fixed deprecated scipy/numpy 'list-like' issues when saving the spline
+1.5 - Fixed wrong index assigned to 'tck_c' when saving the spline
 '''
 __author__ = "M.J. Roy"
-__version__ = "1.4"
+__version__ = "1.5"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 
@@ -819,7 +820,7 @@ class surf_int(QtWidgets.QWidget):
             number=np.array([len(self.tck[0]),len(self.tck[1])])
 
             #16/07/2020 - scipy.io.savemat does not support 'list-like' arrays. Therefore the spline object now contains the elements of the tck list.
-            new={'spline_x': {'form': 'B-', 'kspacing': [self.gx, self.gy], 'coefs': coefs, 'number': number, 'tck_x': self.tck[0],'tck_y': self.tck[1], 'tck_c': self.tck[3], 'order':np.array([self.tck[3],self.tck[4]])},  'x_out':self.RefOutline, 'aa_mask':self.bool_pnt}
+            new={'spline_x': {'form': 'B-', 'kspacing': [self.gx, self.gy], 'coefs': coefs, 'number': number, 'tck_x': self.tck[0],'tck_y': self.tck[1], 'tck_c': self.tck[2], 'order':np.array([self.tck[3],self.tck[4]])},  'x_out':self.RefOutline, 'aa_mask':self.bool_pnt}
             
             
             
