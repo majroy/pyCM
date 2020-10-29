@@ -507,13 +507,13 @@ class pp_interactor(QtWidgets.QWidget):
         for component in ['S11', 'S22', 'S33']:
             i+=1
             self.ui.statLabel.setText("Calculating quadrature for %s . . ."%component)
-            # check if the discretisation was done with brick (C3D8) or tetrahedra (C3D4) elements
+            # check if the discretisation was done with brick (C3D8) or tetrahedra (C3D10) elements
             # need to run 
             if self.mainCellType==12: #1st order quads
                 stress_array = self.calculate_quadrature_stress_C3D8(quadrature_data[:,[0,1,2,3,i]], element_data, node_data)
 
             else: #2nd order tets
-                stress_array = self.calculate_quadrature_stress_C3D4(quadrature_data[:,[0,1,2,3,i]], element_data, node_data)
+                stress_array = self.calculate_quadrature_stress_C3D10(quadrature_data[:,[0,1,2,3,i]], element_data, node_data)
 
             # nodes will duplicate in elements
             # AVERAGE contributions from nodes
@@ -704,13 +704,13 @@ class pp_interactor(QtWidgets.QWidget):
 
         return stress_array
 
-    def calculate_quadrature_stress_C3D4(self, quadrature_data, element_data, node_data):
+    def calculate_quadrature_stress_C3D10(self, quadrature_data, element_data, node_data):
         """
         Calculate the stress values from quadrature and element data
-        for element C3D4
+        for element C3D10
         """
 
-        # default step for the C3D4 element -> number of nodes
+        # default step for the C3D10 element -> number of nodes
         element_step = 4
 
         # define the element counter
@@ -742,18 +742,20 @@ class pp_interactor(QtWidgets.QWidget):
             element_index = element_index + 1
 
             # find the nodal points in the element
-            # the int conversion could be done so much better
-            # in the future i have to extract this as a structured array
-            # and set as int
             nodal_point_1 = node_data[int(element_row[1]) - 1, :]
             nodal_point_2 = node_data[int(element_row[2]) - 1, :]
             nodal_point_3 = node_data[int(element_row[3]) - 1, :]
             nodal_point_4 = node_data[int(element_row[4]) - 1, :]
-
+            nodal_point_5 = node_data[int(element_row[5]) - 1, :]
+            nodal_point_6 = node_data[int(element_row[6]) - 1, :]
+            nodal_point_7 = node_data[int(element_row[7]) - 1, :]
+            nodal_point_8 = node_data[int(element_row[8]) - 1, :]
+            nodal_point_9 = node_data[int(element_row[9]) - 1, :]
+            nodal_point_10 = node_data[int(element_row[10]) - 1, :]
 
             # obtain the natural coordinates of the gauss points
             # and apply the shape functions
-            shape_function_matrix = self.C3D4_quadrature_points()
+            shape_function_matrix = self.C3D10_quadrature_points()
 
             # extrapolate from quadrature points to nodal points
             shape_function_matrix = shape_function_matrix.T
@@ -764,15 +766,25 @@ class pp_interactor(QtWidgets.QWidget):
             nodal_data2 = np.array([[nodal_point_2[0], nodal_point_2[1], nodal_point_2[2], nodal_point_2[3], nodal_stress[1]]])
             nodal_data3 = np.array([[nodal_point_3[0], nodal_point_3[1], nodal_point_3[2], nodal_point_3[3], nodal_stress[2]]])
             nodal_data4 = np.array([[nodal_point_4[0], nodal_point_4[1], nodal_point_4[2], nodal_point_4[3], nodal_stress[3]]])
-
+            nodal_data5 = np.array([[nodal_point_5[0], nodal_point_5[1], nodal_point_5[2], nodal_point_5[3], nodal_stress[4]]])
+            nodal_data6 = np.array([[nodal_point_6[0], nodal_point_6[1], nodal_point_6[2], nodal_point_6[3], nodal_stress[5]]])
+            nodal_data7 = np.array([[nodal_point_7[0], nodal_point_7[1], nodal_point_7[2], nodal_point_7[3], nodal_stress[6]]])
+            nodal_data8 = np.array([[nodal_point_8[0], nodal_point_8[1], nodal_point_8[2], nodal_point_8[3], nodal_stress[7]]])
+            nodal_data9 = np.array([[nodal_point_9[0], nodal_point_9[1], nodal_point_9[2], nodal_point_9[3], nodal_stress[8]]])
+            nodal_data10 = np.array([[nodal_point_10[0], nodal_point_10[1], nodal_point_10[2], nodal_point_10[3], nodal_stress[9]]])
 
             # collate the data from all nodes
             stress_array[stress_array_row, :] = nodal_data1
             stress_array[stress_array_row + 1, :] = nodal_data2
             stress_array[stress_array_row + 2, :] = nodal_data3
             stress_array[stress_array_row + 3, :] = nodal_data4
-
-            stress_array_row = stress_array_row + 4
+            stress_array[stress_array_row + 4, :] = nodal_data5
+            stress_array[stress_array_row + 5, :] = nodal_data6
+            stress_array[stress_array_row + 6, :] = nodal_data7
+            stress_array[stress_array_row + 7, :] = nodal_data8
+            stress_array[stress_array_row + 8, :] = nodal_data9
+            stress_array[stress_array_row + 9, :] = nodal_data10
+            stress_array_row = stress_array_row + 10
 
         return stress_array
         
@@ -940,14 +952,31 @@ class pp_interactor(QtWidgets.QWidget):
 
         return shape_function_matrix
 
-    def C3D4_quadrature_points(self):
+    def C3D10_quadrature_points(self):
         """
-        Define the natural coordinates of the quadrature points for C3D4.
-        The element has 10 nodes and 4 quadrature points.
+        Define the natural coordinates of the quadrature points for C3D10.
+        The element has 10 nodes and 4 quadrature points therefore direct recovery is not possible.
+        Here we use the patch recovery method:
+
+        for the bilinear implementation each quadrature point (n) has parameters:
+        P[n] = [1, x, y, z, xy, xz, yz]
+
+        we then solve
+        A = \sum_{n+1}^N P_i^T P_i
+        b = \sum_{i+1} P_i^T \sigma_i
+
+        Aa = b
+        \sigma_p = Pa
+
+        where \sigma_i is the quadrature point stresses,
+        and \sigma_p are the recovered nodal stresses.
+
+        Returns:
+        P {11x4} matrix consisting of bilinear constants for each quadrature point
         """
 
-        # create the square shape function matrix
-        shape_function_matrix = np.zeros(shape=(4, 4))
+        # create the parameter matrix
+        P = np.zeros(shape=(4, 11))
 
         # natural coordinates of the quadrature points
         nat_coord_quadrature_points = np.array([[(5+3*(5)**(0.5)), (5-(5)**(0.5)), (5-(5)**(0.5)), (5-(5)**(0.5))], \
@@ -957,19 +986,21 @@ class pp_interactor(QtWidgets.QWidget):
 
         nat_coord_quadrature_points = nat_coord_quadrature_points / 20
 
-        # apply the shape functions to the natural coordinates
-        # and built the matrix
-        for shape_matrix_index in range(0, 4):
-            shape_function_matrix[shape_matrix_index, 0] = nat_coord_quadrature_points[shape_matrix_index, 0] \
-                                                        * (2 * nat_coord_quadrature_points[shape_matrix_index, 0] - 1)
-            shape_function_matrix[shape_matrix_index, 1] = nat_coord_quadrature_points[shape_matrix_index, 1] \
-                                                        * (2 * nat_coord_quadrature_points[shape_matrix_index, 1] - 1)
-            shape_function_matrix[shape_matrix_index, 2] = nat_coord_quadrature_points[shape_matrix_index, 2] \
-                                                        * (2 * nat_coord_quadrature_points[shape_matrix_index, 2] - 1)
-            shape_function_matrix[shape_matrix_index, 3] = nat_coord_quadrature_points[shape_matrix_index, 3] \
-                                                        * (2 * nat_coord_quadrature_points[shape_matrix_index, 3] - 1)
+        # built the parameter matrix
+        for indx in range(0, 4):
+            P[indx, 0] = 1.
+            P[indx, 1] = nat_coord_quadrature_points[indx, 0]
+            P[indx, 2] = nat_coord_quadrature_points[indx, 1]
+            P[indx, 3] = nat_coord_quadrature_points[indx, 2]
+            P[indx, 4] = nat_coord_quadrature_points[indx, 3]
+            P[indx, 5] = nat_coord_quadrature_points[indx, 0] * nat_coord_quadrature_points[indx, 1]
+            P[indx, 6] = nat_coord_quadrature_points[indx, 0] * nat_coord_quadrature_points[indx, 2]
+            P[indx, 7] = nat_coord_quadrature_points[indx, 0] * nat_coord_quadrature_points[indx, 3]
+            P[indx, 8] = nat_coord_quadrature_points[indx, 1] * nat_coord_quadrature_points[indx, 2]
+            P[indx, 9] = nat_coord_quadrature_points[indx, 1] * nat_coord_quadrature_points[indx, 3]
+            P[indx, 10] = nat_coord_quadrature_points[indx, 2] * nat_coord_quadrature_points[indx, 3]
 
-        return shape_function_matrix
+        return P
     
     def extract_plot(self):
         """
