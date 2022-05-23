@@ -20,12 +20,12 @@ import vtk
 import vtk.util.numpy_support as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCMcommon import *
-from icp import *
-from registration import read_file as reg_read_file
-from fit_surface import read_file as fs_read_file
-from extrude_widget import extrude_widget
-from fea_widget import fea_widget
+from pyCM.pyCMcommon import *
+from pyCM.icp import *
+from pyCM.registration import read_file as reg_read_file
+from pyCM.fit_surface import read_file as fs_read_file
+from pyCM.extrude_widget import extrude_widget
+from pyCM.fea_widget import fea_widget
 
 def launch(*args, **kwargs):
     '''

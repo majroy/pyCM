@@ -18,8 +18,8 @@ from PyQt5 import QtGui, QtWidgets, QtCore
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from pkg_resources import Requirement, resource_filename
 import yaml
-from pyCMcommon import get_file, get_save_file, gen_filtered_ugrid, read_file_for_fea, vtkug_writer
-from frd_access import postprocess as frd_post
+from pyCM.pyCMcommon import get_file, get_save_file, gen_filtered_ugrid, read_file_for_fea, vtkug_writer
+from pyCM.frd_access import postprocess as frd_post
 
 class execute_fea(QThread):
     '''

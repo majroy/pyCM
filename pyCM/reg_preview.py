@@ -8,7 +8,7 @@ import numpy as np
 import vtk
 from PyQt5 import QtCore, QtGui, QtWidgets
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from pyCMcommon import *
+from pyCM.pyCMcommon import *
 
 class registration_viewer(QtWidgets.QWidget):
     def __init__(self, parent = None):

@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib import rc
 from registration import read_file as reg_read_file
-from pyCMcommon import *
+from pyCM.pyCMcommon import *
 
 def launch(*args, **kwargs):
     '''

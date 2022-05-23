@@ -17,7 +17,7 @@ from PyQt5 import QtGui, QtWidgets, QtCore, QtSvg
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from pkg_resources import Requirement, resource_filename
 import yaml
-from pyCMcommon import get_file, get_save_file, write_dxf, gen_filtered_ugrid
+from pyCM.pyCMcommon import get_file, get_save_file, write_dxf, gen_filtered_ugrid
 
 class run_gmsh(QThread):
     '''

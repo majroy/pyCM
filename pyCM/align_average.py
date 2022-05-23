@@ -19,9 +19,9 @@ import vtk.util.numpy_support as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
-from pyCMcommon import *
-from icp import *
-from registration import read_file as reg_read_file
+from pyCM.pyCMcommon import *
+from pyCM.icp import *
+from pyCM.registration import read_file as reg_read_file
 
 
 def launch(*args, **kwargs):

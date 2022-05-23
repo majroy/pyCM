@@ -20,12 +20,12 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import vtk
 from pkg_resources import Requirement, resource_filename
 from importlib.metadata import version
-from pyCMcommon import make_splash, get_file
-import registration as reg
-import align_average as aa
-import fit_surface as fs
-import preprocess as pre
-import postprocess as post
+from pyCM.pyCMcommon import make_splash, get_file
+import pyCM.registration as reg
+import pyCM.align_average as aa
+import pyCM.fit_surface as fs
+import pyCM.preprocess as pre
+import pyCM.postprocess as post
 
 class main_window(QtWidgets.QMainWindow):
     '''
