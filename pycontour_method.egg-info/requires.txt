@@ -1,9 +1,0 @@
-vtk>=6.0
-numpy
-scipy
-pyyaml>=5.0
-matplotlib
-PyQt5
-h5py
-pandas
-sklearn

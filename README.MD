@@ -12,7 +12,7 @@
 - [Acknowledgements](#acknowledgements)
 
 # Introduction
-
+NB: Documentation is currently being updated - please see [Latest version](#latest-version).
 ## Contour method
 The contour method for measuring residual stress is a cost effective, robust technique which has seen much interest both by academics and industry alike. First developed by Michael Prime at Los Alamos, it has seen a great deal of development both in the US and UK.
 
@@ -40,7 +40,11 @@ Many researchers have moved from using MATLAB to Python entirely for numerical a
 It is for these reasons the overall aim is to future proof the analysis code by moving towards using Python as the language of choice. To this end, a Python package called pyCM (Python Contour Method) has been developed. The idea is to fully move over from using primarily MATLAB functions/scripts to Python equivalents in a step-by-step manner. The development strategy adopted is to build new tools where required, and allow for existing MATLAB tools to be used on the input and output from these Python tools. This will be accomplished using the SciPy packages which generate binary MATLAB files to store workspace variables, so processing can be partially performed in Python, and shifted back into MATLAB to use existing scripts.
 
 # Latest version
-Alpha release 1.1.x is currently the latest version which contains a complete toolchain for rectangular specimens with no self-restraint. Note that the post-processor is still in a beta form for testing purposes on *quadrilateral meshes only*; if tetrahedral meshes are employed, then the native FEA code's post processor should be employed (GraphiX or Abaqus Viewer). **It has been confirmed that equivalent results are obtained with both CalculiX and Abaqus**.
+Beta release 2.0.0 is the latest version of pyCM, which is currently being tested and documented. Note that this version is *not* backwards compatible with the last version, but the code for that version will remain here.
+
+Alpha release 1.1.8post3 is last version which contains a complete toolchain for rectangular specimens with no self-restraint. Note that the post-processor is still in a beta form for testing purposes on *quadrilateral meshes only*; if tetrahedral meshes are employed, then the native FEA code's post processor should be employed (GraphiX or Abaqus Viewer).
+
+**It has been confirmed that equivalent results are obtained with both CalculiX and Abaqus**.
 
 # Requirements
 Python 3.x with pip working correctly will install most functionality, as tested on Linux (Ubuntu) and Windows 10. If outline processing is required, then there is package that is needed that cannot be installed on Windows via pip - see below.
