@@ -1,0 +1,5 @@
+FEA:
+    gmsh_exec: ''
+    abq_exec: ''
+    ccx_exec: ''
+    work_dir: ''

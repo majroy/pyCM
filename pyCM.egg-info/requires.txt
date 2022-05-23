@@ -5,5 +5,6 @@ pyyaml>=5.0
 matplotlib
 PyQt5
 h5py
-pandas
 sklearn
+shapely
+pyclipper

@@ -1,940 +1,1204 @@
 #!/usr/bin/env python
 '''
-Uses VTK python to allow for fitting an averaged dataset associated with the
+Uses VTK Python to allow for fitting an averaged dataset associated with the
  contour method. Full interaction requires a 3-button mouse and keyboard.
--------------------------------------------------------------------------------
-Current mapping is as follows:
-LMB - rotate about point cloud centroid.
-MMB - pan
-RMB - zoom
-1 - view 1, default, looks down z axis onto xy plane
-2 - view 2, looks down x axis onto zy plane
-3 - view 3, looks down y axis onto zx plane
-z - increase z-aspect ratio
-x - decrease z-aspect ratio
-c - return to default z-aspect
-f - flip colors from white on dark to dark on white
-i - save output to .png in current working directory
-r - remove/reinstate compass/axes
-o - remove/reinstate outline
--------------------------------------------------------------------------------
-ver 1.1 17-17-03
-1.1 - Initial release
-1.2 - Refactored for PyQt5 & Python 3.x
-1.3 - Refactored to handle self-restraint features
-1.4 - Fixed deprecated scipy/numpy 'list-like' issues when saving the spline
+1.6 - Updated for overall version 2.
 '''
+
 __author__ = "M.J. Roy"
-__version__ = "1.4"
+__version__ = "1.6"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
+__copyright__ = "(c) M. J. Roy, 2014--"
 
-import os,sys,time
+import sys, os
+from pkg_resources import Requirement, resource_filename
+import numpy as np
+from scipy.interpolate import griddata, bisplrep, bisplev
+from scipy.spatial import Delaunay
 import vtk
+import vtk.util.numpy_support as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-import numpy as np
-import scipy.io as sio
-from scipy.interpolate import griddata,bisplrep,bisplev
-from scipy.spatial.distance import pdist, squareform
-from scipy.spatial import Delaunay
-from matplotlib import path
-from pkg_resources import Requirement, resource_filename
-from pyCM.pyCMcommon import *
+from PyQt5.QtCore import Qt
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib import rc
+from pyCMcommon import *
+from align_average import read_file as aa_read_file
+from registration import read_file as reg_read_file
+from decimate import decimate_ui
 
+def launch(*args, **kwargs):
+    '''
+    Start Qt/VTK interaction if started independently
+    '''
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        app = QtWidgets.QApplication(sys.argv)
 
-def sf_def(*args, **kwargs):
-    app = QtWidgets.QApplication(sys.argv)
-    
-    spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
-    splash_pix = QtGui.QPixmap(spl_fname,'PNG')
-    splash = QtWidgets.QSplashScreen(splash_pix)
-    splash.setMask(splash_pix.mask())
-
-    splash.show()
     app.processEvents()
     
-    window = surf_int(None)
-
-    if len(args)==1:
-        surf_int.get_input_data(window,args[0])
-    else:
-        surf_int.get_input_data(window,None)
-    
+    window = interactor(None) #otherwise specify parent widget
     window.show()
-    splash.finish(window)
-    window.iren.Initialize() # Need this line to actually show the render inside Qt
+    
+    # if a data file is specified at launch
+    if len(args) == 1:
+        window.file = args[0]
+        interactor.get_data(window)
     
     ret = app.exec_()
     
-    if sys.stdin.isatty() and not hasattr(sys,'ps1'):
+    if sys.stdin.isatty() and not hasattr(sys, 'ps1'):
         sys.exit(ret)
     else:
         return window
 
 class sf_main_window(object):
+    '''
+    Class that builds, populates and initializes aspects of Qt interaction
+    '''
 
-    def setupUi(self, MainWindow):
-        MainWindow.setWindowTitle("pyCM - surface fitting v%s" %__version__)
-        MainWindow.setWindowIcon(QtGui.QIcon(resource_filename("pyCM","meta/pyCM_icon.png")))
+    def setup(self, MainWindow):
+        '''
+        Sets up Qt interactor
+        '''
+        
+        #if called as a script, treat as a Qt mainwindow, otherwise a generic widget for embedding elsewhere
         if hasattr(MainWindow,'setCentralWidget'):
             MainWindow.setCentralWidget(self.centralWidget)
         else:
             self.centralWidget=MainWindow
-        self.mainlayout=QtWidgets.QGridLayout(self.centralWidget)
+            MainWindow.setWindowTitle("pyCM - Surface fitting tool v%s" %__version__)
+        
+        #create new layout to hold both VTK and Qt interactors
+        mainlayout=QtWidgets.QHBoxLayout(self.centralWidget)
 
+        #create VTK widget
         self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
-        mainUiBox = QtWidgets.QGridLayout()
-        sectionBox = QtWidgets.QGridLayout()
-
-        self.vtkWidget.setMinimumSize(QtCore.QSize(1050, 600))
+        
+        #create VTK widget
+        self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
-        sizePolicy.setHorizontalStretch(10)
-        sizePolicy.setVerticalStretch(10)
-        sizePolicy.setHeightForWidth(self.vtkWidget.sizePolicy().hasHeightForWidth())
+        sizePolicy.setHorizontalStretch(100)
+        sizePolicy.setVerticalStretch(100)
         self.vtkWidget.setSizePolicy(sizePolicy)
+        
+        self.vtkWidget.setMinimumSize(QtCore.QSize(800, 600))
 
-        self.statLabel=QtWidgets.QLabel("Idle")
-        self.statLabel.setWordWrap(True)
-        self.statLabel.setFont(QtGui.QFont("Helvetica",italic=True))
-        self.statLabel.setMinimumWidth(100)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.statLabel.sizePolicy().hasHeightForWidth())
-        self.statLabel.setSizePolicy(sizePolicy)
+        #make display box
+        self.display_box = QtWidgets.QGroupBox('Display')
+        display_layout = QtWidgets.QGridLayout()
+        self.display_box.setLayout(display_layout)
+        self.z_aspect_sb = QtWidgets.QSpinBox()
+        self.z_aspect_sb.setPrefix("Scaling: ")
+        self.z_aspect_sb.setToolTip("Scaling factor applied to Z axis")
+        self.z_aspect_sb.setValue(1)
+        self.z_aspect_sb.setMinimum(1)
+        self.z_aspect_sb.setMaximum(1000)
+        self.mask_average_rb = QtWidgets.QCheckBox('Outline crop')
+        self.mask_average_rb.setToolTip("Mask/crop display of fitted surface to outline")
+        self.mask_average_rb.setChecked(False)
+        self.caption_rb = QtWidgets.QCheckBox('Caption entries')
+        self.caption_rb.setToolTip('Label entries in viewport')
+        self.caption_rb.setChecked(False)
+        self.show_outlines_rb = QtWidgets.QCheckBox('Hide outlines')
+        self.show_outlines_rb.setToolTip("Hides outlines if selected, shows if deselected")
+        self.show_outlines_rb.setChecked(True)
+        
+        avg_op_slider_label = QtWidgets.QLabel("Averaged:")
+        self.avg_op_slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.avg_op_slider.setStyleSheet("QSlider::handle:horizontal {background-color: rgb(25, 25, 112);}")
+        self.avg_op_slider.setRange(0,100)
+        self.avg_op_slider.setSliderPosition(100)
+        self.avg_op_slider.setEnabled(False)
+        self.hide_avg_sb = QtWidgets.QCheckBox('Hide legend')
+        self.hide_avg_sb.setToolTip("Hides colour map/contour legend for averaged data")
+        self.hide_avg_sb.setEnabled(False)
+        
+        fit_op_slider_label = QtWidgets.QLabel("Fit:")
+        self.fit_op_slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.fit_op_slider.setStyleSheet("QSlider::handle:horizontal {background-color: rgb(145,33,158);}")
+        self.fit_op_slider.setRange(0,100)
+        self.fit_op_slider.setSliderPosition(100)
+        self.fit_op_slider.setEnabled(False)
+        self.hide_fit_sb = QtWidgets.QCheckBox('Hide legend')
+        self.hide_fit_sb.setToolTip("Hides colour map/contour legend for fitted surface")
+        self.hide_fit_sb.setEnabled(False)
 
-        headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
+        local_display_layout = QtWidgets.QHBoxLayout()
+        local_display_layout.addWidget(self.z_aspect_sb)
+        local_display_layout.addWidget(self.mask_average_rb)
+        local_display_layout.addWidget(self.caption_rb)
+        local_display_layout.addWidget(self.show_outlines_rb)
+        display_layout.addLayout(local_display_layout,0,0,1,3)
+        display_layout.addWidget(avg_op_slider_label,1,0,1,1)
+        display_layout.addWidget(self.avg_op_slider,1,1,1,1)
+        display_layout.addWidget(self.hide_avg_sb,1,2,1,1)
+        display_layout.addWidget(fit_op_slider_label,2,0,1,1)
+        display_layout.addWidget(self.fit_op_slider,2,1,1,1)
+        display_layout.addWidget(self.hide_fit_sb,2,2,1,1)
 
-        self.pickLabel=QtWidgets.QLabel("Remove points")
-        self.pickLabel.setFont(headFont)
-        self.pickHelpLabel=QtWidgets.QLabel("Press R to activate")
-        self.pickActiveLabel=QtWidgets.QLabel("Pick active")
-        self.pickActiveLabel.setStyleSheet("QLabel { background-color : gray; color : darkGray; }");
-        self.pickActiveLabel.setFont(QtGui.QFont("Helvetica",italic=True))
-        self.undoLastPickButton=QtWidgets.QPushButton('Undo last pick')
-        self.reloadButton = QtWidgets.QPushButton('Undo all/reload')
-
-        splineLabel=QtWidgets.QLabel("Bivariate spline fitting")
-        splineLabel.setFont(QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold))
-        self.numLabel1=QtWidgets.QLabel("Knot spacing (x)")
-        self.numEdit1 = QtWidgets.QDoubleSpinBox()
-        self.numEdit1.setMaximum(10000)
-        self.numEdit1.setMinimum(0.0000001)
-        self.numEdit1.setValue(4)
-        self.numEdit1.setDecimals(3)
+        self.display_box.setEnabled(False)
+        
+        #make active profile display
+        entry_spec_layout = QtWidgets.QHBoxLayout()
+        self.entry_spec = QtWidgets.QComboBox()
+        self.entry_spec.setToolTip('Set focus on this entry')
+        self.show_all_entries_button = QtWidgets.QPushButton("Show all")
+        self.show_all_entries_button.setToolTip('Show all entries')
+        entry_spec_layout.addWidget(self.entry_spec)
+        entry_spec_layout.addWidget(self.show_all_entries_button)
+        
+        #make decimation box
+        self.decimate_box = QtWidgets.QGroupBox('Decimation')
+        decimate_layout = QtWidgets.QGridLayout()
+        self.decimate_box.setLayout(decimate_layout)
+        self.active_picking_indicator = QtWidgets.QLabel('Active')
+        self.active_picking_indicator.setStyleSheet("background-color : gray; color : darkGray;")
+        self.active_picking_indicator.setAlignment(QtCore.Qt.AlignCenter)
+        self.active_picking_indicator.setFixedSize(50, 20)
+        self.active_picking_indicator.setToolTip('Press R with interactor in focus to activate/deactivate manual point selection')
+        self.active_picking_indicator.setEnabled(False)
+        self.undo_last_pick_button=QtWidgets.QPushButton('Undo last')
+        self.undo_last_pick_button.setToolTip('Undo last manual selection')
+        self.apply_pick_button=QtWidgets.QPushButton('Apply')
+        self.apply_pick_button.setToolTip('Remove selected points and update')
+        self.reset_pick_button=QtWidgets.QPushButton('Reset')
+        self.reset_pick_button.setToolTip('Reset all selected points and update')
+        
+        decimate_layout.addWidget(self.active_picking_indicator,0,0,1,1)
+        decimate_layout.addWidget(self.undo_last_pick_button,0,1,1,1)
+        decimate_layout.addWidget(self.apply_pick_button,0,2,1,1)
+        decimate_layout.addWidget(self.reset_pick_button,0,3,1,1)
+        
+        self.decimate_box.setEnabled(False)
+        
+        #make bv box
+        self.bv_box = QtWidgets.QGroupBox('Bivariate spline fitting')
+        bv_layout = QtWidgets.QGridLayout()
+        self.bv_box.setLayout(bv_layout)
+        spline_space_label = QtWidgets.QLabel("Spacing")
+        self.ksx = QtWidgets.QDoubleSpinBox()
+        self.ksx.setPrefix("x = ")
+        self.ksx.setToolTip("Knot spacing in x direction")
+        self.ksx.setValue(0)
+        self.ksx.setMinimum(0.0000001)
+        self.ksx.setMaximum(1000)
+        self.ksy = QtWidgets.QDoubleSpinBox()
+        self.ksy.setPrefix("y = ")
+        self.ksy.setToolTip("Knot spacing in y direction")
+        self.ksy.setValue(0)
+        self.ksy.setMinimum(0.0000001)
+        self.ksy.setMaximum(10000)
+        spline_order_label = QtWidgets.QLabel("Order")
+        self.kox = QtWidgets.QSpinBox()
+        self.kox.setPrefix("x: ")
+        self.kox.setToolTip("Spline order in x direction")
+        self.kox.setValue(3)
+        self.kox.setMinimum(1)
+        self.kox.setMaximum(5)
+        self.koy = QtWidgets.QSpinBox()
+        self.koy.setPrefix("y: ")
+        self.koy.setToolTip("Spline order in y direction")
+        self.koy.setValue(3)
+        self.koy.setMinimum(1)
+        self.koy.setMaximum(5)
+        self.fit_all_rb = QtWidgets.QCheckBox('Fit all')
+        self.fit_all_rb.setToolTip("Fit all entries with these parameters if selected, otherwise only the focussed entry.")
+        self.fit_all_rb.setChecked(False)
+        self.fit_spline_button = QtWidgets.QPushButton('Fit')
+        self.fit_spline_button.setToolTip('Fit data to bivariate spline and update display')
+        self.spline_status_label = QtWidgets.QLabel("Ready")
+        
+        bv_layout.addWidget(spline_space_label,0,0,1,1)
+        bv_layout.addWidget(self.ksx,0,1,1,1)
+        bv_layout.addWidget(self.ksy,0,2,1,1)
+        bv_layout.addWidget(spline_order_label,1,0,1,1)
+        bv_layout.addWidget(self.kox,1,1,1,1)
+        bv_layout.addWidget(self.koy,1,2,1,1)
+        bv_layout.addWidget(self.fit_all_rb,2,1,1,1)
+        bv_layout.addWidget(self.fit_spline_button,2,2,1,1)
+        bv_layout.addWidget(self.spline_status_label,3,0,1,3)
         
         
-        self.numLabel2=QtWidgets.QLabel("Knot spacing (y)")
-        self.numEdit2 = QtWidgets.QDoubleSpinBox()
-        self.numEdit2.setMaximum(10000)
-        self.numEdit2.setMinimum(0.0000001)
-        self.numEdit2.setValue(4)
-        self.numEdit2.setDecimals(3)
+        # line extraction from surface
+        self.extract_box = QtWidgets.QGroupBox('Evaluate fit on plane') #layout assigned further on
+        #main layout for buttons and canvas
+        extract_layout = QtWidgets.QGridLayout()
+
+        # labels for axes
+        x_label = QtWidgets.QLabel("x")
+        y_label = QtWidgets.QLabel("y")
+
+        # x, y, z of first point
+        start_label = QtWidgets.QLabel("Centre")
+        start_label.setToolTip('Centre of the target plane')
+        self.point1_x_coord = QtWidgets.QDoubleSpinBox()
+        self.point1_x_coord.setPrefix('x = ')
+        self.point1_x_coord.setMinimum(-100000)
+        self.point1_x_coord.setMaximum(100000)
+        self.point1_y_coord = QtWidgets.QDoubleSpinBox()
+        self.point1_y_coord.setPrefix('y = ')
+        self.point1_y_coord.setMinimum(-100000)
+        self.point1_y_coord.setMaximum(100000)
+
+        # x, y, z of second point
+        end_label = QtWidgets.QLabel("Normal")
+        end_label.setToolTip('Normal of the target plane')
+        self.point2_x_coord = QtWidgets.QDoubleSpinBox()
+        self.point2_x_coord.setPrefix('x = ')
+        self.point2_x_coord.setMinimum(-100000)
+        self.point2_x_coord.setMaximum(100000)
+        self.point2_y_coord = QtWidgets.QDoubleSpinBox()
+        self.point2_y_coord.setPrefix('y = ')
+        self.point2_y_coord.setMinimum(-100000)
+        self.point2_y_coord.setMaximum(100000)
         
-        self.numLabel3=QtWidgets.QLabel("Spline order (x)")
-        self.numEdit3 = QtWidgets.QSpinBox()
-        self.numEdit3.setValue(3)
-        self.numEdit3.setMinimum(1)
-        self.numEdit3.setMaximum(5)
-        # self.numEdit3.setMinimumWidth(50)
+        self.extract_button = QtWidgets.QPushButton('Update')
+        self.extract_button.setToolTip('Show/update line trace')
+        self.export_line_status_label = QtWidgets.QLabel("Ready")
+        self.export_line_status_label.setWordWrap(True)
+        self.export_line_button = QtWidgets.QPushButton('Export')
+        self.export_line_button.setEnabled(False)
+        self.export_line_button.setToolTip('Export line trace to file')
         
-        self.numLabel4=QtWidgets.QLabel("Spline order (y)")
-        self.numEdit4 = QtWidgets.QSpinBox()
-        self.numEdit4.setValue(3)
-        self.numEdit4.setMinimum(1)
-        self.numEdit4.setMaximum(5)
-        # self.numEdit4.setMinimumWidth(50)
+        #create figure canvas etc
+        #initialize plot
+        self.figure = plt.figure(figsize=(4,4))
+        plt.rc('font', size = 9)
+        plt.text(0.5, 0.5, "'Update' for plot", ha='center', style='italic', fontweight = 'bold', color='lightgray', size= 12)
+        plt.axis('off')
+        #changes the background of the plot, otherwise white
+        # self.figure.patch.set_facecolor((242/255,242/255,242/255))
+        self.canvas = FigureCanvas(self.figure)
+        # self.canvas.setMinimumSize(QtCore.QSize(100, 200))
+        self.canvas.setMinimumWidth(150)
+
+        #populate extact_box
+        extract_layout.addWidget(start_label,0,0,1,1)
+        extract_layout.addWidget(self.point1_x_coord,0,1,1,1)
+        extract_layout.addWidget(self.point1_y_coord,0,2,1,1)
+        extract_layout.addWidget(end_label,1,0,1,1)
+        extract_layout.addWidget(self.point2_x_coord,1,1,1,1)
+        extract_layout.addWidget(self.point2_y_coord,1,2,1,1)
+        extract_layout.addWidget(self.extract_button,2,2,1,1)
+        extract_layout.addWidget(self.canvas,3,0,1,3)
+        
+        evlayout=QtWidgets.QVBoxLayout()
+        evbutton_layout = QtWidgets.QHBoxLayout()
+        verticalSpacer = QtWidgets.QSpacerItem(50, 20, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        evbutton_layout.addWidget(self.export_line_status_label)
+        evbutton_layout.addItem(verticalSpacer)
+        evbutton_layout.addWidget(self.export_line_button)
+        
+        evlayout.addLayout(extract_layout)
+        evlayout.addLayout(evbutton_layout)
+        self.extract_box.setLayout(evlayout)
+        self.extract_box.setEnabled(False)
+        
+        #make save box
+        self.save_box = QtWidgets.QGroupBox('Write current')
+        save_layout = QtWidgets.QHBoxLayout()
+        self.save_box.setLayout(save_layout)
+        #make save buttons
+        self.save_button = QtWidgets.QPushButton("Save")
+        self.save_button.setToolTip('Save data to hdf5-formatted results file')
+        self.save_label = QtWidgets.QLabel('Ready')
+        self.save_label.setWordWrap(True)
+        save_layout.addWidget(self.save_label)
+        save_layout.addItem(verticalSpacer)
+        save_layout.addWidget(self.save_button)
+        self.save_box.setEnabled(False)
+        
+        lvlayout=QtWidgets.QVBoxLayout()
+        lvlayout.minimumSize()
+        lvlayout.addWidget(self.display_box)
+        lvlayout.addLayout(entry_spec_layout)
+        lvlayout.addWidget(self.decimate_box)
+        lvlayout.addWidget(self.bv_box)
+        lvlayout.addWidget(self.extract_box)
+        lvlayout.addWidget(self.save_box)
+        lvlayout.addStretch(1)
+        mainlayout.addWidget(self.vtkWidget)
+        mainlayout.addStretch(1)
+        mainlayout.addLayout(lvlayout)
         
 
-        numLabel6=QtWidgets.QLabel("Display resolution:")
-        self.drx=QtWidgets.QDoubleSpinBox()
-        self.drx.setMaximum(10000)
-        self.drx.setMinimum(0.0000001)
-        self.drx.setDecimals(3)
-        drx_label=QtWidgets.QLabel("x")
-
-        self.yMin=QtWidgets.QLineEdit()
-        self.dry=QtWidgets.QDoubleSpinBox()
-        self.dry.setMaximum(10000)
-        self.dry.setMinimum(0.0000001)
-        self.dry.setDecimals(3)
-        dry_label=QtWidgets.QLabel("y")
-        
-        self.updateButton = QtWidgets.QPushButton('Fit')
-
-        #statLabel is what the ui is doing, not to be confused with statLabel
-        self.statLabel=QtWidgets.QLabel("Idle")
-        self.statLabel.setWordWrap(True)
-        self.statLabel.setFont(QtGui.QFont("Helvetica",italic=True))
-
-        horizLine1=QtWidgets.QFrame()
-        horizLine1.setFrameStyle(QtWidgets.QFrame.HLine)
-        #set size of line
-        horizLine2=QtWidgets.QFrame()
-        horizLine2.setFrameStyle(QtWidgets.QFrame.HLine)
-        horizLine3=QtWidgets.QFrame()
-        horizLine3.setFrameStyle(QtWidgets.QFrame.HLine)
-        horizLine4=QtWidgets.QFrame()
-        horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)        
-
-        sectionLabel=QtWidgets.QLabel("Data sectioning")
-        sectionLabel.setFont(QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold))
-        sectionIntList=[]
-        self.xMin=QtWidgets.QLineEdit()
-        sectionIntList.append(self.xMin)
-        x0_label=QtWidgets.QLabel("x0")
-
-        self.xMax=QtWidgets.QLineEdit()
-        sectionIntList.append(self.xMax)
-        x1_label=QtWidgets.QLabel("x1")
-
-        self.yMin=QtWidgets.QLineEdit()
-        y0_label=QtWidgets.QLabel("y0")
-        sectionIntList.append(self.yMin)
-        
-        self.yMax=QtWidgets.QLineEdit()
-        y1_label=QtWidgets.QLabel("y1")
-        sectionIntList.append(self.yMax)
-        self.sectionButton = QtWidgets.QPushButton('Section')
-        self.revertButton = QtWidgets.QPushButton('Revert')
-        self.writeButton = QtWidgets.QPushButton('Write')
-        # self.writeButton.setMinimumWidth(50)
-
-        #mainUiBox is the main container, the sectionBox is nested within
-        mainUiBox.addWidget(horizLine1,0,0,1,2)
-        mainUiBox.addWidget(self.pickLabel,1,0,1,2)
-        mainUiBox.addWidget(self.pickHelpLabel,2,0,1,1)
-        mainUiBox.addWidget(self.pickActiveLabel,2,1,1,1)
-        mainUiBox.addWidget(self.undoLastPickButton,3,0,1,2)
-        mainUiBox.addWidget(self.reloadButton,4,0,1,2)
-        mainUiBox.addWidget(horizLine2,5,0,1,2)
-
-        mainUiBox.addWidget(splineLabel,6,0,1,2)
-        mainUiBox.addWidget(self.numLabel1,7,0,1,1)
-        mainUiBox.addWidget(self.numEdit1,7,1,1,1)
-        mainUiBox.addWidget(self.numLabel2,8,0,1,1)
-        mainUiBox.addWidget(self.numEdit2,8,1,1,1)
-        mainUiBox.addWidget(self.numLabel3,9,0,1,1)
-        mainUiBox.addWidget(self.numEdit3,9,1,1,1)
-        mainUiBox.addWidget(self.numLabel4,10,0,1,1)
-        mainUiBox.addWidget(self.numEdit4,10,1,1,1)
-        mainUiBox.addWidget(self.updateButton,12,0,1,2)
-        mainUiBox.addWidget(numLabel6,13,0,1,2)
-        
-        displayLayout = QtWidgets.QGridLayout()
-        displayLayout.addWidget(drx_label,0,0)
-        displayLayout.addWidget(self.drx,0,1)
-        displayLayout.addWidget(dry_label,0,2)
-        displayLayout.addWidget(self.dry,0,3)
-        
-        mainUiBox.addLayout(displayLayout,14,0,1,2)
-        mainUiBox.addWidget(horizLine2,15,0,1,2)
-        mainUiBox.addLayout(sectionBox,16,0,5,2)
-        mainUiBox.addWidget(horizLine3,21,0,1,2)
-        mainUiBox.addWidget(self.writeButton,22,0,1,2)
-        mainUiBox.addWidget(horizLine4,23,0,1,2)
-
-        
-        sectionBox.addWidget(sectionLabel,0,0,1,4)
-        sectionBox.addWidget(x0_label,1,0,1,1)
-        sectionBox.addWidget(sectionIntList[0],1,1,1,1)
-        sectionBox.addWidget(x1_label,1,2,1,1)
-        sectionBox.addWidget(sectionIntList[1],1,3,1,1)
-        sectionBox.addWidget(y0_label,2,0,1,1)
-        sectionBox.addWidget(sectionIntList[2],2,1,1,1)
-        sectionBox.addWidget(y1_label,2,2,1,1)
-        sectionBox.addWidget(sectionIntList[3],2,3,1,1)
-        sectionBox.addWidget(self.sectionButton,3,0,1,2)
-        sectionBox.addWidget(self.revertButton,3,2,1,2)
-
-        lvLayout=QtWidgets.QVBoxLayout()
-        lvLayout.addLayout(mainUiBox)
-        lvLayout.addStretch(1)
+class interactor(QtWidgets.QWidget):
+    '''
+    Inherits most properties from a generic QWidget - see interactor docstring elsewhere in this package.
+    '''
     
-        self.mainlayout.addWidget(self.vtkWidget,0,0,1,1)
-        self.mainlayout.addLayout(lvLayout,0,1,1,1)
-        self.mainlayout.addWidget(self.statLabel,1,0,1,2)
-
-    
-    def initialize(self):
-        self.vtkWidget.start()
-
-
-class surf_int(QtWidgets.QWidget):
-
-    def __init__(self, parent):
-        super(surf_int,self).__init__(parent)
+    def __init__(self,parent):
+        super(interactor, self).__init__(parent)
         self.ui = sf_main_window()
-        self.ui.setupUi(self)
+        self.ui.setup(self)
         self.ren = vtk.vtkRenderer()
-        self.ren.SetBackground(0.1, 0.2, 0.4)
+        self.ren.SetBackground(vtk.vtkNamedColors().GetColor3d("slategray"))
+        self.ren.GradientBackgroundOn()
+
+        self.file = None
+        self.active_dir = os.getcwd()
+        self.point_size = 2
+        self.picking = False
+        self.picked = None
+
+        
         self.ui.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
         self.iren = self.ui.vtkWidget.GetRenderWindow().GetInteractor()
-        self.iren.SetInteractorStyle(vtk.vtkInteractorStyleTrackballCamera())
-        self.ren.GetActiveCamera().ParallelProjectionOn()
-        self.cp=self.ren.GetActiveCamera().GetPosition()
-        self.fp=self.ren.GetActiveCamera().GetFocalPoint()
+        style=vtk.vtkInteractorStyleTrackballCamera()
+        self.iren.SetInteractorStyle(style)
         self.iren.AddObserver("KeyPressEvent", self.keypress)
-
-        self.PointSize=2
-        self.LineWidth=1
-        self.Zaspect=1.0
-        self.limits=np.empty(6)
-        self.picking=False
-        self.fitted=False
-
-        self.ui.updateButton.clicked.connect(lambda: self.onUpdateSpline())
-        self.ui.sectionButton.clicked.connect(lambda: self.Cut())
-        self.ui.revertButton.clicked.connect(lambda: self.RemoveCut())
-        self.ui.writeButton.clicked.connect(lambda: self.write())
-        self.ui.reloadButton.clicked.connect(lambda: self.get_input_data())
-        self.ui.undoLastPickButton.clicked.connect(lambda: self.undo_pick())
-        self.ui.numEdit1.valueChanged.connect(self.changeUpdateBackground)
-        self.ui.numEdit2.valueChanged.connect(self.changeUpdateBackground)
-        self.ui.numEdit3.valueChanged.connect(self.changeUpdateBackground)
-        self.ui.numEdit4.valueChanged.connect(self.changeUpdateBackground)
-        self.ui.drx.valueChanged.connect(self.changeUpdateBackground)
-        self.ui.dry.valueChanged.connect(self.changeUpdateBackground)
+        # self.iren.AddObserver("MouseMoveEvent", self.on_mouse_move)
+        self.ren.GetActiveCamera().ParallelProjectionOn()
+        self.ui.vtkWidget.Initialize()
         
-    def changeUpdateBackground(self):
-        self.ui.updateButton.setStyleSheet("background-color : None")
-
-    def get_input_data(self,filem):
-        """
-        Loads the content of a *.mat file pertaining to this particular step
-        """
+        #display functions
+        self.ui.z_aspect_sb.valueChanged.connect(self.update_z_aspect)
+        self.ui.show_outlines_rb.toggled.connect(self.hide_outlines)
+        self.ui.caption_rb.toggled.connect(self.hide_caption)
+        self.ui.avg_op_slider.valueChanged[int].connect(self.change_avg_opacity)
+        self.ui.fit_op_slider.valueChanged[int].connect(self.change_fit_opacity)
+        self.ui.hide_avg_sb.toggled.connect(self.hide_avg_legend)
+        self.ui.hide_fit_sb.toggled.connect(self.hide_fit_legend)
         
-        if hasattr(self,'pointActor'): #then remove everything
-            self.ren.RemoveActor(self.pointActor)
-            self.ren.RemoveActor(self.outlineActor)
         
-        if hasattr(self,'splineActor'):
-            self.ren.RemoveActor(self.splineActor)
-
+        self.ui.entry_spec.activated.connect(self.focus_entry)
+        self.ui.show_all_entries_button.clicked.connect(self.draw)
+        #decimate functions
+        self.ui.undo_last_pick_button.clicked.connect(self.undo_pick)
+        self.ui.apply_pick_button.clicked.connect(self.apply_decimate)
+        self.ui.reset_pick_button.clicked.connect(self.reset_decimate)
         
-        if filem == None:
-            filem, _, =get_file('*.mat')
-            
-        if filem:
-            mat_contents = sio.loadmat(filem)
-            self.fileo=filem
-            
-            try:
-                pts=mat_contents['aa']['pnts'][0][0]
-                refTrans=mat_contents['trans']['ref'][0][0]
-                
-
-                self.pts=pts[~np.isnan(pts).any(axis=1)] #remove all nans
-                self.RefOutline=np.concatenate(mat_contents['ref']['x_out'],axis=0)[0]
-                for transformation in refTrans:
-                    self.RefOutline = np.dot(self.RefOutline,transformation[0:3,0:3])+transformation[0:3,-1]
-                
-                self.RefMin=np.amin(self.RefOutline,axis=0)
-                self.RefMax=np.amax(self.RefOutline,axis=0)
-                self.limits=get_limits(np.vstack((self.pts,self.RefOutline)))
-                self.ui.xMin.setText('%.3f'%self.limits[0])
-                self.ui.xMax.setText('%.3f'%self.limits[1])
-                self.ui.yMin.setText('%.3f'%self.limits[2])
-                self.ui.yMax.setText('%.3f'%self.limits[3])
-                
-                self.bool_pnt=np.ones(len(self.pts), dtype=bool) #initialize mask
-                
-                #Generate actors
-                color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
-                self.vtkPntsPolyData, self.pointActor, self.colors, = gen_point_cloud(self.pts,color,self.PointSize)
-                
-
-                
-                self.ren.AddActor(self.pointActor)
-                self.outlineActor, _, = gen_outline(self.RefOutline,color,self.PointSize)
-                
-                self.ren.AddActor(self.outlineActor)
-
-                #add axes
-                self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
-                
-                if 'spline_x' in mat_contents: #then it can be displayed & settings displayed
-                    order=mat_contents['spline_x']['order'][0][0][0]
-                    #build tck list from mat contents
-                    self.tck = [mat_contents['spline_x']['tck_x'][0][0][0], \
-                    mat_contents['spline_x']['tck_y'][0][0][0], \
-                    mat_contents['spline_x']['tck_c'][0][0][0], \
-                    order[0], order[1]]
-                    spacing=mat_contents['spline_x']['kspacing'][0][0][0]
-                    # smoothing=mat_contents['spline_x']['smooth'][0][0]
-                    self.gx,self.gy=spacing[0],spacing[1]
-                    self.ui.numEdit1.setValue(self.gx)
-                    self.ui.numEdit2.setValue(self.gy)
-                    self.ui.numEdit3.setValue(int(order[0]))
-                    self.ui.numEdit4.setValue(int(order[1]))
-                    self.bool_pnt=mat_contents['aa_mask'][0]
-
-                    #find points to be painted red
-                    localind=np.asarray(range(len(self.bool_pnt)))
-                    localind=localind[np.where(np.logical_not(self.bool_pnt))]
-                    
-                    for i in localind:
-                        #turn them red
-                        self.colors.SetTuple(i,(255,0,0))
-
-                    self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
-                    self.vtkPntsPolyData.Modified()
-                    
-                    
-                    self.DisplayFit()
-                    self.fitted=True
-                else: #there is no fitted surface
-                    self.fitted=False
-                    self.ui.updateButton.setStyleSheet("background-color : None")
-                    
-            except Exception as e:
-                print('Load from pyCM fit_surface failed; error message returned:')
-                print(str(e))
-                
-                
-            
+        self.ui.fit_spline_button.clicked.connect(self.fit_bv)
+        self.ui.extract_button.clicked.connect(self.extract_line)
+        self.ui.export_line_button.clicked.connect(self.export_line)
+        
+        self.ui.save_button.clicked.connect(self.write_output)
+        
+    def get_data(self):
+        if self.file is None:
+            self.file, self.active_dir = get_file("*.pyCM",self.active_dir)
+        
+        
+        #make sure valid file was selected
+        if self.file is None or not(os.path.isfile(self.file)):
+            return
+        
+        #clear the renderer completely
+        self.ren.RemoveAllViewProps()
+        
+        #try reading data from this step
+        self.active_pnt, self.eval_points, self.tri, self.rse, self.bv_tck_list = read_file(self.file)
+        self.avg, gsize, _ = aa_read_file(self.file)
+        if gsize is None:
+            return
+        if not self.active_pnt:
+            #populate ui entries & initialize remainder
+            self.ui.ksx.setValue(6 * gsize)
+            self.ui.ksy.setValue(6 * gsize)
+            for i in range(len(self.avg)):
+                self.active_pnt.append(None)
+                self.bv_tck_list.append(None)
+                self.eval_points.append(None)
+                self.tri.append(None)
+                self.rse.append(None)
         else:
-            self.ui.statLabel.setText("Invalid file.")
-            return
-            
-        self.unsaved_changes=False
-        #update
-        self.ren.ResetCamera()
-        self.ui.vtkWidget.update()
-        self.ui.vtkWidget.setFocus()
-            
-    def onUpdateSpline(self):
-        p,ro,rmin,rmax=self.pts[np.where(self.bool_pnt)],self.RefOutline,self.RefMin,self.RefMax
-        self.ui.statLabel.setText("Fitting . . .")
-        QtWidgets.qApp.processEvents()
-        #read input parameters
-        self.gx=self.ui.numEdit1.value()
-        self.gy=self.ui.numEdit2.value()
-        kx=self.ui.numEdit3.value()
-        ky=self.ui.numEdit4.value()
-
-        tx=np.linspace(rmin[0],rmax[0],int((rmax[0]-rmin[0])/self.gx))
-        ty=np.linspace(rmin[1],rmax[1],int((rmax[1]-rmin[1])/self.gy))
-
-        #make sure both x & y have enough values in either direction
-        if len(tx)<3 or len(ty)<3:
-            self.ui.statLabel.setText("Grid too large . . .")
-            self.ui.updateButton.setEnabled(True)
-            return
-        tx=np.insert(tx,0,[rmin[0]] * kx) #to make sure knots are repeated at edges
-        tx=np.insert(tx,-1,[rmax[0]] * kx)
-        ty=np.insert(ty,0,[rmin[1]] * ky) #to make sure knots are repeated at edges
-        ty=np.insert(ty,-1,[rmax[1]] * ky)
+            #populate ui entries from tck list of the first entry
+            self.ui.ksx.setValue(self.bv_tck_list[0][-1])
+            self.ui.ksy.setValue(self.bv_tck_list[0][-2])
+        #get outlines
+        _, self.outlines, _, _, _, = reg_read_file(self.file)
         
 
-        try:
-            self.tck = bisplrep(p[:,0], p[:,1], p[:,2], kx=kx, ky=ky, tx=tx, ty=ty, task=-1) #get spline representation
-        except ValueError as ve:
-            self.ui.statLabel.setText("Last fit failed.")
-            return
+        #move points as needed and initialize actor/polydata lists
+        self.fit_actor_list = []
+        self.fit_polydata_list = []
+        self.avg_surf_polydata_list = []
+        self.bool_pnt = []
+        for i in range(len(self.avg)):
+            #update average pnts to be only in outline
+            self.avg[i][:,-1] = self.avg[i][:,-1] - np.mean(self.avg[i][:,-1])
+            self.outlines[i][:,-1] = np.mean(self.avg[i][:,-1])
+            self.ui.entry_spec.insertItem(i,'Entry %d'%i)
+            #update active to be only in outline - active pnt changes from boolean to an index referencing the total points in self.avg
+            self.bool_pnt.append(np.ones(len(self.avg[i]), dtype=bool))
+            self.active_pnt[i] = np.arange(0, len(self.bool_pnt[i]), 1, dtype=int)
+            #create entries for spline entities as the user may elect to fit entry non-sequentially
+            self.fit_actor_list.append(vtk.vtkActor())
+            self.fit_polydata_list.append(vtk.vtkPolyData())
+            self.avg_surf_polydata_list.append(vtk.vtkPolyData())
         
-        self.DisplayFit()
-            
-    def DisplayFit(self):
+        self.limits = get_limits(np.vstack(self.avg + self.outlines))
+        self.draw_splines()
+        self.draw() #resets the interactor to show all
         
-        try:
-            #now evaluate for show
-            if not hasattr(self,'dryval'): #then it won't have drxval
-                rx=np.linspace(self.RefMin[0],self.RefMax[0],int((self.RefMax[0]-self.RefMin[0])/(self.gx/4)))
-                ry=np.linspace(self.RefMin[1],self.RefMax[1],int((self.RefMax[1]-self.RefMin[1])/(self.gy/4)))
-                self.drxval,self.dryval=rx[1]-rx[0],ry[1]-ry[0]
-                self.ui.drx.setValue(self.drxval)
-                self.ui.dry.setValue(self.dryval)
-            else: #read the res directly from UI, apply and update
-                self.drxval,self.dryval=self.ui.drx.value(),self.ui.dry.value()
-                rx=np.linspace(self.RefMin[0],self.RefMax[0],int((self.RefMax[0]-self.RefMin[0])/(self.drxval)))
-                ry=np.linspace(self.RefMin[1],self.RefMax[1],int((self.RefMax[1]-self.RefMin[1])/(self.dryval)))
-                self.drxval,self.dryval=rx[1]-rx[0],ry[1]-ry[0]
-                self.ui.drx.setValue(self.drxval)
-                self.ui.dry.setValue(self.dryval)
-                
-            grid_x, grid_y = np.meshgrid(rx,ry,indexing='xy')
-            grid_x=np.transpose(grid_x)
-            grid_y=np.transpose(grid_y)
-
-            points2D=np.vstack([grid_x.flatten(),grid_y.flatten()]).T
-            tri=Delaunay(points2D)
-            tri= tri.simplices
-            
-            znew = bisplev(grid_x[:,0], grid_y[0,:], self.tck)
-
-            points3D=np.vstack([points2D[:,0],points2D[:,1],znew.flatten()]).T
-            
-            #crop according to what's in the outline
-            #temporarily move the outline to the first quadrant
-            t_offset=np.array([0.1*self.RefMin[0],0.1*self.RefMin[1]])
-            
-            for j in range(0,2):
-                if t_offset[j]<0:
-                    points3D[:,j]=points3D[:,j]-t_offset[j]
-                    self.RefOutline[:,j]=self.RefOutline[:,j]-t_offset[j]
-
-
-            pth=path.Path(self.RefOutline[:,:2])
-            inOutline=pth.contains_points(points3D[:,:2])
-
-            ind=np.array(range(0,len(inOutline)))
-            ind_out=ind[np.invert(inOutline)]
-            
-            #remove all triangles that contain points outside the perimeter
-            tri = tri[(np.isin(tri,ind_out)==(0,0,0)).all(axis=1),:]
-
-            #move things back
-            for j in range(0,2):
-                if t_offset[j]<0:
-                    points3D[:,j]=points3D[:,j]+t_offset[j]
-                    self.RefOutline[:,j]=self.RefOutline[:,j]+t_offset[j]
-
-            self.ui.statLabel.setText("Rendering . . .")
-            self.DisplaySplineFit(points3D,tri)
-
-            zeval = np.empty(np.size(self.pts[:,2]))
-            for i in range(len(zeval)):
-                zeval[i] = bisplev(self.pts[i,0], self.pts[i,1], self.tck)
-
-            a=(zeval-self.pts[:,2])
-            RSME=(np.sum(a*a)/len(a))**0.5
-
-            self.ui.statLabel.setText("RSME: %2.2f micron."%(RSME*1000))
-            
-        except Exception as e:
-            print(str(e))
-            self.ui.statLabel.setText("Failed to show fit.")
         
-        self.ui.updateButton.setEnabled(True)
-        self.ui.updateButton.setStyleSheet("background-color :rgb(77, 209, 97);")
-
-        
-    def DisplaySplineFit(self,p,t):
-
-        if hasattr(self,'splineActor'):
-            self.ren.RemoveActor(self.splineActor)
-        self.SplinePoints = vtk.vtkPoints()
-        triangles = vtk.vtkCellArray()
-        
-        #load up points
-        for i in p:
-            self.SplinePoints.InsertNextPoint(i)
-
-        for i in t:
-            triangle=vtk.vtkTriangle()
-            for j in range(0,3):
-                triangle.GetPointIds().SetId(j,i[j])
-            triangles.InsertNextCell(triangle)
-
-        trianglePolyData = vtk.vtkPolyData()
-        trianglePolyData.SetPoints(self.SplinePoints)
-        trianglePolyData.SetPolys(triangles)
-        #filter so that edges are shared
-        self.cSplinePolyData = vtk.vtkCleanPolyData()
-        self.cSplinePolyData.SetInputData(trianglePolyData)
-
-        # Create a mapper and actor for smoothed dataset
-        self.Smapper = vtk.vtkPolyDataMapper()
-        self.Smapper.SetInputConnection(self.cSplinePolyData.GetOutputPort())
-
-        self.splineActor = vtk.vtkActor()
-        self.splineActor.SetMapper(self.Smapper)
-        self.splineActor.GetProperty().SetInterpolationToFlat()
-        self.splineActor.GetProperty().SetRepresentationToSurface()
-        self.splineActor.GetProperty().SetColor(1,0.804,0.204)
-        self.splineActor.GetProperty().SetOpacity(0.75)
-        self.splineActor.GetProperty().SetLighting(False)
-        self.splineActor.SetScale(1,1,self.Zaspect)
-        self.ren.AddActor(self.splineActor)
-        self.ui.vtkWidget.update()
-
-
-    def Cut(self):
-        pts=np.array([float(self.ui.xMin.text()),float(self.ui.xMax.text()),float(self.ui.yMin.text()),float(self.ui.yMax.text())])
-
-        planex1 = vtk.vtkPlane()
-        planex1.SetOrigin(pts[0],0,0)
-        planex1.SetNormal(1,0,0)
-        
-        planex2 = vtk.vtkPlane()
-        planex2.SetOrigin(pts[1],0,0)
-        planex2.SetNormal(-1,0,0)
-        
-        planey1 = vtk.vtkPlane()
-        planey1.SetOrigin(0,pts[2],0)
-        planey1.SetNormal(0,1,0)
-        
-        planey2 = vtk.vtkPlane()
-        planey2.SetOrigin(0,pts[3],0)
-        planey2.SetNormal(0,-1,0)
-        
-        planeCollection = vtk.vtkPlaneCollection()
-        planeCollection.AddItem(planex1)
-        planeCollection.AddItem(planex2)
-        planeCollection.AddItem(planey1)
-        planeCollection.AddItem(planey2)
-        
-        Omapper=self.outlineActor.GetMapper()
-        Pmapper=self.pointActor.GetMapper()
-        Omapper.SetClippingPlanes(planeCollection)
-        Pmapper.SetClippingPlanes(planeCollection)
-
-        if hasattr(self,'Smapper'):
-            self.Smapper.SetClippingPlanes(planeCollection)
-        nl=np.array(self.axisActor.GetBounds())
-        self.ren.RemoveActor(self.axisActor)
-        #add axes
-        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
-
-        
-        #update
-        self.ren.ResetCamera()
-        self.ui.vtkWidget.update()
-        self.ui.vtkWidget.setFocus()
+        self.ui.display_box.setEnabled(True)
+        self.ui.decimate_box.setEnabled(True)
     
-    def RemoveCut(self):
-        self.ui.xMin.setText('%.3f'%self.limits[0])
-        self.ui.xMax.setText('%.3f'%self.limits[1])
-        self.ui.yMin.setText('%.3f'%self.limits[2])
-        self.ui.yMax.setText('%.3f'%self.limits[3])
-        Omapper=self.outlineActor.GetMapper()
-        Pmapper=self.pointActor.GetMapper()
-        Omapper.RemoveAllClippingPlanes()
-        Pmapper.RemoveAllClippingPlanes()
-        if hasattr(self,'Smapper'):
-            self.Smapper.RemoveAllClippingPlanes()
-        self.ren.RemoveActor(self.axisActor)
-        #add axes
-        self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
-
+    def hide_outlines(self):
         
-        #update
+        for actor in self.outline_actor_list:
+            flip_visible(actor)
+        self.ui.vtkWidget.update()
+    
+    def hide_caption(self):
+        for actor in self.caption_actor_list:
+            flip_visible(actor)
+        self.ui.vtkWidget.update()
+    
+    def hide_avg_legend(self):
+        if hasattr(self,'sb_actor'):
+            flip_visible(self.sb_actor)
+            self.ui.vtkWidget.update()
+    
+    def hide_fit_legend(self):
+        if hasattr(self,'sb_fit_actor'):
+            flip_visible(self.sb_fit_actor)
+            self.ui.vtkWidget.update()
+            
+    def draw(self):
+        
+        #remove all avg actors
+        if hasattr(self,'avg_actor_list'):
+            for actor in self.avg_actor_list:
+                self.ren.RemoveActor(actor)
+            for actor in self.outline_actor_list:
+                self.ren.RemoveActor(actor)
+            self.ren.RemoveActor(self.sb_actor)
+        #make all potential spline objects visible
+        for actor in self.fit_actor_list:
+            try: actor.VisibilityOn()
+            except: pass
+        self.avg_actor_list = []
+        self.avg_polydata_list = []
+        self.color_list = []
+        self.outline_actor_list = []
+        self.caption_actor_list = []
+
+        for i in range(len(self.avg)):
+            avg = self.avg[i]
+            active = self.active_pnt[i]
+            pnts = avg[active,:]
+
+            if i == 0: 
+                avg_actor, \
+                avg_polydata, \
+                color, lut = \
+                gen_point_cloud(pnts,'blues')
+                self.zrange = (self.limits[-2],self.limits[-1])
+            else:
+                avg_actor, \
+                avg_polydata, \
+                color, _ = \
+                gen_point_cloud(pnts,'blues')
+                self.zrange = (self.limits[-2],self.limits[-1])
+            
+            self.ren.AddActor(avg_actor)
+            self.avg_polydata_list.append(avg_polydata)
+            self.color_list.append(color)
+            self.avg_actor_list.append(avg_actor)
+            
+            o_actor, _ = gen_outline(self.outlines[i],(255, 255, 255),self.point_size)
+            o_actor.SetPickable(0)
+            self.outline_actor_list.append(o_actor)
+            self.ren.AddActor(o_actor)
+            cap_actor = gen_caption_actor('%s'%i, o_actor)
+            self.ren.AddActor(cap_actor)
+            self.caption_actor_list.append(cap_actor)
+            
+            
+        #handle scalebar
+        sb_widget = gen_scalar_bar()
+        sb_widget.SetInteractor(self.iren)
+        sb_widget.On()
+        self.sb_actor = sb_widget.GetScalarBarActor()
+        self.sb_actor.SetLookupTable(lut)
+        self.ren.AddActor(self.sb_actor)
+        if self.ui.hide_avg_sb.isChecked():
+            self.sb_actor.VisibilityOff()
+        
+        self.ui.avg_op_slider.setEnabled(True)
+        self.ui.hide_avg_sb.setEnabled(True)
+        self.update_z_aspect()
+
+        if self.ui.show_outlines_rb.isChecked():
+            self.hide_outlines()
+        if not self.ui.caption_rb.isChecked():
+            self.hide_caption()
+
+        # self.ui.avg_op_slider.setValue(100)
+
         self.ren.ResetCamera()
         self.ui.vtkWidget.update()
-        self.ui.vtkWidget.setFocus()
 
+    def update_z_aspect(self):
+        '''
+        Updates z_aspect and redraws points displayed based on new z_aspect
+        '''
+        z_aspect = self.ui.z_aspect_sb.value()
 
-    def keypress(self,obj,event):
-        key = obj.GetKeyCode()
-
-        if key =="1":
-            XYView(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
-        elif key =="2":
-            YZView(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
-        elif key =="3":
-            XZView(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
-
-        elif key=="z":
-            self.Zaspect=self.Zaspect*2
-            s,nl,axs=self.get_scale()
-            if hasattr(self,'splineActor'):
-                self.splineActor.SetScale(s)
-                self.splineActor.Modified()
-            if hasattr(self,'pointActor'):
-                self.pointActor.SetScale(s)
-                self.pointActor.Modified()
-            self.ren.RemoveActor(self.axisActor)
-            self.axisActor = add_axis(self.ren,nl,axs)
-
-        elif key=="x":
-            self.Zaspect=self.Zaspect*0.5
-            s,nl,axs=self.get_scale()
-            if hasattr(self,'splineActor'):
-                self.splineActor.SetScale(s)
-                self.splineActor.Modified()
-            if hasattr(self,'pointActor'):
-                self.pointActor.SetScale(s)
-                self.pointActor.Modified()
-            self.ren.RemoveActor(self.axisActor)
-            self.axisActor = add_axis(self.ren,nl,axs)
-
-        elif key=="c":
-            self.Zaspect=1.0
-            s,_,_,=self.get_scale()
-            if hasattr(self,'splineActor'):
-                self.splineActor.SetScale(s)
-                self.splineActor.Modified()
-            if hasattr(self,'pointActor'):
-                self.pointActor.SetScale(s)
-                self.pointActor.Modified()
-
-            self.ren.RemoveActor(self.axisActor)
-            self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
-            self.ren.ResetCamera()
-
-        elif key=="i":
-            im = vtk.vtkWindowToImageFilter()
-            writer = vtk.vtkPNGWriter()
-            im.SetInput(self.ui.vtkWidget._RenderWindow)
-            im.Update()
-            writer.SetInputConnection(im.GetOutputPort())
-            writer.SetFileName("spline_fit.png")
-            writer.Write()
-            print("Screen output saved to %s" %os.path.join(os.getcwd(),'spline_fit.png'))
+        if hasattr(self,'avg_actor_list'):
+            for actor in self.avg_actor_list:
+                actor.SetScale((1,1,z_aspect))
+                actor.Modified()
         
-        elif key=="a":
-            FlipVisible(self.axisActor)
-            
-        elif key =="f": #flip color scheme for printing
-            FlipColors(self.ren,self.axisActor,None)
-            FlipColors(self.ren,self.pointActor,1)
-            if hasattr(self,'splineActor'):
-                FlipColors(self.ren,self.splineActor,0)
+        if hasattr(self,'fit_actor_list'):
+            for actor in self.fit_actor_list:
+                actor.SetScale((1,1,z_aspect))
+                actor.Modified()
                 
-        elif key == "o":
-            FlipVisible(self.outlineActor)
-            
-        elif key == "Z":
-            self.PointSize=updatePointSize(self.pointActor,self.PointSize*2)
-            if hasattr(self,'splineActor'):
-                self.LineWidth=updateLineWidth(self.splineActor,self.LineWidth*2)
-            
-        elif key == "X":
-            self.PointSize=updatePointSize(self.pointActor,self.PointSize*0.5)
-            if hasattr(self,'splineActor'):
-                self.LineWidth=updateLineWidth(self.splineActor,self.LineWidth*0.5)
-            
-        elif key == "C":
-            self.PointSize=updatePointSize(self.pointActor,1)
-            if hasattr(self,'splineActor'):
-                self.LineWidth=updateLineWidth(self.splineActor,1)
-
-        elif key == "e":
-            self.write()
-        
-        elif key == "q":
-            if sys.stdin.isatty():
-                sys.exit("Surface fitting complete.")
-            else:
-                print("Surface fitting completed.")
+        #now do axis_actor, can't scale in the same way as polydata
+        if hasattr(self,'axis_actor'):
+            if not self.axis_actor.GetVisibility():
                 return
-                
-        elif key=="l":
-            self.get_input_data(None)
-            
-            
-        elif key == "r":
-            if self.picking == True:
-                self.picking =False
-                self.show_picking()
-            else:
-                self.picking =True
-                self.show_picking()
-                self.start_pick()
-
+        try:
+            self.ren.RemoveActor(self.axis_actor) #it will need to be replaced
+        except: pass
+        #local limits for z axis - don't scale x & y limits, scale the z axis according to z aspect and the current limits
+        nl=np.append(self.limits[0:4],([self.limits[-2]*z_aspect,self.limits[-1]*z_aspect]))
+        self.axis_actor = get_axis(self.ren, nl, z_aspect)
+        self.ren.AddActor(self.axis_actor)
+        
+        
         self.ui.vtkWidget.update()
 
-    def show_picking(self):
-        #Updates when the 'r' button is pressed to provide a link between VTK & Qt hooks
-        if self.picking == True:
-            self.ui.pickActiveLabel.setStyleSheet("QLabel { background-color : red; color : white; }");
+    def change_avg_opacity(self,value):
+        if hasattr(self,'avg_actor_list'):
+            for actor in self.avg_actor_list:
+                actor.GetProperty().SetOpacity(value/100)
+        self.ui.vtkWidget.update()
+
+    def change_fit_opacity(self,value):
+        if hasattr(self,'fit_actor_list'):
+            for actor in self.fit_actor_list:
+                actor.GetProperty().SetOpacity(value/100)
+        self.ui.vtkWidget.update()
+
+    def choose_actor(self):
+        '''
+        starts pick observer for picking an actor, gets the picked index from the observer
+        '''
+        
+        picker=vtk.vtkPropPicker()
+        self.iren.SetPicker(picker)
+        self.iren.AddObserver("EndPickEvent",self.check_actor_pick)
+        
+        if self.picked is not None:
+            self.ui.entry_spec.setCurrentIndex(self.picked)
+
+    def check_actor_pick(self,object,event):
+        """
+        Activates a pick event for actors, returns the index of the picked actor and hides the rest
+        """
+
+        click_pos=self.iren.GetEventPosition()
+        
+        picker = self.iren.GetPicker()
+        picker.Pick(click_pos[0],click_pos[1],0,self.ren)
+        picked_actor = picker.GetActor()
+        highlight_color = tuple(vtk.vtkNamedColors().GetColor3d("Tomato"))
+        if picked_actor:
+            self.picked = identify_actor(picked_actor,self.avg_actor_list)
+
+        self.iren.RemoveObservers("EndPickEvent")
+        
+    def focus_entry(self):
+        '''
+        Hides all actors and resets limits according to the entry in the combo box. Calls draw to reverse any entries
+        '''
+        # self.draw()
+        target = self.ui.entry_spec.currentIndex()
+        
+        #remove remaining actors
+        mask = np.full(len(self.avg_actor_list), True, dtype=bool)
+        mask[target] = False
+        ind = np.arange(len(self.avg_actor_list),dtype=int)[mask]
+        for i in ind:
+            
+            self.avg_actor_list[i].VisibilityOff()
+            self.fit_actor_list[i].VisibilityOff()
+            if not self.ui.show_outlines_rb.isChecked():
+                self.outline_actor_list[i].VisibilityOff()
+        
+        self.avg_actor_list[target].VisibilityOn()
+        self.fit_actor_list[target].VisibilityOn()
+        if not self.ui.show_outlines_rb.isChecked():
+            self.outline_actor_list[target].VisibilityOn()
+
+        self.limits = get_limits(np.vstack((self.avg[target],self.outlines[target])))
+        self.update_z_aspect()
+        self.ren.ResetCamera()
+        self.ui.vtkWidget.update()
+
+    def actuate_decimation_pick(self):
+        '''
+        Starts picking and handles ui button display for decimation
+        '''
+        if self.picking:
+            self.picking = False
+            self.ui.active_picking_indicator.setStyleSheet("background-color : gray; color : darkGray;")
         else:
-            self.ui.pickActiveLabel.setStyleSheet("QLabel { background-color : gray; color : darkGray; }");
-    
+            self.picking = True
+            self.ui.active_picking_indicator.setStyleSheet("background-color :rgb(77, 209, 97);")
+            self.start_pick()
+
     def start_pick(self):
-        #Required to change interactor
+        '''
+        Activates picking and adds the picker observer to the interactor
+        '''
         style=vtk.vtkInteractorStyleRubberBandPick()
         self.iren.SetInteractorStyle(style)
         picker = vtk.vtkAreaPicker()
         self.iren.SetPicker(picker)
         picker.AddObserver("EndPickEvent", self.picker_callback)
-    
+
     def picker_callback(self,obj,event):
+        '''
+        Manual picking callback function
+        '''
+        target = self.ui.entry_spec.currentIndex()
+        polydata = self.avg_polydata_list[target]
         
         extract = vtk.vtkExtractSelectedFrustum()
-    
-        fPlanes=obj.GetFrustum() #collection of planes based on unscaled display
-    
-        #scale frustum to account for the zaspect
-        scaledPlanes=vtk.vtkPlanes()
-        scaledNormals=vtk.vtkDoubleArray()
-        scaledNormals.SetNumberOfComponents(3)
-        scaledNormals.SetNumberOfTuples(6)
-        scaledOrigins=vtk.vtkPoints()
+        f_planes=obj.GetFrustum() #collection of planes based on unscaled display
+        z_aspect = self.ui.z_aspect_sb.value()
+        #scale frustum to account for the z_aspect
+        scaled_planes=vtk.vtkPlanes()
+        scaled_normals=vtk.vtkDoubleArray()
+        scaled_normals.SetNumberOfComponents(3)
+        scaled_normals.SetNumberOfTuples(6)
+        scaled_origins=vtk.vtkPoints()
         for j in range(6):
-            i=fPlanes.GetPlane(j)
+            i=f_planes.GetPlane(j)
             k=i.GetOrigin()
             q=i.GetNormal()
-            scaledOrigins.InsertNextPoint(k[0],k[1],k[2]/float(self.Zaspect))
-            scaledNormals.SetTuple(j,(q[0],q[1],q[2]*float(self.Zaspect)))
-        scaledPlanes.SetNormals(scaledNormals)
-        scaledPlanes.SetPoints(scaledOrigins)
-            
-        
-        extract.SetFrustum(scaledPlanes)
-        extract.SetInputData(self.vtkPntsPolyData)
+            scaled_origins.InsertNextPoint(k[0],k[1],k[2]/float(z_aspect))
+            scaled_normals.SetTuple(j,(q[0],q[1],q[2]*float(z_aspect)))
+        scaled_planes.SetNormals(scaled_normals)
+        scaled_planes.SetPoints(scaled_origins)
+
+        extract.SetFrustum(scaled_planes)
+        extract.SetInputData(polydata)
         extract.Update()
         extracted = extract.GetOutput()
-        
+
         ids = vtk.vtkIdTypeArray()
         ids = extracted.GetPointData().GetArray("vtkOriginalPointIds")
 
-        
         if ids:
-            #store them in an array for an undo operation
-            self.lastSelectedIds=ids
+            self.last_selected_colors = []
             for i in range(ids.GetNumberOfTuples()):
-                #turn them red
-                self.colors.SetTuple(ids.GetValue(i),(255,0,0))
-                self.bool_pnt[ids.GetValue(i)]=False
-        
-            self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
-            self.vtkPntsPolyData.Modified()
-        
-        
+                self.last_selected_colors.append(self.color_list[target].GetTuple(i))
+                self.bool_pnt[target][ids.GetValue(i)] = False
+            #store them in an array for an undo operation, and update self.bool_pnt
+            self.last_selected_ids=ids
+            self.update_mask()
+
+    def update_mask(self):
+        '''
+        Updates the coloration of poly data on the basis of what's been masked.
+        '''
+        target = self.ui.entry_spec.currentIndex()
+        polydata = self.avg_polydata_list[target]
+
+        localind = np.arange(0, len(self.bool_pnt[target]), 1, dtype=int)
+        localind = localind[np.where(np.logical_not(self.bool_pnt[target]))]
+
+        cl = self.color_list[target]
+        for i in localind:
+            cl.SetTuple(i,(255,99,71))
+
+        polydata.GetPointData().SetScalars(cl)
+        polydata.Modified()
+        self.avg_actor_list[target].Modified()
         self.ui.vtkWidget.update()
-        #set flag on ui to show that data has been modified
-        self.unsaved_changes=True
 
     def undo_pick(self):
-        if hasattr(self,"lastSelectedIds"):
-            for i in range(self.lastSelectedIds.GetNumberOfTuples()):
-                #turn them from red to starting color
-                self.colors.SetTuple(self.lastSelectedIds.GetValue(i),(70, 171, 176))
-                self.bool_pnt[self.lastSelectedIds.GetValue(i)]=True
-            self.vtkPntsPolyData.GetPointData().SetScalars(self.colors)
-            self.vtkPntsPolyData.Modified()
+        '''
+        Undoes the last pick registered
+        '''
+        target = self.ui.entry_spec.currentIndex()
+        if hasattr(self,"last_selected_ids"):
+            cl = self.color_list[target]
+            polydata = self.avg_polydata_list[target]
+            #update colours
+            for i in range(self.last_selected_ids.GetNumberOfTuples()):
+                cl.SetTuple(self.last_selected_ids.GetValue(i),self.last_selected_colors[i])
+                self.bool_pnt[target][self.last_selected_ids.GetValue(i)] = True
+            
+            polydata.GetPointData().SetScalars(cl)
+            polydata.Modified()
+            self.avg_actor_list[target].Modified()
             self.ui.vtkWidget.update()
+            del self.last_selected_ids, self.last_selected_colors
         else:
-            self.ui.statLabel.setText("No picked selection to revert.")
-            
-    def write(self):
+            return
+    
+    def apply_decimate(self):
+        '''
+        Updates avg pnts based on active_pnt and draws
+        '''
+        target = self.ui.entry_spec.currentIndex()
+        #update active_pnt for redraw
+        self.active_pnt[target] = self.active_pnt[target][self.bool_pnt[target]]
+        self.bool_pnt[target] = np.ones(len(self.active_pnt[target]), dtype=bool)
+        self.draw()
+        self.focus_entry()
         
-        mat_vars=sio.whosmat(self.fileo)
-        if not set(['spline_x']).isdisjoint([item for sublist in mat_vars for item in sublist]): #tell the user that they might overwrite their data
-            ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
-                "There is already data associated with this analysis step saved. Overwrite and invalidate subsequent steps?", \
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-            if ret == QtWidgets.QMessageBox.No: #don't overwrite
+    def reset_decimate(self):
+        '''
+        Resets points of active entry
+        '''
+        target = self.ui.entry_spec.currentIndex()
+        self.bool_pnt[target]=np.ones(len(self.avg[target]), dtype=bool)
+        self.active_pnt[target] = np.arange(0, len(self.bool_pnt[target]), 1, dtype=int)
+        self.draw()
+        self.focus_entry()
+    
+    def fit_bv(self):
+        '''
+        Fits data to bivariate spline according to settings in ui
+        FIX - entryspec is added to each time on load causing this to crash.
+        '''
+        #get input from ui for local processing
+        gx = self.ui.ksx.value()
+        gy = self.ui.ksy.value()
+        kx = self.ui.kox.value()
+        ky = self.ui.koy.value()
+        
+        #get flag for fit entity in focus or all
+        if self.ui.fit_all_rb.isChecked():
+            ind = [i for i in range(len(self.avg))]
+        else:
+            ind = [self.ui.entry_spec.currentIndex()]
+        
+        for i in ind:
+            limits = get_limits(self.outlines[i],0)
+
+            tx = np.linspace(\
+            limits[0], limits[1],\
+            int((limits[1] - limits[0]) / gx))
+            ty = np.linspace(\
+            limits[2], limits[3],\
+            int((limits[3] - limits[2]) / gy))
+            if len(tx) < 3:
+                self.ui.spline_status_label.setText('Knot spacing too sparse in x for entry %d'%i)
                 return
-            else:
-                #delete fitting parameters with pyCMcommon helper function, which negates key FEA parameters.
-                clear_mat(self.fileo,['vtk','pickedCornerInd','FEA']) 
+            if len(ty) < 3:
+                self.ui.spline_status_label.setText('Knot spacing too sparse in y for entry %d'%i)
+                return
+            #insert repeated knots at periphery
+            tx = np.insert(tx, 0, [limits[0]] * kx)
+            tx = np.insert(tx, -1, [limits[1]] * kx)
+            ty = np.insert(ty, 0, [limits[2]] * ky)
+            ty = np.insert(ty, -1, [limits[3]] * ky)
+            x = self.avg[i][self.active_pnt[i],0]
+            y = self.avg[i][self.active_pnt[i],1]
+            z = self.avg[i][self.active_pnt[i],2]
+            try:
+                tck = bisplrep(\
+                x,y,z,\
+                kx=kx, ky=ky, tx=tx, ty=ty, task=-1)
+            except ValueError as ve:
+                self.ui.spline_status_label.setText('Fit failed on entry %d'%i)
+                return
+            #append target spacing to tck
+            tck.append(gx)
+            tck.append(gy)
+            self.bv_tck_list[i] = tck
+            self.ui.spline_status_label.setText('Calculated spline for entry %d . . .'%i)
+            QtWidgets.QApplication.processEvents()
         
-        if hasattr(self,'tck'): #then spline fitting has been done
-            mat_contents=sio.loadmat(self.fileo)
-            coefs=[np.reshape(self.tck[2],(len(self.tck[0])-self.tck[3]-1,-1))]
-            number=np.array([len(self.tck[0]),len(self.tck[1])])
+            self.evaluate_spline(i)
 
-            #16/07/2020 - scipy.io.savemat does not support 'list-like' arrays. Therefore the spline object now contains the elements of the tck list.
-            new={'spline_x': {'form': 'B-', 'kspacing': [self.gx, self.gy], 'coefs': coefs, 'number': number, 'tck_x': self.tck[0],'tck_y': self.tck[1], 'tck_c': self.tck[3], 'order':np.array([self.tck[3],self.tck[4]])},  'x_out':self.RefOutline, 'aa_mask':self.bool_pnt}
+        self.draw_splines()
+        
+
+    def evaluate_spline(self, ind):
+        
+        self.ui.spline_status_label.setText('Evaluating spline for entry %d . . .'%ind)
+        QtWidgets.QApplication.processEvents()
+        pts = self.avg[ind]
+        tri = Delaunay(pts[:,:2])
+        self.tri[ind] = tri.vertices
+        tck = self.bv_tck_list[ind]
+        znew = np.empty(len(pts))
+        for i in range(len(pts)):
+            znew[i] = bisplev(pts[i,0],pts[i,1], tck[:-2])
+        
+        self.eval_points[ind] = np.hstack((self.avg[ind][:,:2],znew[np.newaxis].T))
+        self.rse[ind] = np.sqrt((pts[:,-1] - znew)**2)
+        
+    def draw_splines(self):
+        
+        for actor in self.fit_actor_list:
+            try:
+                self.ren.RemoveActor(actor)
+            except:
+                pass
+        lut = None
+        for i in range(len(self.eval_points)):
+            if self.eval_points[i] is not None:
+                if self.ui.mask_average_rb.isChecked():
+                    actor, pd, lut = gen_surface(\
+                    self.eval_points[i],\
+                    self.tri[i],\
+                    self.outlines[i],\
+                    self.rse[i])
+                    #get avg surface polydata with same triangulation
+                    _, avg_pd = gen_surface(\
+                    self.avg[i],\
+                    self.tri[i],\
+                    self.outlines[i], vals = None)
+                else:
+                    actor, pd, lut, = gen_surface(self.eval_points[i],\
+                    self.tri[i],\
+                    vals = self.rse[i])
+                    _, avg_pd = gen_surface(self.avg[i],self.tri[i])
+                actor.SetPickable(0)
+            else:
+                return
+            self.fit_actor_list[i] = actor
+            self.fit_polydata_list[i] = pd
+            self.avg_surf_polydata_list[i] = avg_pd
+            self.ren.AddActor(actor)
+        #scalebar
+        if hasattr(self,'sb_fit_actor'):
+            self.ren.RemoveActor(self.sb_fit_actor)
+        if lut is not None:
+            sb_widget = gen_scalar_bar(side = 'right')
+            sb_widget.SetInteractor(self.iren)
+            sb_widget.On()
+            self.sb_fit_actor = sb_widget.GetScalarBarActor()
+            self.sb_fit_actor.SetLookupTable(lut)
+            self.ren.AddActor(self.sb_fit_actor)
+        
+        self.ui.avg_op_slider.setValue(0)
+        self.change_avg_opacity(0)
+        self.ui.hide_avg_sb.setChecked(True)
+        self.hide_avg_legend()
+        
+        self.update_z_aspect()
+        self.ui.vtkWidget.update()
+        self.ui.spline_status_label.setText('Ready')
+        QtWidgets.QApplication.processEvents()
+        
+        self.ui.fit_op_slider.setEnabled(True)
+        self.ui.hide_fit_sb.setEnabled(True)
+        self.ui.extract_box.setEnabled(True)
+        self.ui.save_box.setEnabled(True)
+
+    def extract_line(self):
+        '''
+        Method to extract a line from both avg data and fit, update canvas and generate a line actor
+        '''
+        
+        try: self.ren.RemoveActor(self.line_actor)
+        except: pass
+        
+        target = self.ui.entry_spec.currentIndex()
+        
+        #get points from ui
+        c = np.asarray([self.ui.point1_x_coord.value(), self.ui.point1_y_coord.value(), 0])
+        n = np.asarray([self.ui.point2_x_coord.value(), self.ui.point2_y_coord.value(), 0])
+
+        #define a plane on the basis of the cross product of line segment p1-p2 and the z axis
+        plane = vtk.vtkPlane()
+        plane.SetOrigin(c)
+        plane.SetNormal(n)
+        
+        self.extracted_avg_pnts, _, = \
+        extract_contour(plane, self.avg_surf_polydata_list[target])
+        self.extracted_fit_pnts, self.line_actor = \
+        extract_contour(plane, self.fit_polydata_list[target])
+        
+        #project points on plane
+        v = np.cross(n,[0,0,1])
+        avg_proj = np.dot(v[:2],self.extracted_avg_pnts[:,:2].T).T /np.linalg.norm(v[:2])
+        fit_proj = np.dot(v[:2],self.extracted_fit_pnts[:,:2].T).T /np.linalg.norm(v[:2])
+        
+        self.ui.figure.clear()
+        ax = self.ui.figure.add_subplot(111)
+        ax.plot(avg_proj,self.extracted_avg_pnts[:,2],'.',\
+        color=(25/255,25/255,112/255), alpha = 0.5, label="Averaged")
+        ax.plot(fit_proj,self.extracted_fit_pnts[:,2],'.',\
+        color=(145/255,33/255,158/255), alpha = 0.5, label="Fitted")
+        ax.legend(loc="best")
+        ax.set_ylabel("z (mm)")
+        ax.set_xlabel("Distance along trace (mm)")
+        ax.grid(visible=True, which='major', color='#666666', linestyle='-')
+        ax.minorticks_on()
+        ax.grid(visible=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        self.ui.figure.tight_layout()
+        self.ui.canvas.draw()
+        
+        self.ren.AddActor(self.line_actor)
+        self.ui.export_line_button.setEnabled(True)
+        self.ui.export_line_status_label.setText("Ready")
+        
+        self.update_z_aspect()
+        self.ui.vtkWidget.update()
+
+    def export_line(self):
+        """
+        Collects data from ui, writes to a valid file
+        """
+        
+        fileo, _ = get_save_file('*.csv')
+        if fileo is None:
+            return
+        
+        data = np.column_stack((self.extracted_avg_pnts, self.extracted_fit_pnts[:,-1]))
+        
+        np.savetxt(fileo,
+        data,
+        delimiter=',',
+        header = "x, y, z_avg, z_fit",
+        fmt='%.4f, %.4f, %.4f, %.4f')
+        
+        self.ui.export_line_status_label.setText('Exported to %s'%fileo)
+
+
+    def keypress(self,obj,event):
+        '''
+        VTK Interactor specific keypress binding
+        '''
+        key = obj.GetKeyCode()
+        if key == "z":
+            self.ui.z_aspect_sb.setValue(self.ui.z_aspect_sb.value()*2)
+        elif key == "x":
+            self.ui.z_aspect_sb.setValue(int(self.ui.z_aspect_sb.value()*0.5))
+        elif key == "c":
+            self.ui.z_aspect_sb.setValue(1)
+        elif key == "1":
+            xyview(self.ren)
+        elif key == "2":
+            yzview(self.ren)
+        elif key == "3":
+            xzview(self.ren)
+        elif key == "a":
+            flip_visible(self.axis_actor)
+        elif key == "p":
+            #needs to be replaced with a button
+            self.choose_actor()
+        elif key == "r":
+            self.actuate_decimation_pick()
+        if key == "l":
+            self.file = None
+            self.get_data()
             
-            
-            
-            
-            mat_contents.update(new)
-            sio.savemat(self.fileo,mat_contents)
-            
-            self.ui.statLabel.setText("Output written.")
-            self.fitted=True
-            self.unsaved_changes=False
+        self.ui.vtkWidget.update()
+
+    def check_save_state(self, id):
+        '''
+        Checks to make sure that there are data objects pertaining to an averaged surface within the interactor against those that might be present in the specified file
+        '''
+        if not hasattr(self,'eval_points'):
+            info_msg('Saving the current step requires a fitted dataset.')
+            return False
+        
+        if self.file is None:
+            return False
+
+        with h5py.File(self.file, 'r') as f:
+            existing_keys = list(f.keys())
+            if not existing_keys or id not in existing_keys:
+                return True
+        
+        with h5py.File(self.file, 'r') as f:
+            #check the id's entry keys
+            g = f['%s'%id]
+            if 'eval_points' in list(g.keys()):
+                overwrite = warning_msg(self, \
+                'There is existing data in the specified file for the target field, overwrite?'
+                )
+                if not overwrite: #fail check
+                    return False
+                else:
+                    #overwrite
+                    return True
+            else:
+                #there isn't an entry in the id
+                return True
+
+    def write_output(self):
+        
+        passed = self.check_save_state('fit')
+        
+        tck_entries = ['tx', 'ty', 'c', 'kx', 'ky', 'ksx', 'ksy']
+        
+        if not passed:
+            self.ui.save_label.setText('Ready')
+            return
         else:
-            self.ui.statLabel.setText("Nothing to write.")
-
-    def get_scale(self):
-        '''
-        Returns array for the keypress function
-        '''
-        s=np.array([1,1,self.Zaspect])
-        nl=np.append(self.limits[0:4],([self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect]))
-        axs=np.array([1,1,1/self.Zaspect])
-        return s,nl,axs        
+            self.ui.save_label.setText('Saving . . .')
+            QtWidgets.QApplication.processEvents()
             
+            with h5py.File(self.file, 'r+') as f:
+                if 'fit' in list(f.keys()):
+                    del f['fit']
+                g = f.create_group('fit')
+                for i in range(len(self.avg)):
+                    gg = g.create_group(str(i))
+                    gg.create_dataset('active',data = self.active_pnt[i])
+                    if self.eval_points[i] is not None:
+                        #then this fit hasn't been conducted
+                        gg.create_dataset('eval_points',data = self.eval_points[i])
+                        gg.create_dataset('tri',data = self.tri[i])
+                        gg.create_dataset('rse',data = self.rse[i])
+                        ggg = gg.create_group('bv_tck')
+                        #create dictionary of spline entities for each entry
+                        d = {key:value for key,value in zip(tck_entries,self.bv_tck_list[i])}
+                        for key, value in d.items():
+                            ggg.create_dataset(key, data=value)
+                    
+                f.attrs['date_modified'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+                
+        self.ui.save_label.setText('Saved to %s'%(os.path.basename(self.file)))
 
-
-
-def XYView(renderer, camera,cp,fp):
-    camera.SetPosition(0,0,cp[2]+0)
-    camera.SetFocalPoint(fp)
-    camera.SetViewUp(0,1,0)
-    camera.OrthogonalizeViewUp()
-    camera.ParallelProjectionOn()
-    renderer.ResetCamera()
-
-def YZView(renderer, camera,cp,fp):
-    camera.SetPosition(cp[2]+0,0,0)
-    camera.SetFocalPoint(fp)
-    camera.SetViewUp(0,0,1)
-    camera.OrthogonalizeViewUp()
-    camera.ParallelProjectionOn()
-    renderer.ResetCamera()
-
-
-def XZView(renderer,camera,cp,fp):
-    vtk.vtkObject.GlobalWarningDisplayOff() #otherwise there's crystal eyes error . . .
-    camera.SetPosition(0,cp[2]+0,0)
-    camera.SetFocalPoint(fp)
-    camera.SetViewUp(0,0,1)
-    camera.OrthogonalizeViewUp()
-    camera.ParallelProjectionOn()
-    renderer.ResetCamera()
+def extract_contour(plane, polydata):
+    '''
+    Based on vtkPlane and a surface vtkPolyData passed, return points which are on the intersection of the polydata and plane. Also returns a trace actor corresponding to subject polydata
+    '''
+    
+    pd = vtk.vtkPolyData()
+    #operate on a deep copy as scalars will be changed
+    pd.DeepCopy(polydata)
+    
+    data = vtk.vtkDoubleArray()
+    data.SetNumberOfTuples(pd.GetNumberOfPoints())
+    pts = pd.GetPoints()
+    for i in range(pd.GetNumberOfPoints()):
+        point = pts.GetPoint(i)
+        data.SetTuple1(i, plane.EvaluateFunction(point))
+    pd.GetPointData().SetScalars(data)
+    
+    cf = vtk.vtkContourFilter()
+    cf.SetInputData(pd)
+    cf.ComputeScalarsOff()
+    cf.ComputeNormalsOff()
+    cf.GenerateValues(1,0,0)
+    cf.Update()
+    
+    extracted_pnts = v2n.vtk_to_numpy(cf.GetOutput().GetPoints().GetData())
+    
+    limits = pd.GetBounds()
+    rad = np.maximum(a_limits[1]-a_limits[0],a_limits[3]-a_limits[2])*0.005
+    
+    tf = vtk.vtkTubeFilter()
+    tf.SetInputConnection(cf.GetOutputPort())
+    tf.SetRadius(rad) #1% of the maximum dimension
+    tf.SetNumberOfSides(25)
+    tf.Update()
+    
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(tf.GetOutputPort())
+    
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    actor.GetProperty().SetColor((255,255,255))
+    
+    return v2n.vtk_to_numpy(cf.GetOutput().GetPoints().GetData()), actor
     
 
+def gen_surface(pts,tri,poly = None,vals = None):
+    '''
+    Returns a polydata actor based on points pts and triangulation tri
+    '''
 
-def FlipVisible(actor):
-    if actor.GetVisibility():
-        actor.VisibilityOff()
+    vtk_pnts = vtk.vtkPoints()
+    vtk_triangles = vtk.vtkCellArray()
+    
+    #load up points
+    vtk_pnts.SetData(v2n.numpy_to_vtk(pts))
+    if poly is not None:
+        #calculate centroids of triangles
+        centroids = np.array([np.mean(i, axis = 0) for i in pts[tri]])
+        inside = in_poly(poly,centroids)
+        tri = tri[inside]
+    
+    for i in tri:
+        triangle=vtk.vtkTriangle()
+        for j in range(0,3):
+            triangle.GetPointIds().SetId(j,i[j])
+        vtk_triangles.InsertNextCell(triangle)
+        
+    triangle_pd = vtk.vtkPolyData()
+    triangle_pd.SetPoints(vtk_pnts)
+    triangle_pd.SetPolys(vtk_triangles)
+    
+    if vals is not None:
+        vtk_z_array = v2n.numpy_to_vtk(vals)#v2n.numpy_to_vtk(pts[:,-1])
+        lut = get_diverging_lut('reds') #add options here for other baseline color series
+        lut.SetTableRange(np.amin(vals), np.amax(vals))
+        lut.Build()
+        colors = lut.MapScalars(vtk_z_array,vtk.VTK_COLOR_MODE_DEFAULT,-1,vtk.VTK_RGB)
+        triangle_pd.GetPointData().SetScalars(colors)
+
+    #filter so that edges are shared - not a valid polydata object to pass . . .
+    clean_pd = vtk.vtkCleanPolyData()
+    clean_pd.SetInputData(triangle_pd)
+    
+    # Create a mapper and actor for smoothed dataset
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(clean_pd.GetOutputPort())
+
+    surf_actor = vtk.vtkActor()
+    surf_actor.SetMapper(mapper)
+    surf_actor.GetProperty().SetInterpolationToFlat()
+    surf_actor.GetProperty().SetRepresentationToSurface()
+    # fit_actor.GetProperty().SetLighting(False)
+    if vals is None:
+        surf_actor.GetProperty().SetColor(1,0.804,0.204)
+        return surf_actor, triangle_pd
     else:
-        actor.VisibilityOn()
+        return surf_actor, triangle_pd, lut
 
-def updatePointSize(actor,NewPointSize):
-    actor.GetProperty().SetPointSize(NewPointSize)
-    actor.Modified()
-    return NewPointSize
+def read_file(file):
+    '''
+    Reads output file generated by the editor from this module. Returns a list of avg and active entries ready for plotting, along with transform and grid size
+    '''
+    #create empty lists which are returned if reading fails
+    active = []
+    eval_points = []
+    tri = []
+    rse = []
+    bv_tck = []
 
-def updateLineWidth(actor,NewLineWidth):
-    actor.GetProperty().SetLineWidth(NewLineWidth)
-    actor.Modified()
-    return NewLineWidth
-
-def FlipColors(ren,actor,contrast):
-    if ren.GetBackground()==(0.1, 0.2, 0.4):
-        if hasattr(actor,'GetXAxesLinesProperty'):
-            actor.GetTitleTextProperty(0).SetColor(0,0,0)
-            actor.GetLabelTextProperty(0).SetColor(0,0,0)
-            actor.GetXAxesLinesProperty().SetColor(0,0,0)
-            actor.SetXTitle('x') #there's a vtk bug here . . .
+    tck_entries = ['tx', 'ty', 'c', 'kx', 'ky', 'ksx', 'ksy']
+    
+    with h5py.File(file, 'r') as f:
+        try:
+            g = f['fit']
+            active = [None] * len(g.keys())
+            eval_points = [None] * len(g.keys())
+            tri = [None] * len(g.keys())
+            rse = [None] * len(g.keys())
+            bv_tck = [None] * len(g.keys())
             
-            actor.GetTitleTextProperty(1).SetColor(0,0,0)
-            actor.GetLabelTextProperty(1).SetColor(0,0,0)
-            actor.GetYAxesLinesProperty().SetColor(0,0,0)
-
-            actor.GetTitleTextProperty(2).SetColor(0,0,0)
-            actor.GetLabelTextProperty(2).SetColor(0,0,0)
-            actor.GetZAxesLinesProperty().SetColor(0,0,0)
-            ren.SetBackground(1, 1, 1)
-        else:
-            if contrast == 1:
-                actor.GetProperty().SetColor(0.2784,0.6745,0.6941)
-            else:
-                actor.GetProperty().SetColor(1,0.804,0.204)
-
-    else:
-        if hasattr(actor,'GetXAxesLinesProperty'):
-            actor.GetTitleTextProperty(0).SetColor(1,1,1)
-            actor.GetLabelTextProperty(0).SetColor(1,1,1)
-            actor.GetXAxesLinesProperty().SetColor(1,1,1)
-            actor.SetXTitle('X')
-            
-            actor.GetTitleTextProperty(1).SetColor(1,1,1)
-            actor.GetLabelTextProperty(1).SetColor(1,1,1)
-            actor.GetYAxesLinesProperty().SetColor(1,1,1)
-            actor.SetYTitle('Y')
-            
-            actor.GetTitleTextProperty(2).SetColor(1,1,1)
-            actor.GetLabelTextProperty(2).SetColor(1,1,1)
-            actor.GetZAxesLinesProperty().SetColor(1,1,1)
-            ren.SetBackground(0.1, 0.2, 0.4)
-        else:
-            if contrast == 1:
-                actor.GetProperty().SetColor(0.0353, 0.1922, 0.2706)
-            else:
-                actor.GetProperty().SetColor(0.8039, 0.3490, 0.2902)
+            for k in g.keys():
+                if k.isdigit():
+                    active[int(k)] = g['%s/active'%k][()]
+                    if '%s/eval_points'%k in g:
+                        eval_points[int(k)] = g['%s/eval_points'%k][()]
+                        tri[int(k)] = g['%s/tri'%k][()]
+                        rse[int(k)] = g['%s/rse'%k][()]
+                        
+                        #build spline list entry from fields
+                        read_tck = []
+                        local_bv_tck = g['%s/bv_tck'%k]
+                        for entry in tck_entries:
+                            read_tck.append(local_bv_tck[entry][()])
+                        bv_tck[int(k)] = read_tck
+        except: pass
+    
+    return active, eval_points, tri, rse, bv_tck
 
 if __name__ == "__main__":
     if len(sys.argv)>1:
-        sf_def(sys.argv[1])
+        launch(sys.argv[1])
     else:
-        sf_def()
+        launch()

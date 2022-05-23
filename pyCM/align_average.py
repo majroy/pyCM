@@ -1,1029 +1,1009 @@
 #!/usr/bin/env python
 '''
-Uses VTK python to allow for editing point clouds associated with the contour 
-method. Full interaction requires a 3-button mouse and keyboard.
--------------------------------------------------------------------------------
-Current mapping is as follows:
-LMB - rotate about point cloud centroid.
-MMB - pan
-RMB - zoom/refresh window extents
-1 - view 1, default, looks down z axis onto xy plane
-2 - view 2, looks down x axis onto zy plane
-3 - view 3, looks down y axis onto zx plane
-z - increase z-aspect ratio
-x - decrease z-aspect ratio
-c - return to default z-aspect
-f - flip colors from white on dark to dark on white
-i - save output to .png in current working directory
-a - remove compass/axes
-o - hide/restore outlines
-l - load a results file
--------------------------------------------------------------------------------
-ver 19-01-08
-1.1 - Initial release
-1.2 - Refactored to use PyQt interface and eliminated global variables
-1.3 - Refactored to use PyQt5, Python 3
-1.4 - added option to remove start at centroid
-1.5 - added additional tools for alignment
+Uses VTK Python to allow for alignment and averaging point clouds associated with the contour method. Full interaction requires a 3-button mouse and keyboard. See documentation for keyboard/mouse bindings.
+1.6 - Updated for overall version 2.
 '''
+
 __author__ = "M.J. Roy"
-__version__ = "1.5"
+__version__ = "1.6"
 __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
-__copyright__ = "(c) M. J. Roy, 2014-2019"
+__copyright__ = "(c) M. J. Roy, 2014--"
 
-import sys
-import os.path
-import vtk
-import vtk.util.numpy_support as VN
+import sys, os
+from pkg_resources import Requirement, resource_filename
 import numpy as np
-import numpy.matlib
-import scipy.io as sio
 from scipy.interpolate import griddata
-from scipy.spatial.distance import pdist, squareform
-from matplotlib import path
+import vtk
+import vtk.util.numpy_support as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCM.pyCMcommon import *
-from pkg_resources import Requirement, resource_filename
+from PyQt5.QtCore import Qt
+from pyCMcommon import *
+from icp import *
+from registration import read_file as reg_read_file
 
 
-def aa_def(*args,**kwargs):
-    """
-    Main function, builds qt interaction
-    """    
+def launch(*args, **kwargs):
+    '''
+    Start Qt/VTK interaction if started independently
+    '''
     app = QtWidgets.QApplication.instance()
     if app is None:
         app = QtWidgets.QApplication(sys.argv)
-    
-    spl_fname=resource_filename("pyCM","meta/pyCM_logo.png")
-    splash_pix = QtGui.QPixmap(spl_fname,'PNG')
-    splash = QtWidgets.QSplashScreen(splash_pix)
-    splash.setMask(splash_pix.mask())
 
-    splash.show()
     app.processEvents()
     
-    window = aa_interactor(None)
-
-    if len(args)==1: 
-        aa_interactor.get_input_data(window,args[0])
-    else: 
-        aa_interactor.get_input_data(window,None)
-
+    window = interactor(None) #otherwise specify parent widget
     window.show()
-    splash.finish(window)
-    window.iren.Initialize() # Need this line to actually show the render inside Qt
-
+    
+    # if a data file is specified at launch
+    if len(args) == 1:
+        window.file = args[0]
+        interactor.get_data(window)
+    
     ret = app.exec_()
     
-    if sys.stdin.isatty() and not hasattr(sys,'ps1'):
+    if sys.stdin.isatty() and not hasattr(sys, 'ps1'):
         sys.exit(ret)
     else:
         return window
 
-class ali_avg(object):
-    """
-    Class to build qt interaction, including VTK widget
-    setupUi builds, initialize starts VTK widget
-    """
-    
-    def setupUi(self, MainWindow):
-        MainWindow.setWindowTitle("pyCM - Alignment and averaging tool v%s" %__version__)
-        MainWindow.setWindowIcon(QtGui.QIcon(resource_filename("pyCM","meta/pyCM_icon.png")))
-        self.centralWidget = QtWidgets.QWidget(MainWindow)
+class aa_main_window(object):
+    '''
+    Class that builds, populates and initializes aspects of Qt interaction
+    '''
+
+    def setup(self, MainWindow):
+        '''
+        Sets up Qt interactor
+        '''
+        
+        #if called as a script, treat as a Qt mainwindow, otherwise a generic widget for embedding elsewhere
         if hasattr(MainWindow,'setCentralWidget'):
             MainWindow.setCentralWidget(self.centralWidget)
         else:
             self.centralWidget=MainWindow
-        self.mainlayout=QtWidgets.QGridLayout(self.centralWidget)
+            MainWindow.setWindowTitle("pyCM - Alignment and averaging tool v%s" %__version__)
         
+        #create new layout to hold both VTK and Qt interactors
+        mainlayout=QtWidgets.QHBoxLayout(self.centralWidget)
+
+        #create VTK widget
         self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
         
-        mainUiBox = QtWidgets.QGridLayout()
-        
-        self.vtkWidget.setMinimumSize(QtCore.QSize(1050, 600))
+        #create VTK widget
+        self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
-        sizePolicy.setHorizontalStretch(10)
-        sizePolicy.setVerticalStretch(10)
-        sizePolicy.setHeightForWidth(self.vtkWidget.sizePolicy().hasHeightForWidth())
+        sizePolicy.setHorizontalStretch(100)
+        sizePolicy.setVerticalStretch(100)
         self.vtkWidget.setSizePolicy(sizePolicy)
         
-        self.statLabel=QtWidgets.QLabel("Idle")
-        self.statLabel.setWordWrap(True)
-        self.statLabel.setFont(QtGui.QFont("Helvetica",italic=True))
-        self.statLabel.setMinimumWidth(100)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.statLabel.sizePolicy().hasHeightForWidth())
-        self.statLabel.setSizePolicy(sizePolicy)
-
-        headFont=QtGui.QFont("Helvetica [Cronyx]",weight=QtGui.QFont.Bold)
-
+        self.vtkWidget.setMinimumSize(QtCore.QSize(800, 600))
         
-        # #define buttons/widgets
-        # self.reloadButton = QtWidgets.QPushButton('Load')
-        scalingLabel=QtWidgets.QLabel("Active axis for scaling")
-        scalingLabel.setFont(headFont)
-        self.xsButton=QtWidgets.QRadioButton("x")
-        self.ysButton=QtWidgets.QRadioButton("y")
-        self.zsButton=QtWidgets.QRadioButton("z")
-        self.zsButton.setChecked(True)
-        self.scalingButtonGroup = QtWidgets.QButtonGroup()
-        self.scalingButtonGroup.addButton(self.xsButton)
-        self.scalingButtonGroup.addButton(self.ysButton)
-        self.scalingButtonGroup.addButton(self.zsButton)
-        self.scalingButtonGroup.setExclusive(True)
-        scaleBoxlayout = QtWidgets.QGridLayout()
-        scaleBoxlayout.addWidget(self.xsButton,1,1)
-        scaleBoxlayout.addWidget(self.ysButton,1,2)
-        scaleBoxlayout.addWidget(self.zsButton,1,3)
+        #make display box
+        self.display_box = QtWidgets.QGroupBox('Display')
+        display_layout = QtWidgets.QGridLayout()
+        self.display_box.setLayout(display_layout)
+        self.z_aspect_sb = QtWidgets.QSpinBox()
+        self.z_aspect_sb.setPrefix("Scaling: ")
+        self.z_aspect_sb.setToolTip("Scaling factor applied to Z axis")
+        self.z_aspect_sb.setValue(1)
+        self.z_aspect_sb.setMinimum(1)
+        self.z_aspect_sb.setMaximum(1000)
+        self.draw_directions_button = QtWidgets.QPushButton('Show cut')
+        self.draw_directions_button.setToolTip('Show cutting direction(s)')
+        self.draw_directions_button.setCheckable(True)
+        self.caption_rb = QtWidgets.QCheckBox('Caption entries')
+        self.caption_rb.setToolTip('Label entries in viewport')
+        self.caption_rb.setChecked(False)
         
-        horizLine1=QtWidgets.QFrame()
-        horizLine1.setFrameStyle(QtWidgets.QFrame.HLine)
-        mirrorLabel=QtWidgets.QLabel("Mirroring")
-        mirrorLabel.setFont(headFont)
-        self.mirrorXbutton = QtWidgets.QPushButton('ZY')
-        self.mirrorYbutton = QtWidgets.QPushButton('ZX')
-
-        horizLine2=QtWidgets.QFrame()
-        horizLine2.setFrameStyle(QtWidgets.QFrame.HLine)
-        alignLabel=QtWidgets.QLabel("Alignment")
-        alignLabel.setFont(headFont)
-        self.centRefButton=QtWidgets.QPushButton("Move reference centroid to origin")
-        self.centFloatButton=QtWidgets.QPushButton("Move float centroid to origin")
-
-        self.transXlabel=QtWidgets.QLabel("Translate x:")
-        self.transX = QtWidgets.QDoubleSpinBox()
-        self.transX.setValue(0)
-        self.transX.setMaximum(300)
-        self.transX.setMinimum(-300)
-        self.transYlabel=QtWidgets.QLabel("Translate y:")
-        self.transY = QtWidgets.QDoubleSpinBox()
-        self.transY.setValue(0)
-        self.transY.setMaximum(300)
-        self.transY.setMinimum(-300)
-        self.rotateZlabel=QtWidgets.QLabel("Rotate about z (deg):")
-        self.rotateZ= QtWidgets.QDoubleSpinBox()
-        self.rotateZ.setValue(0)
-        self.rotateZ.setMaximum(180)
-        self.rotateZ.setMinimum(-180)
-        self.transButton=QtWidgets.QPushButton('Transform floating')
-        self.numPntsOutline = QtWidgets.QSpinBox()
-        self.numPntsOutline.setMaximum(10000)
-        self.reduceOutlineButton = QtWidgets.QPushButton('Decimate outlines')
-
+        ref_op_slider_label = QtWidgets.QLabel("Reference opacity:")
+        self.ref_op_slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.ref_op_slider.setStyleSheet("QSlider::handle:horizontal {background-color: rgb(242, 101, 34);}")
+        self.ref_op_slider.setRange(0,100)
+        self.ref_op_slider.setSliderPosition(100)
+        float_op_slider_label = QtWidgets.QLabel("Floating opacity:")
+        self.float_op_slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.float_op_slider.setStyleSheet("QSlider::handle:horizontal {background-color: rgb(255, 205, 52);}")
+        self.float_op_slider.setRange(0,100)
+        self.float_op_slider.setSliderPosition(100)
+        avg_op_slider_label = QtWidgets.QLabel("Averaged opacity:")
+        self.avg_op_slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.avg_op_slider.setStyleSheet("QSlider::handle:horizontal {background-color: rgb(25, 25, 112);}")
+        self.avg_op_slider.setRange(0,100)
+        self.avg_op_slider.setSliderPosition(100)
+        self.avg_op_slider.setEnabled(False)
         
-        alignAlgoButtonGroup = QtWidgets.QButtonGroup()
-        self.useVTKalignButton=QtWidgets.QRadioButton("VTK ICP")
-        self.useICPalignButton=QtWidgets.QRadioButton("K-neighbour ICP")
-        self.useVTKalignButton.setChecked(True)
-        alignAlgoButtonGroup.addButton(self.useVTKalignButton)
-        alignAlgoButtonGroup.addButton(self.useICPalignButton)
-        alignAlgoButtonGroup.setExclusive(True)
-        self.X180Button = QtWidgets.QPushButton("Flip X")
-        self.Y180Button = QtWidgets.QPushButton("Flip Y")
-        self.alignButton = QtWidgets.QPushButton("Align")
-        self.acceptAlignButton = QtWidgets.QPushButton("Accept")
+        local_display_layout = QtWidgets.QHBoxLayout()
+        local_display_layout.addWidget(self.z_aspect_sb)
+        local_display_layout.addWidget(self.caption_rb)
+        local_display_layout.addWidget(self.draw_directions_button)
+        display_layout.addLayout(local_display_layout,0,0,1,2)
+        display_layout.addWidget(ref_op_slider_label,1,0,1,1)
+        display_layout.addWidget(self.ref_op_slider,1,1,1,1)
+        display_layout.addWidget(float_op_slider_label,2,0,1,1)
+        display_layout.addWidget(self.float_op_slider,2,1,1,1)
+        display_layout.addWidget(avg_op_slider_label,3,0,1,1)
+        display_layout.addWidget(self.avg_op_slider,3,1,1,1)
         
-        self.alignButton.setStyleSheet("background-color : None ")
+        self.display_box.setEnabled(False)
         
-        horizLine3=QtWidgets.QFrame()
-        horizLine3.setFrameStyle(QtWidgets.QFrame.HLine)
-        averageLabel=QtWidgets.QLabel("Averaging")
-        averageLabel.setFont(headFont)
+        #make mirror box
+        self.mirror_box = QtWidgets.QGroupBox('Mirroring')
+        mirror_layout = QtWidgets.QHBoxLayout()
+        self.mirror_box.setLayout(mirror_layout)
+        self.mirror_x_button = QtWidgets.QPushButton('ZX')
+        self.mirror_x_button.setToolTip('Mirror floating data on ZY (x = 0) plane')
+        self.mirror_y_button = QtWidgets.QPushButton('ZY')
+        self.mirror_y_button.setToolTip('Mirror floating data on ZY (y = 0) plane')
+        self.align_reset_button = QtWidgets.QPushButton("Reset")
+        self.align_reset_button.setToolTip('Undo all transformations to the floating point dataset')
+        mirror_layout.addWidget(self.mirror_x_button)
+        mirror_layout.addWidget(self.mirror_y_button)
+        mirror_layout.addWidget(self.align_reset_button)
         
-        #widgets for setting grid
-        gridLabel=QtWidgets.QLabel("Grid spacing:")
-        self.gridInd = QtWidgets.QDoubleSpinBox()
-        self.gridInd.setValue(0)
-        self.gridInd.setMaximum(5)
-        self.gridInd.setMinimum(0.001)
+        self.mirror_box.setEnabled(False)
         
-        self.averageButton = QtWidgets.QPushButton('Average')
-        self.averageButton.setStyleSheet("background-color : None ")
+        #make alignment box
+        self.align_box = QtWidgets.QGroupBox('Alignment')
+        align_layout = QtWidgets.QGridLayout()
+        self.align_box.setLayout(align_layout)
+        cent_layout = QtWidgets.QHBoxLayout()
+        cent_label=QtWidgets.QLabel("Move to centroids:")
+        self.centroid_reference = QtWidgets.QRadioButton('Reference')
+        self.centroid_reference.setChecked(True)
+        self.centroid_floating = QtWidgets.QRadioButton('Floating')
+        centroid_button_group = QtWidgets.QButtonGroup()
+        centroid_button_group.addButton(self.centroid_reference)
+        centroid_button_group.addButton(self.centroid_floating)
+        centroid_button_group.setExclusive(True)
+        self.cent_move_button = QtWidgets.QPushButton("Apply")
+        cent_layout.addWidget(cent_label)
+        cent_layout.addWidget(self.centroid_reference)
+        cent_layout.addWidget(self.centroid_floating)
         
-        horizLine4=QtWidgets.QFrame()
-        horizLine4.setFrameStyle(QtWidgets.QFrame.HLine)
-        self.writeButton=QtWidgets.QPushButton('Write')
+        trans_x_label=QtWidgets.QLabel("Translate x:")
+        self.trans_x = QtWidgets.QDoubleSpinBox()
+        self.trans_x.setValue(0)
+        self.trans_x.setMaximum(300)
+        self.trans_x.setMinimum(-300)
+        trans_y_label=QtWidgets.QLabel("Translate y:")
+        self.trans_y = QtWidgets.QDoubleSpinBox()
+        self.trans_y.setValue(0)
+        self.trans_y.setMaximum(300)
+        self.trans_y.setMinimum(-300)
+        rotate_label = QtWidgets.QLabel("Rotation about z:")
+        self.rotate_z= QtWidgets.QDoubleSpinBox()
+        self.rotate_z.setToolTip('Positive is clockwise')
+        self.rotate_z.setValue(0)
+        self.rotate_z.setSuffix("\u00b0")
+        self.rotate_z.setMaximum(180)
+        self.rotate_z.setMinimum(-180)
+        self.move_button = QtWidgets.QPushButton("Apply")
+        self.move_button.setSizePolicy(sizePolicy)
         
-        horizLine5=QtWidgets.QFrame()
-        horizLine5.setFrameStyle(QtWidgets.QFrame.HLine)
+        align_algo_layout = QtWidgets.QHBoxLayout()
+        self.k_neighbour_button = QtWidgets.QPushButton("K-neighbour ICP")
+        self.k_neighbour_button.setToolTip('Generate and apply a 2D transformation based on outlines')
+        self.corner_best_fit_button = QtWidgets.QPushButton("Corner SVD")
+        self.corner_best_fit_button.setToolTip('Solve and apply the best-fit 2D transform to outline corners with single value decomposition')
+        self.vtk_icp_button = QtWidgets.QPushButton("VTK ICP")
+        self.vtk_icp_button.setToolTip('Generate and apply a VTK 3D transformation based on outlines')
+        align_algo_layout.addWidget(self.k_neighbour_button)
+        align_algo_layout.addWidget(self.corner_best_fit_button)
+        align_algo_layout.addWidget(self.vtk_icp_button)
+        
+        align_layout.addLayout(cent_layout,0,0,1,2)
+        align_layout.addWidget(self.cent_move_button,0,2,1,1)
+        align_layout.addWidget(trans_x_label,1,0,1,1)
+        align_layout.addWidget(self.trans_x,1,1,1,1)
+        align_layout.addWidget(trans_y_label,2,0,1,1)
+        align_layout.addWidget(self.trans_y,2,1,1,1)
+        align_layout.addWidget(rotate_label,3,0,1,1)
+        align_layout.addWidget(self.rotate_z,3,1,1,1)
+        align_layout.addWidget(self.move_button,1,2,3,1)
+        align_layout.addLayout(align_algo_layout,4,0,1,3)
+        align_layout.setRowStretch(align_layout.rowCount(), 1)
+        
+        self.align_box.setEnabled(False)
+        
+        #make average layout
+        self.average_box = QtWidgets.QGroupBox('Averaging')
+        average_layout = QtWidgets.QGridLayout()
+        self.average_box.setLayout(average_layout)
+        # grid_label=QtWidgets.QLabel("Grid spacing")
+        self.grid_size = QtWidgets.QDoubleSpinBox()
+        self.grid_size.setPrefix('Grid size: ')
+        self.grid_size.setToolTip("Spacing of grid which will be used to average the datasets")
+        self.grid_size.setValue(0)
+        self.grid_size.setMaximum(300)
+        self.grid_size.setMinimum(-300)
+        self.grid_size.setDecimals(4)
+        self.mask_average_rb = QtWidgets.QCheckBox('Outline crop')
+        self.mask_average_rb.setToolTip("Mask/crop display of averaged data to the reference outline")
+        self.nearest_neigh_rb = QtWidgets.QCheckBox('N-neighbour')
+        self.nearest_neigh_rb.setToolTip("Set undefined values to nearest neighbour as opposed to lowest defined value - requires re-averaging to effect")
+        self.mask_average_rb.setChecked(True)
+        self.nearest_neigh_rb.setChecked(True)
+        self.average_button = QtWidgets.QPushButton('Average')
+        self.average_button.setToolTip('Start averaging')
+        self.reset_average_button = QtWidgets.QPushButton('Reset')
+        self.reset_average_button.setToolTip('Invalidate averaging and return to alignment')
+        self.averaging_status_label = QtWidgets.QLabel("Ready")
+        
+        # average_layout.addWidget(grid_label,0,0,1,1)
+        average_layout.addWidget(self.grid_size,0,0,1,1)
+        average_layout.addWidget(self.mask_average_rb,0,1,1,1)
+        average_layout.addWidget(self.nearest_neigh_rb,0,2,1,1)
+        average_layout.addWidget(self.average_button,1,1,1,1)
+        average_layout.addWidget(self.reset_average_button,1,2,1,1)
+        average_layout.addWidget(self.averaging_status_label,2,0,1,3)
+        
+        self.average_box.setEnabled(False)
+        
+        #make save box
+        self.save_box = QtWidgets.QGroupBox('Write current')
+        save_layout = QtWidgets.QHBoxLayout()
+        self.save_box.setLayout(save_layout)
+        #make save buttons
+        self.save_button = QtWidgets.QPushButton("Save")
+        self.save_button.setToolTip('Save data to hdf5-formatted results file')
+        self.save_label = QtWidgets.QLabel('Ready')
+        self.save_label.setWordWrap(True)
+        save_layout.addWidget(self.save_label)
+        verticalSpacer = QtWidgets.QSpacerItem(50, 20, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        save_layout.addItem(verticalSpacer)
+        save_layout.addWidget(self.save_button)
+        self.save_box.setEnabled(False)
+        
+        
+        lvlayout=QtWidgets.QVBoxLayout()
+        lvlayout.minimumSize()
+        lvlayout.addWidget(self.display_box)
+        lvlayout.addWidget(self.mirror_box)
+        lvlayout.addWidget(self.align_box)
+        lvlayout.addWidget(self.average_box)
+        lvlayout.addWidget(self.save_box)
+        lvlayout.addStretch(1)
+        mainlayout.addWidget(self.vtkWidget)
+        mainlayout.addStretch(1)
+        mainlayout.addLayout(lvlayout)
 
-
-        #add widgets to ui
-        mainUiBox.addWidget(scalingLabel,0,0,1,2)
-        mainUiBox.addLayout(scaleBoxlayout,1,0,1,2)
-        mainUiBox.addWidget(horizLine1,2,0,1,2)
-        mainUiBox.addWidget(mirrorLabel,3,0,1,2)
-        mainUiBox.addWidget(self.mirrorYbutton,4,0,1,1)
-        mainUiBox.addWidget(self.mirrorXbutton,4,1,1,1)
-        mainUiBox.addWidget(horizLine2,5,0,1,2)
-        mainUiBox.addWidget(alignLabel,6,0,1,2)
-        mainUiBox.addWidget(self.centRefButton,7,0,1,2)
-        mainUiBox.addWidget(self.centFloatButton,8,0,1,2)
-        mainUiBox.addWidget(self.transXlabel,9,0,1,1)
-        mainUiBox.addWidget(self.transX,9,1,1,1)
-        mainUiBox.addWidget(self.transYlabel,10,0,1,1)
-        mainUiBox.addWidget(self.transY,10,1,1,1)
-        mainUiBox.addWidget(self.rotateZlabel,11,0,1,1)
-        mainUiBox.addWidget(self.rotateZ,11,1,1,1)
-        mainUiBox.addWidget(self.transButton,12,0,1,2)
-        mainUiBox.addWidget(self.X180Button,13,0,1,1)
-        mainUiBox.addWidget(self.Y180Button,13,1,1,1)
-        mainUiBox.addWidget(self.numPntsOutline,14,0,1,1)
-        mainUiBox.addWidget(self.reduceOutlineButton,14,1,1,1)
-        
-        mainUiBox.addWidget(self.useVTKalignButton,15,0,1,1)
-        mainUiBox.addWidget(self.useICPalignButton,15,1,1,1)
-
-        mainUiBox.addWidget(self.alignButton,16,0,1,1)
-        mainUiBox.addWidget(self.acceptAlignButton,16,1,1,1)
-        mainUiBox.addWidget(horizLine3,17,0,1,2)
-        mainUiBox.addWidget(averageLabel,18,0,1,2)
-        mainUiBox.addWidget(gridLabel,19,0,1,1)
-        mainUiBox.addWidget(self.gridInd,19,1,1,1)
-        mainUiBox.addWidget(self.averageButton,20,0,1,2)
-        mainUiBox.addWidget(horizLine4,21,0,1,2)
-        mainUiBox.addWidget(self.writeButton,22,0,1,2)
-        mainUiBox.addWidget(horizLine5,23,0,1,2)
-        # mainUiBox.addWidget(self.statusLabel,18,0,1,2)
-
-        mainUiBox.setColumnMinimumWidth(0,mainUiBox.columnMinimumWidth(0))
-        mainUiBox.setColumnMinimumWidth(1,mainUiBox.columnMinimumWidth(0))
-        
-        lvLayout=QtWidgets.QVBoxLayout()
-        lhLayout=QtWidgets.QHBoxLayout()
-        lvLayout.addLayout(mainUiBox)
-        lvLayout.addStretch(1)
-        lhLayout.addLayout(lvLayout)
-        lhLayout.addStretch(2)
-
-
-
-        self.mainlayout.addWidget(self.vtkWidget,0,0,1,1)
-        self.mainlayout.addLayout(lhLayout,0,1,1,1)
-        self.mainlayout.addWidget(self.statLabel,1,0,1,2)
-        
-    def initialize(self):
-        self.vtkWidget.start()
-
-class aa_interactor(QtWidgets.QWidget):
-    """
-    Sets up the main VTK window, reads file and sets connections between UI and interactor
-    """
-    def __init__(self, parent):
-        super(aa_interactor,self).__init__(parent)
-        self.ui = ali_avg()
-        self.ui.setupUi(self)
+class interactor(QtWidgets.QWidget):
+    '''
+    Inherits most properties from a generic QWidget - see interactor docstring elsewhere in this package.
+    '''
+    
+    def __init__(self,parent):
+        super(interactor, self).__init__(parent)
+        self.ui = aa_main_window()
+        self.ui.setup(self)
         self.ren = vtk.vtkRenderer()
-        self.ren.SetBackground(0.1, 0.2, 0.4)
+        self.ren.SetBackground(vtk.vtkNamedColors().GetColor3d("slategray"))
+        self.ren.GradientBackgroundOn()
+
         self.ui.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
         self.iren = self.ui.vtkWidget.GetRenderWindow().GetInteractor()
         style=vtk.vtkInteractorStyleTrackballCamera()
-        style.AutoAdjustCameraClippingRangeOn()
         self.iren.SetInteractorStyle(style)
-        self.ren.GetActiveCamera().ParallelProjectionOn()
-        self.cp=self.ren.GetActiveCamera().GetPosition()
-        self.fp=self.ren.GetActiveCamera().GetFocalPoint()
         self.iren.AddObserver("KeyPressEvent", self.keypress)
+        # self.iren.AddObserver("MouseMoveEvent", self.on_mouse_move)
+        self.ren.GetActiveCamera().ParallelProjectionOn()
+        self.ui.vtkWidget.Initialize()
         
-        self.PointSize=2
-        self.LineWidth=1
-        self.Zaspect=1.0
-        self.limits=np.empty(6)
-        self.picking=False
-        self.Offset=0
-        self.mirrored=False
-        self.aligned=False
+        self.file = None
+        self.active_dir = os.getcwd()
+        self.point_size = 2
+        self.limits = np.empty(6)
+        self.gsize = 0
+        self.trans = np.eye(4) #default
+        self.c_trans = np.eye(4) #initialise cumulative transformation
         
-        # self.ui.reloadButton.clicked.connect(lambda: self.get_input_data(None))
-        self.ui.mirrorXbutton.clicked.connect(lambda: self.flipside('x'))
-        self.ui.mirrorYbutton.clicked.connect(lambda: self.flipside('y'))
-        self.ui.centRefButton.clicked.connect(lambda: self.zero_pos('ref'))
-        self.ui.centFloatButton.clicked.connect(lambda: self.zero_pos('float'))
-        self.ui.transButton.clicked.connect(lambda: self.shift())
-        self.ui.X180Button.clicked.connect(lambda: self.flip('x'))
-        self.ui.Y180Button.clicked.connect(lambda: self.flip('y'))
-        self.ui.alignButton.clicked.connect(lambda: self.align())
-        self.ui.acceptAlignButton.clicked.connect(lambda: self.accept_align())
-        self.ui.averageButton.clicked.connect(lambda: self.average())
-        self.ui.writeButton.clicked.connect(lambda: self.write())
-        self.ui.reduceOutlineButton.clicked.connect(lambda: self.reduce_outline())
-    
-    def update_float(self):
-    
-        if hasattr(self,'fActor'):
-            self.ren.RemoveActor(self.fActor)
-            self.ren.RemoveActor(self.fOutlineActor)
         
-        color=(255, 205, 52)
-        self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
-        self.ren.AddActor(self.fActor)
-        
-        self.fOutlineActor, self.fOPC = gen_outline(self.fO_local,color,self.PointSize)
-        self.ren.AddActor(self.fOutlineActor)
-    
-    def update_limits(self):
+        #connect functions/methods to ui here
+        self.ui.z_aspect_sb.valueChanged.connect(self.update_z_aspect)
+        self.ui.caption_rb.toggled.connect(self.hide_caption)
+        self.ui.draw_directions_button.clicked.connect(self.draw_cut_directions)
+        self.ui.ref_op_slider.valueChanged[int].connect(self.change_ref_opacity)
+        self.ui.float_op_slider.valueChanged[int].connect(self.change_float_opacity)
+        self.ui.avg_op_slider.valueChanged[int].connect(self.change_avg_opacity)
+        self.ui.mirror_x_button.clicked.connect(self.trans_mirror_x)
+        self.ui.mirror_y_button.clicked.connect(self.trans_mirror_y)
+        self.ui.align_reset_button.clicked.connect(self.reset_trans)
+        self.ui.trans_x.editingFinished.connect(self.clear_var_yz)
+        self.ui.trans_y.editingFinished.connect(self.clear_var_xz)
+        self.ui.rotate_z.editingFinished.connect(self.clear_var_xy)
+        self.ui.cent_move_button.clicked.connect(self.centroid_move)
+        self.ui.move_button.clicked.connect(self.trans_from_ui)
+        self.ui.vtk_icp_button.clicked.connect(self.trans_from_vtk_icp)
+        self.ui.k_neighbour_button.clicked.connect(self.trans_from_k_neighbour)
+        self.ui.corner_best_fit_button.clicked.connect(self.trans_from_corners)
+        self.ui.average_button.clicked.connect(self.average)
+        self.ui.reset_average_button.clicked.connect(self.reset_average)
+        self.ui.mask_average_rb.toggled.connect(self.draw_average)
+        self.ui.save_button.clicked.connect(self.write_output)
 
-        self.limits = get_limits(np.vstack((self.flp,self.rp,self.rO_local,self.fO_local)))
-        
-        s,nl,axs=self.get_scale()
-
-        self.fActor.SetScale(s)
-        self.fActor.Modified()
-
-        #add axes
-        try: self.ren.RemoveActor(self.axisActor)
-        except: pass
-        self.axisActor = add_axis(self.ren,nl,axs)
-
-        #update
-        self.ui.vtkWidget.update()
-        self.ui.vtkWidget.setFocus()    
-    
-    def zero_pos(self,p):
+    def get_data(self):
         '''
-        Moves the outline and point cloud from the centroidof the outline of p to 0,0,0 
+        Calls load_h5 method to load data. Calls reset_display, reset_align, reset_average
         '''
-        self.unsaved_changes=True
+        if self.file is None:
+            self.file, self.active_dir = get_file("*.pyCM",self.active_dir)
         
-        if self.averaged == True: #then set it false and change the button
-                self.averaged = False
-                self.ui.averageButton.setStyleSheet("background-color : None ")
-                
-        if self.aligned == True: #then set it false and change the button
-            self.aligned = False
-            self.ui.alignButton.setStyleSheet("background-color : None ")
+        #make sure valid file was selected
+        if self.file is None or not(os.path.isfile(self.file)):
+            return
+        
+        #delete any existing objects
+        if hasattr(self,'active_pnt'):
+            del self.active_pnt
+        
+        #clear renderer
+        self.ren.RemoveAllViewProps()
+        
+        #otherwise start reading in registration data
+        self.rp, \
+        self.ro, \
+        self.fp, \
+        self.fo, \
+        self.cut_attr = reg_read_file(self.file)
+        
+        #move outlines and data to the mean z value of point clouds
+        rm = np.mean(np.vstack(self.rp)[:,-1])
+        fm = np.mean(np.vstack(self.fp)[:,-1])
+        for i in range(len(self.rp)):
+            self.rp[i][:,-1] = self.rp[i][:,-1] - rm
+            self.ro[i][:,-1] = rm
+            self.fp[i][:,-1] = self.fp[i][:,-1] - fm
+            self.fo[i][:,-1] = fm
+        
+        self.trans = np.eye(4) #default
+        self.c_trans = np.eye(4) #initialise
+        
+        #try reading in any alignment/averaged data
+        avg, gsize, T = read_file(self.file)
+        if avg:
+            self.avg = avg
+            self.gsize = gsize
+            self.ui.grid_size.setValue(gsize)
+            self.draw(0)
+            self.trans = T
+            self.apply_transformation()
+            self.draw_average()
+        else:
+            self.draw(0)
+
+        self.ui.display_box.setEnabled(True)
+        if not self.cut_attr['ref']:
+            self.ui.draw_directions_button.setEnabled(False)
+        else:
+            self.ui.draw_directions_button.setEnabled(True)
+        self.ui.mirror_box.setEnabled(True)
+        self.ui.align_box.setEnabled(True)
+        self.ui.average_box.setEnabled(True)
+        
             
-        local_trans=np.identity(4)
-        if p == "ref":
-            self.ren.RemoveActor(self.rActor)
-            #perform move on datasets
-            centroid = np.mean(self.rO, axis = 0)
-            #update the homogeneous transformation matrix
-            local_trans[0:3,3]=-centroid
-            self.refTrans.append(local_trans)
-            self.rp = self.rp - centroid
-            self.rO = self.rO - centroid
-            self.rO_local = self.rO_local - centroid
-
+    def draw(self,option=1):
+        '''
+        Draws reference and floating point clouds depending on option:
+        0 - from load, draws both
+        1 - draws floating only
+        '''
+        if option == 0:
+        #remove all actors
+            self.ren.RemoveAllViewProps()
+            self.ref_actor_list = []
+            self.ref_outline_polydata_list = []
+            self.ref_caption_actor_list = []
+            
             color=(242, 101, 34)
-            self.ren.RemoveActor(self.rOutlineActor)
-            self.rPC, self.rActor, _, = gen_point_cloud(self.rp,color,self.PointSize)
-            self.ren.AddActor(self.rActor)
-            self.rOutlineActor, self.rOPC = gen_outline(self.rO_local,color,self.PointSize)
-            self.ren.AddActor(self.rOutlineActor)
-            
-        if p == "float":
-            
-            # perform move on datasets
-            centroid = np.mean(self.fO, axis = 0)
-            #update homogeneous transformation matrix
-            local_trans[0:3,3]=-centroid
-            self.floatTrans.append(local_trans)
-            self.flp = self.flp - centroid
-            self.fO = self.fO - centroid
-            self.fO_local = self.fO_local - centroid
-            self.update_float()
+            for i in range(len(self.rp)):
+                rp_actor, _, _, _, = gen_point_cloud(self.rp[i],color,self.point_size)
+                rp_actor.GetProperty().SetOpacity(\
+                self.ui.ref_op_slider.value() / 100)
+                self.ren.AddActor(rp_actor)
+                self.ref_actor_list.append(rp_actor)
+                ro_actor, ro_pc = gen_outline(self.ro[i],color,self.point_size)
+                self.ren.AddActor(ro_actor)
+                self.ref_outline_polydata_list.append(ro_pc)
+                self.ref_actor_list.append(ro_actor)
+                cap_actor = gen_caption_actor('%s'%i, ro_actor)
+                self.ren.AddActor(cap_actor)
+                self.ref_caption_actor_list.append(cap_actor)
+        
+        elif option == 1:
+            for actor in self.float_actor_list:
+                self.ren.RemoveActor(actor)
+            for actor in self.float_caption_actor_list:
+                self.ren.RemoveActor(actor)
 
-        self.update_limits()
+        self.float_actor_list = []
+        self.float_outline_polydata_list = []
+        self.float_caption_actor_list = []
+        
+        color = (255, 205, 52)
+        for i in range(len(self.fp)):
+            fp_actor, _, _, _, = gen_point_cloud(self.fp[i],color,self.point_size)
+            fp_actor.GetProperty().SetOpacity(\
+            self.ui.float_op_slider.value() / 100)
+            self.ren.AddActor(fp_actor)
+            self.float_actor_list.append(fp_actor)
+            fo_actor, fo_pc = gen_outline(self.fo[i],color,self.point_size)
+            self.ren.AddActor(fo_actor)
+            self.float_outline_polydata_list.append(fo_pc)
+            self.float_actor_list.append(fo_actor)
+            cap_actor = gen_caption_actor('%s'%i, fo_actor)
+            self.ren.AddActor(cap_actor)
+            self.float_caption_actor_list.append(cap_actor)
+        
+        self.limits = get_limits(np.vstack(self.rp + self.fp))
+        self.update_z_aspect()
+        
+        if self.ui.draw_directions_button.isChecked():
+            self.draw_cut_directions()
+        
+        if not self.ui.caption_rb.isChecked():
+            self.hide_caption()
+        
         self.ren.ResetCamera()
+        self.ui.vtkWidget.update()
     
-    def reduce_outline(self):
+    def draw_average(self):
         '''
-        Decimates alias outlines used for alignment using reduce_equally.
+        -(Re)draws averaged data set
+        -flips the visibility of the floating outline
+        -turns the reference outline white
         '''
-
-        self.ren.RemoveActor(self.rOutlineActor)
+        if hasattr(self,'avg_actor_list'):
+            for actor in self.avg_actor_list:
+                self.ren.RemoveActor(actor)
+            self.ren.RemoveActor(self.sb_actor)
+        self.avg_actor_list = []
         
-        if self.ui.numPntsOutline.value() > len(self.rO_local):
-            self.rO_local=self.rO
-            self.fO_local=self.fO
+        #change opacity of floating and reference data
+        self.ui.ref_op_slider.setValue(0) 
+        self.ui.float_op_slider.setValue(0)
+        self.ui.avg_op_slider.setEnabled(True)
         
-        #Do reference first
-        color=(242, 101, 34)
-
-        X = respace_equally(self.rO_local,self.ui.numPntsOutline.value())[0]
-        self.rO_local=np.zeros((self.ui.numPntsOutline.value(),3))
-        self.rO_local[:,:-1]=X
-        self.rOutlineActor, self.rOPC = gen_outline(self.rO_local,color,self.PointSize)
-        self.ren.AddActor(self.rOutlineActor)
+        #handle outlines
+        float_outline_actors = self.float_actor_list[1::2]
+        for actor in float_outline_actors:
+            if actor.GetVisibility():
+                flip_visible(actor)
+        ref_outline_actors = self.ref_actor_list[1::2]
+        for actor in ref_outline_actors:
+            actor.GetProperty().SetColor((255,255,255))
         
-        color=(255, 205, 52)
-
-        X = respace_equally(self.fO_local,self.ui.numPntsOutline.value())[0]
-        self.fO_local=np.zeros((self.ui.numPntsOutline.value(),3))
-        self.fO_local[:,:-1]=X
-        
-        self.update_float()
-        self.update_limits()
-        
-    def shift(self):
-        '''
-        Applies rigid body transformations to the floating dataset
-        '''
-        self.unsaved_changes=True
-        
-        if self.averaged == True: #then set it false and change the button
-            self.averaged = False
-            self.ui.averageButton.setStyleSheet("background-color : None ")
-            
-        if self.aligned == True: #then set it false and change the button
-            self.aligned = False
-            self.ui.alignButton.setStyleSheet("background-color : None ")
-
-        #get x and y translations and z rotation and update float transformation matrix
-        local_trans = np.identity(4)
-        a=np.deg2rad(float(self.ui.rotateZ.value()))
-        local_trans[0:2,0:2]=np.array([[np.cos(a),-np.sin(a)],[np.sin(a),np.cos(a)]])
-        
-        local_trans[0,-1]=float(self.ui.transX.value())
-        local_trans[1,-1]=float(self.ui.transY.value())
-        self.floatTrans.append(local_trans)
-        
-        #apply operation
-        self.flp=apply_trans(self.flp,local_trans)
-        self.fO=apply_trans(self.fO,local_trans)
-        self.fO_local=apply_trans(self.fO_local,local_trans)
-
-        self.update_float()
-        self.update_limits()
-    
-    def flip(self,axis):
-        '''
-        Applies a rotation of 180 degrees about 'axis'
-        '''
-        self.unsaved_changes=True
-        
-        if self.averaged == True: #then set it false and change the button
-            self.averaged = False
-            self.ui.averageButton.setStyleSheet("background-color : None ")
-        
-        if self.aligned == True: #then set it false and change the button
-            self.aligned = False
-            self.ui.alignButton.setStyleSheet("background-color : None ")
-
-        
-        local_trans = np.identity(4)
-        if axis == 'x':
-            local_trans[1,1] = -1
-            local_trans[2,2] = -1
-        if axis == 'y':
-            local_trans[0,0] = -1
-            local_trans[2,2] = -1
-        #update overall homogeneous transformation matrix
-        self.floatTrans.append(local_trans)
-        
-        #apply operation
-        self.flp=np.dot(self.flp,local_trans[0:3,0:3])
-        self.fO=np.dot(self.fO,local_trans[0:3,0:3])
-        self.fO_local=np.dot(self.fO_local,local_trans[0:3,0:3])
-        
-        
-        self.update_float()
-        self.update_limits()
-        
-        
-    def write(self):
-        
-        mat_vars=sio.whosmat(self.fileo)
-        if not set(['aa', 'trans']).isdisjoint([item for sublist in mat_vars for item in sublist]): #tell the user that they might overwrite their data
-            ret=QtWidgets.QMessageBox.warning(self, "pyCM Warning", \
-                "There is already data associated with this analysis step saved. Overwrite and invalidate subsequent steps?", \
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-            if ret == QtWidgets.QMessageBox.No: #don't overwrite
-                return
+        for i in range(len(self.avg)):
+            if hasattr(self,'active_pnt'):
+                if self.ui.mask_average_rb.isChecked():
+                    pnts = self.avg[i][self.active_pnt[i]]
             else:
-                #delete fitting parameters with pyCMcommon helper function, which negates FEA pre-processing as well.
-                clear_mat(self.fileo,['x_out','aa_mask','spline_x']) 
-
-        mat_contents=sio.loadmat(self.fileo)
-        
-        new={'trans': {'ref':self.refTrans, 'float':self.floatTrans},'aa': {'pnts': self.ap, 'gsize': self.gsize}}
-        
-        mat_contents.update(new) #update the dictionary
+                pnts = self.avg[i]
             
-        sio.savemat(self.fileo,mat_contents)    
-        self.ui.statLabel.setText("Wrote data.")
-        self.unsaved_changes=False
-        
-    def average(self):
-        
-        self.unsaved_changes=True
-        
-        if hasattr(self,'aActor'):
-            self.ren.RemoveActor(self.aActor)
-        
-        self.ui.statLabel.setText("Averaging, applying grid . . .")
-        QtWidgets.QApplication.processEvents()
-        
-        #temporarily shift all data such that it appears in the first cartesian quadrant
-        tT=np.amin(self.rO,axis=0)
-        self.rO, self.fO, self.rp, self.flp=self.rO-tT, self.fO-tT, self.rp-tT, self.flp-tT
-        
-        #use max to get a 'window' for assessing grid spacing
-        RefMax=np.amax(self.rO,axis=0)
-        RefMin=np.amin(self.rO,axis=0)
-        windowVerts=np.matrix([[0.25*RefMin[0], 0.25*RefMin[1]],
-        [0.25*RefMin[0], 0.25*(RefMax[1])],
-        [0.25*(RefMax[1]), 0.25*(RefMax[1])],
-        [0.25*(RefMax[0]), 0.25*(RefMin[1])]]);
-        
-        p=path.Path(windowVerts)
-        inWindow=p.contains_points(self.rp[:,:2]) #first 2 columns of RefPoints is x and y
-        
-        windowed=self.rp[inWindow,:2]
-        
-        #populate grid size if attribute doesn't exist
-        if not hasattr(self,'gsize'):
-            gs=squareform(pdist(windowed,'euclidean')) 
-            self.gsize = np.mean(np.sort(gs)[:,1])
-            self.ui.gridInd.setValue(self.gsize)
-        else:
-            self.gsize=self.ui.gridInd.value()
-        
-        #grid the reference based on gsize, bumping out the grid by 10% in either direction
-        grid_x, grid_y = np.meshgrid(
-        np.linspace(1.1*RefMin[0],1.1*RefMax[0],int((1.1*RefMax[0]-1.1*RefMin[0])/self.gsize)),
-        np.linspace(1.1*RefMin[1],1.1*RefMax[1],int((1.1*RefMax[1]-1.1*RefMin[1])/self.gsize)), 
-        indexing='xy')
-        
-        #apply the grid to the reference data
-        grid_Ref=griddata(self.rp[:,:2],self.rp[:,-1],(grid_x,grid_y),method='linear')
-        
-        #apply the grid to the aligned data
-        grid_Align=griddata(self.flp[:,:2],self.flp[:,-1],(grid_x,grid_y),method='linear')
-        
-        self.ui.statLabel.setText("Averaging using grid . . .")
-        QtWidgets.QApplication.processEvents()
-        
-        #average z values
-        grid_Avg=(grid_Ref+grid_Align)/2
-        
-        #make sure that there isn't anything averaged outside the floating outline
-        p=path.Path(self.rO[:,:2])
-        inTest=np.hstack((np.ravel(grid_x.T)[np.newaxis].T,np.ravel(grid_y.T)[np.newaxis].T))
-        inOutline=p.contains_points(inTest)
-        
-        #averaged points
-        self.ap = np.hstack((inTest[inOutline,:], \
-                    np.ravel(grid_Avg.T)[np.newaxis].T[inOutline]))
-                    
-        #move everything back to original location
-        self.rO, self.fO, self.rp, self.flp, self.ap = \
-        self.rO+tT, self.fO+tT, self.rp+tT, self.flp+tT, self.ap+tT
-        
-        self.ui.statLabel.setText("Rendering . . .")
-        QtWidgets.QApplication.processEvents()
-        
-        #show it
-        color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
-        _, self.aActor, _, = gen_point_cloud(self.ap,color,self.PointSize)
-        self.ren.AddActor(self.aActor)
-        
-        s,nl,axs=self.get_scale()
+            if i == 0: 
+                avg_actor, \
+                _, \
+                _, lut = \
+                gen_point_cloud(pnts,'blues')
+                self.zrange = (self.limits[-2],self.limits[-1])
+            else:
+                avg_actor, \
+                _, \
+                _, _ = \
+                gen_point_cloud(pnts,'blues')
+                self.zrange = (self.limits[-2],self.limits[-1])
 
-        self.aActor.SetScale(s)
-        self.aActor.Modified()
-        
-        #update
-        self.ui.vtkWidget.update()
-        self.ui.vtkWidget.setFocus()
-        self.ui.statLabel.setText("Averaging complete.")
-        self.averaged=True
-        self.ui.averageButton.setStyleSheet("background-color :rgb(77, 209, 97);")
-        
-    
-    def flipside(self,flipDirection):
-        self.ui.statLabel.setText("Starting mirroring . . .")
-        self.ui.vtkWidget.update()
-        local_trans=np.identity(4)
-
-        self.unsaved_changes=True
-        
-        if self.averaged == True: #then set it false and change the button
-            self.averaged = False
-            self.ui.averageButton.setStyleSheet("background-color : None ")
-        
-        if flipDirection == "x":
-            local_trans[0,0]=-1
-            self.flp[:,0]=-self.flp[:,0]
-            # self.fO[:,0]=-self.fO[:,0]
-            self.fO_local[:,0]=-self.fO_local[:,0]
+            avg_actor.GetProperty().SetOpacity(\
+            self.ui.avg_op_slider.value() / 100)
+            self.ren.AddActor(avg_actor)
+            self.avg_actor_list.append(avg_actor)
             
-            if not self.mirrored:
-                self.ui.mirrorXbutton.setStyleSheet("background-color :rgb(77, 209, 97);")
-                self.mirrored=True
-                self.mirror_plane="x"
-            elif self.mirror_plane == "x":
-                self.ui.mirrorXbutton.setStyleSheet("background-color: None")
-                self.mirrored=False
-            elif self.mirror_plane == "y":
-                self.flp[:,1]=-self.flp[:,1]
-                # self.fO[:,1]=-self.fO[:,1]
-                self.fO_local[:,1]=-self.fO_local[:,1]
-                self.mirrored=True
-                self.mirror_plane="x"
-                self.ui.mirrorYbutton.setStyleSheet("background-color: None")
-                self.ui.mirrorXbutton.setStyleSheet("background-color :rgb(77, 209, 97);")
-                
-        elif flipDirection == "y":
-            local_trans[1,1]=-1
-            self.flp[:,1]=-self.flp[:,1]
-            # self.fO[:,1]=-self.fO[:,1]
-            self.fO_local[:,1]=-self.fO_local[:,1]
-            if not self.mirrored:
-                self.ui.mirrorYbutton.setStyleSheet("background-color :rgb(77, 209, 97);")
-                self.mirrored=True
-                self.mirror_plane="y"
-            elif self.mirror_plane == "y":
-                self.ui.mirrorYbutton.setStyleSheet("background-color: None")
-                self.mirrored=False
-            elif self.mirror_plane == "x":
-                self.flp[:,0]=-self.flp[:,0]
-                # self.fO[:,0]=-self.fO[:,0]
-                self.fO_local[:,0]=-self.fO_local[:,0]
-                self.mirrored=True
-                self.mirror_plane="y"
-                self.ui.mirrorXbutton.setStyleSheet("background-color: None")
-                self.ui.mirrorYbutton.setStyleSheet("background-color :rgb(77, 209, 97);")
-
-        self.floatTrans.append(local_trans)
-        self.update_float()
-        self.update_limits()
+        #handle scalebar
+        sb_widget = gen_scalar_bar()
+        sb_widget.SetInteractor(self.iren)
+        sb_widget.On()
+        self.sb_actor = sb_widget.GetScalarBarActor()
+        self.sb_actor.SetLookupTable(lut)
+        self.ren.AddActor(self.sb_actor)
+        
+        self.update_z_aspect()
+        
+        
         self.ren.ResetCamera()
-        self.ui.statLabel.setText("Mirror operation complete.")
+        self.ui.vtkWidget.update()
     
-    def accept_align(self):
-        '''
-        Accepts the current alignment and allows analysis to proceed if the profile has not been algorithmically aligned with the align button being pressed.
-        '''
-        self.aligned = True
-        self.ui.alignButton.setStyleSheet("background-color :rgb(77, 209, 97);")
-    
-    def align(self):
-        '''
-        Uses the built-in icp landmark transformation provided by vtk to outline actors, and then updates the renderer and the stored homogeneous transformation matrix transM
-        '''
-        self.unsaved_changes=True
-        
-        if self.averaged == True: #then set it false and change the button
-            self.averaged = False
-            self.ui.averageButton.setStyleSheet("background-color : None ")
-            
-        if self.aligned == True: #then set it false and change the button
-            self.aligned = False
-            self.ui.alignButton.setStyleSheet("background-color : None ")
-
-            
-        self.ui.statLabel.setText("Starting alignment . . .")
-        QtWidgets.QApplication.processEvents()
-        
-        
-        
-        if self.ui.useVTKalignButton.isChecked():
-            icp_trans=vtk.vtkIterativeClosestPointTransform()
-            icp_trans.SetSource(self.fOPC)
-            icp_trans.SetTarget(self.rOPC)
-
-
-            icp_trans.StartByMatchingCentroidsOn()
-            icp_trans.GetLandmarkTransform().SetModeToRigidBody()
-            icp_trans.SetMeanDistanceModeToRMS()
-            icp_trans.CheckMeanDistanceOn()
-            icp_trans.SetMeanDistanceModeToAbsoluteValue()
-            # icp_trans.SetMaximumNumberOfLandmarks(200)
-            icp_trans.DebugOn()
-            icp_trans.Modified()
-            icp_trans.Update()
-            icp_trans.Inverse()
-            
-            T=np.ones(shape=(4,4))
-            for i in range(4):
-                for j in range(4):
-                    T[i,j]=icp_trans.GetMatrix().GetElement(i, j)
-            T=np.linalg.inv(T)
-
-        if self.ui.useICPalignButton.isChecked():
-            self.reduce_outline()
-            T,_,_ = icp(self.fO_local,self.rO_local)
-            
-            
-            
-            
-        #apply operation
-        self.flp=apply_trans(self.flp,T)
-        self.fO_local=apply_trans(self.fO_local,T)
-        self.floatTrans.append(T)
-
-        
-        self.update_float()
-        self.update_limits()
-        
-        
-        if self.mirrored==False:
-            self.ui.statLabel.setText("WARNING alignment proceeded without a mirror operation. Alignment complete.")
-        else:
-            self.ui.statLabel.setText("Alignment complete.")
-        
-        
-    def get_input_data(self,filem):
-        """
-        Loads the content of a *.mat file pertaining to this particular step
-        """
-        
-        if hasattr(self,'rActor'): #then remove everything
-            self.ren.RemoveActor(self.rActor)
-            self.ren.RemoveActor(self.fActor)
-            self.ren.RemoveActor(self.rOutlineActor)
-            self.ren.RemoveActor(self.fOutlineActor)
-            
-        if hasattr(self,'aActor'):
-            self.ren.RemoveActor(self.aActor)
-        
-        if filem == None:
-            filem, _, =get_file('*.mat')
-        
-        if filem: #check variables
-            mat_contents = sio.loadmat(filem)
-            self.fileo=filem
-            if 'aa' in mat_contents:
-
-                
-                #draw floating and reference datasets
-                
-                self.rp=mat_contents['ref']['rawPnts'][0][0]
-                ind=mat_contents['ref']['mask'][0][0][0]
-                self.rO=mat_contents['ref']['x_out'][0][0]
-                self.rO_local=self.rO
-                
-                self.refTrans=mat_contents['trans']['ref'][0][0]
-                
-                
-                self.rp=self.rp[np.where(ind)]
-                
-                #apply the transform with post multiplication
-                
-                for transformation in self.refTrans:
-                    self.rp=apply_trans(self.rp,transformation)
-                    self.rO=apply_trans(self.rO,transformation)
-                    
-                self.rO_local=self.rO
-
-                
-                color=(242, 101, 34)
-                self.rPC, self.rActor, _, = gen_point_cloud(self.rp,color,self.PointSize)
-                self.ren.AddActor(self.rActor)
-                self.rOutlineActor, self.rOPC = gen_outline(self.rO_local,color,self.PointSize)
-                self.ren.AddActor(self.rOutlineActor)
-                
-                s,nl,axs=self.get_scale()
-                
-                self.rActor.SetScale(s)
-                self.rActor.Modified()
-                
-                #do other one, but with transformed floating points
-                self.flp=mat_contents['float']['rawPnts'][0][0]
-                ind=mat_contents['float']['mask'][0][0][0]
-                self.fO=mat_contents['float']['x_out'][0][0]
-                self.fO_local = self.fO
-                
-                self.flp=self.flp[np.where(ind)]
-
-
-                self.floatTrans=mat_contents['trans']['float'][0][0]
-                #read in as np array
-                
-                for transformation in self.floatTrans:
-                    self.flp=apply_trans(self.flp,transformation)
-                    self.fO=apply_trans(self.fO,transformation)
-                
-                
-                self.fO_local=self.fO
-                
-                self.update_float()
-                
-                #after applied, convert transformation arrays to lists
-                self.refTrans = self.refTrans.tolist()
-                self.floatTrans = self.floatTrans.tolist()
-                
-                #show aligned and averaged data
-                self.ap=mat_contents['aa']['pnts'][0][0]
-                self.gsize=mat_contents['aa']['gsize'][0][0]
-
-                #do grid
-                self.ui.gridInd.setValue(self.gsize)
-
-                
-            
-                color=(int(0.2784*255),int(0.6745*255),int(0.6941*255))
-                _, self.aActor, _, = gen_point_cloud(self.ap,color,self.PointSize)
-                self.ren.AddActor(self.aActor)
-
-                self.aActor.SetScale(s)
-                self.aActor.Modified()
-                
-                self.limits = get_limits(np.vstack((self.flp,self.rp)))
-                
-                self.update_limits()
-                self.ren.ResetCamera()
-
-                self.ui.numPntsOutline.setValue(np.min([len(self.rO),len(self.fO)]))
-                
-                self.ui.statLabel.setText("This dataset has already been aligned and averaged.")
-                self.aligned = True
-                self.ui.alignButton.setStyleSheet("background-color :rgb(77, 209, 97);")
-                self.mirrored=True
-                self.averaged=True
-                self.ui.averageButton.setStyleSheet("background-color :rgb(77, 209, 97);")
+    def hide_caption(self):
+        state = self.ui.caption_rb.isChecked()
+        for actor in self.ref_caption_actor_list:
+            if not state:
+                actor.VisibilityOff()
             else:
-                self.ui.statLabel.setText("This dataset has not been previously aligned.")
-                self.averaged = False
-
-                try:
-                    self.rp=mat_contents['ref']['rawPnts'][0][0]
-                    ind=mat_contents['ref']['mask'][0][0][0]
-                    self.rO=mat_contents['ref']['x_out'][0][0]
-                    self.rO_local=self.rO
-                    
-                    
-                    self.rp=self.rp[np.where(ind)]
-                    
-                    color=(242, 101, 34)
-                    self.rPC, self.rActor, _, = gen_point_cloud(self.rp,color,self.PointSize)
-                    self.ren.AddActor(self.rActor)
-                    self.rOutlineActor, self.rOPC = gen_outline(self.rO_local,color,self.PointSize)
-                    self.ren.AddActor(self.rOutlineActor)
-                    
-                    #do other one
-                    self.flp=mat_contents['float']['rawPnts'][0][0]
-                    ind=mat_contents['float']['mask'][0][0][0]
-                    self.fO=mat_contents['float']['x_out'][0][0]
-                    self.fO_local=self.fO
-                    
-                    
-                    self.flp=self.flp[np.where(ind)]
-                    
-                    #populate outline
-                    self.ui.numPntsOutline.setValue(np.min([len(self.rO),len(self.fO)]))
-                    
-
-                    
-                    color=(255, 205, 52)
-                    self.fPC, self.fActor, _, = gen_point_cloud(self.flp,color,self.PointSize)
-                    self.ren.AddActor(self.fActor)
-                    self.fOutlineActor, self.fOPC = gen_outline(self.fO_local,color,self.PointSize)
-                    self.ren.AddActor(self.fOutlineActor)
-                    
-                    self.limits = get_limits(np.vstack((self.flp,self.rp,self.fO_local,self.rO_local)))
-
-                    #add axes
-                    try: self.ren.RemoveActor(self.axisActor)
-                    except: pass
-                    self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
-                    
-                    #initialize both transformation matrices
-                    self.refTrans=[]
-                    self.floatTrans=[]
-
-                except Exception as e:
-                    print("Couldn't read in both sets of data.")
-                    print(e)
-                
+                actor.VisibilityOn()
+        for actor in self.float_caption_actor_list:
+            if not state:
+                actor.VisibilityOff()
+            else:
+                actor.VisibilityOn()
+        self.ui.vtkWidget.update()
+    
+    def draw_cut_directions(self):
+        '''
+        Draws direction actors based on the contents of cut_attr. Called on load/display reset
+        '''
+        
+        if not self.cut_attr['ref']:
+            return
+        
+        cut_attr = self.cut_attr.copy()
+        
+        if hasattr(self,'ref_cut_orient_actor'):
+            self.ren.RemoveActor(self.ref_cut_orient_actor)
+            
+        if hasattr(self,'float_cut_orient_actor'):
+            self.ren.RemoveActor(self.float_cut_orient_actor)
+        
+        if self.ui.draw_directions_button.isChecked():
+            pass
         else:
-            print("Invalid *.mat file")
+            self.ui.vtkWidget.update()
             return
             
-        self.unsaved_changes=False
-        #update
-        self.ren.ResetCamera()
+        if cut_attr['ref']:
+            ld = cut_attr['ref']
+            if ld['cut_path'].any():
+                self.ref_cut_orient_actor = gen_cutting_orientation_actor(\
+                get_limits(np.vstack(self.ro)),\
+                ld['cut_dir'],\
+                ld['cut_path'])
+            else:
+                self.ref_cut_orient_actor = gen_cutting_orientation_actor(\
+                get_limits(np.vstack(self.ro)),\
+                ld['cut_dir'])
+            
+            self.ren.AddActor(self.ref_cut_orient_actor)
+            self.ref_cut_orient_actor.GetProperty().SetColor(\
+            (242/255, 101/255, 34/255)\
+            )
+            
+        if cut_attr['float']:
+            ld = cut_attr['float']
+            if ld['cut_path'].any():
+                self.float_cut_orient_actor = gen_cutting_orientation_actor(\
+                get_limits(np.vstack(self.fo)),\
+                ld['cut_dir'],\
+                ld['cut_path'])
+            else:
+                self.float_cut_orient_actor = gen_cutting_orientation_actor(\
+                get_limits(np.vstack(self.fo)),\
+                ld['cut_dir'])
+            self.ren.AddActor(self.float_cut_orient_actor)
+            self.float_cut_orient_actor.GetProperty().SetColor(\
+            (255/255, 205/255, 52/255)\
+            )
+        
         self.ui.vtkWidget.update()
-        self.ui.vtkWidget.setFocus()
     
-    def keypress(self,obj,event):
-        key = obj.GetKeyCode()
-
-        if key =="1":
-            xyview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
-        elif key =="2":
-            yzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
-        elif key =="3":
-            xzview(self.ren, self.ren.GetActiveCamera(),self.cp,self.fp)
-        elif key=="z":
-            self.Zaspect=self.Zaspect*2
-            s,nl,axs=self.get_scale()
-            if hasattr(self,'pointActor'):
-                self.pointActor.SetScale(s)
-                self.pointActor.Modified()
-            if hasattr(self,'rActor'):
-                self.rActor.SetScale(s)
-                self.rActor.Modified()
-            if hasattr(self,'fActor'):
-                self.fActor.SetScale(s)
-                self.fActor.Modified()
-            if hasattr(self,'aActor'):
-                self.aActor.SetScale(s)
-                self.aActor.Modified()
-            
-            self.ren.RemoveActor(self.axisActor)
-            self.axisActor = add_axis(self.ren,nl,axs)
-
-        elif key=="x":
-            self.Zaspect=self.Zaspect*0.5
-            s,nl,axs=self.get_scale()
-            if hasattr(self,'pointActor'):
-                self.pointActor.SetScale(s)
-            if hasattr(self,'rActor'):
-                self.rActor.SetScale(s)
-                self.rActor.Modified()
-            if hasattr(self,'fActor'):
-                self.fActor.SetScale(s)
-                self.fActor.Modified()
-            if hasattr(self,'aActor'):
-                self.aActor.SetScale(s)
-                self.aActor.Modified()
-
-            self.ren.RemoveActor(self.axisActor)
-            self.axisActor = add_axis(self.ren,nl,axs)
-
-
-        elif key=="c":
-            self.Zaspect=1.0
-            s,_,_,=self.get_scale()
-            if hasattr(self,'pointActor'):
-                self.pointActor.SetScale(s)
-            if hasattr(self,'rActor'):
-                self.rActor.SetScale(s)
-                self.rActor.Modified()
-            if hasattr(self,'fActor'):
-                self.fActor.SetScale(s)
-                self.fActor.Modified()
-            if hasattr(self,'aActor'):
-                # self.fActor.SetScale(1,1,self.Zaspect)
-                self.aActor.SetScale(s)
-                self.aActor.Modified()
-            self.ren.RemoveActor(self.axisActor)
-            self.axisActor = add_axis(self.ren,self.limits,[1,1,1])
-            self.ren.ResetCamera()
-
-        elif key=="i":
-            im = vtk.vtkWindowToImageFilter()
-            writer = vtk.vtkPNGWriter()
-            im.SetInput(self.ui.vtkWidget._RenderWindow)
-            im.Update()
-            writer.SetInputConnection(im.GetOutputPort())
-            writer.SetFileName("Avg_aligned.png")
-            writer.Write()
-            print("Screen output saved to %s" %os.path.join(os.getcwd(),'Avg_aligned.png'))
-
-        elif key=="a":
-            flip_visible(self.axisActor)
-            
-        elif key == "o":
-            flip_visible(self.outlineActor)
+    def reset_average(self):
+        #change opacity of floating and reference data
+        self.ui.ref_op_slider.setValue(100) 
+        self.ui.float_op_slider.setValue(100)
+        self.ui.avg_op_slider.setEnabled(False)
+        self.ui.save_box.setEnabled(False)
         
-        elif key == "f":
-            flip_colors(self.ren,self.axisActor)
-                
-                
-        elif key=="l":
-            self.get_input_data(None)
+        self.draw(0)
         
+        self.ui.mirror_box.setEnabled(True)
+        self.ui.align_box.setEnabled(True)
+        
+    
+    def reset_trans(self):
+        '''
+        inverts the cumulative transformation matrix and applies it to the floating data. Resets self.trans and c_trans.
+        '''
+        self.trans = np.linalg.inv(self.c_trans)
+        self.apply_transformation()
+        
+        
+    def centroid_move(self):
+        '''
+        Translates either reference data directly or floating data by apply_transformation, depending on what radio button in the ui is selected.
+        TO DO: UPDATE REF entry and transformation matrix in data record
+        '''
+        
+        if self.ui.centroid_reference.isChecked():
+            T = np.eye(4)
+            T[0:3,-1] = - np.mean(np.vstack((self.rp + self.ro)), axis=0)
+            for i in range(len(self.rp)):
+                self.rp[i] = do_transform(self.rp[i],T)
+                self.ro[i] = do_transform(self.ro[i],T)
+            self.draw(0)
+        elif self.ui.centroid_floating.isChecked():
+            self.trans[0:3,-1] = - np.mean(np.vstack((self.fp + self.fo)), axis=0)
+            self.apply_transformation()
+    
+    def trans_mirror_x(self):
+        '''
+        Mirrors floating on ZX (X=0) plane
+        '''
+        
+        self.trans[1,1] = -1
+        self.apply_transformation()
+        
+    def trans_mirror_y(self):
+        '''
+        Mirrors floating on ZY (Y=0) plane
+        '''
+        self.trans[0,0] = -1
+        self.apply_transformation()
+
+    def trans_from_ui(self):
+        '''
+        Builds and applies a transformation from entries on the ui
+        '''
+        self.trans[0,-1] = self.ui.trans_x.value()
+        self.trans[1,-1] = self.ui.trans_y.value()
+        a = np.deg2rad(self.ui.rotate_z.value()) #negative for counterclockwise
+        self.trans[0:2,0:2]=np.array([[np.cos(a),-np.sin(a)],[np.sin(a),np.cos(a)]])
+        self.apply_transformation()
+
+    def trans_from_vtk_icp(self):
+        '''
+        Get icp transformation matrix from outline polydata
+        '''
+        fo_pd = self.float_outline_polydata_list
+        ro_pd = self.ref_outline_polydata_list
+        
+        T = [vtk_icp(\
+        fo_pd[i],\
+        ro_pd[i]) for i in \
+        range(len(fo_pd))\
+        ]
+        self.trans = sum(T)/len(T)
+        self.apply_transformation()
+        
+    
+    def trans_from_k_neighbour(self):
+        '''
+        Get 2D k-neighbour transformation matrix from icp algo, build and apply 3D according to this.
+        '''
+        #build array of all outlines with each having the same number of points
+        respaced_float_outline = []
+        for i in range(len(self.fo)):
+            local_outline, _, _ = respace_equally(self.fo[i][:,:2],len(self.ro[i]))
+            respaced_float_outline.append(local_outline)
+        #A (fo) and B (ro) need to have the same shape. Respace fo to ro.
+        A = np.vstack(respaced_float_outline)
+        reference_outline = [x[:,:2] for x in self.ro]
+        B = np.vstack(reference_outline)
+        two_d_trans, _, _ = icp(A,B)
+        #pack relevant values into self.trans from two_d_trans
+        self.trans[:2,-1] = two_d_trans[:2,-1]
+        self.trans[0:2,0:2] = two_d_trans[0:2,0:2]
+        self.apply_transformation()
+    
+    def trans_from_corners(self):
+        '''
+        Uses get_corner_ind to find corners, and aligns according to best_fit_transform imported from icp
+        '''
+        #get fo corners
+        A = []
+        for outline in self.fo:
+            i, new_fo = get_corner_ind(outline)
+            A.append(new_fo[i,:2])
+        B = []
+        for outline in self.ro:
+            j, new_ro = get_corner_ind(outline)
+            B.append(new_ro[j,:2])
+        
+        _, R, t = best_fit_transform(np.vstack(A), np.vstack(B))
+        #pack relevant values into self.trans
+        self.trans[:2,-1] = t
+        self.trans[0:2,0:2] = R
+        self.apply_transformation()
+    
+    def apply_transformation(self):
+        '''
+        Apply/update transformation
+        - NB translations are not captured correctly in c_trans
+        '''
+        T = self.trans.copy()
+        #assumes that the number of entries in points and outline are the same
+        for i in range(len(self.fp)):
+            self.fp[i] = do_transform(self.fp[i],T)
+            self.fo[i] = do_transform(self.fo[i],T)
+        self.c_trans = T @ self.c_trans #pre-multiply, same as np.dot(self.c_trans,T.T)
+        
+        #update cutting directions of floating
+        if self.cut_attr['float']:
+            self.cut_attr['float']['cut_dir'] = T[:3,:3] @ self.cut_attr['float'].get('cut_dir')
+            self.cut_attr['float']['cut_path'] = T[:3,:3] @ self.cut_attr['float'].get('cut_path')
+                
+        self.draw(1) #calls draw updating floating only
+        self.trans = np.eye(4)#reset the local transformation matrix
+
+    def average(self):
+        '''
+        Averages point cloud and calls draw_average with the result
+        '''
+        
+        self.ui.averaging_status_label.setText("Averaging, setting grid . . .")
+        QtWidgets.QApplication.processEvents()
+        
+        if self.ui.grid_size.value() == 0:
+            #create unique combinations of reference points and calculate their mean separation distance based on the first entry
+            target = self.rp[0]
+            combination = np.array(np.meshgrid(target[:,:2])).reshape(-1,2)
+            distance = np.sqrt(np.sum(np.diff(combination,axis=0)**2,axis=1))
+            self.ui.grid_size.setValue(np.mean(distance))
+            QtWidgets.QApplication.processEvents()
+            
+        num_entries = len(self.ro)
+        self.avg = [None] * num_entries
+        self.active_pnt = [None] * num_entries
+        self.gsize = self.ui.grid_size.value()
+        
+        #start loop based on entries
+        for i in range(num_entries):
+            #create meshgrid based on limits of reference outline (x,y = meshgrid = y,x = mgrid)
+            ref_limits = get_limits(self.ro[i], 0.01)
+            
+            x = np.linspace(ref_limits[0],ref_limits[1],\
+            int((ref_limits[1]-ref_limits[0]) / self.gsize))
+            y = np.linspace(ref_limits[2],ref_limits[3],\
+            int((ref_limits[3]-ref_limits[2]) / self.gsize)) 
+            
+            grid_x, grid_y = np.meshgrid(\
+            x,y,
+            indexing='xy',\
+            sparse = False)
+            
+            #apply grid to reference data
+            rp = self.rp[i]#.copy()
+            ref_grid = griddata(\
+            rp[:,:2],\
+            rp[:,-1],\
+            (grid_x,grid_y),\
+            method='linear')
+            
+            fp = self.fp[i]#.copy()
+            #apply grid to the (hopefully) aligned floating data
+            aligned_grid = griddata(\
+            fp[:,:2],\
+            fp[:,-1],\
+            (grid_x,grid_y),\
+            method='linear')
+            
+            if self.ui.nearest_neigh_rb.isChecked():
+                self.ui.averaging_status_label.setText("Applying nearest neighbours to outliers . . .")
+                QtWidgets.QApplication.processEvents()        
+                ref_grid_nearest = griddata(\
+                rp[:,:2],\
+                rp[:,-1],\
+                (grid_x,grid_y),\
+                method='nearest')
+                
+                ref_mask = np.isnan(ref_grid).any(axis=1)
+                ref_grid[ref_mask] = ref_grid_nearest[ref_mask]
+            
+                aligned_grid_nearest = griddata(\
+                fp[:,:2],\
+                fp[:,-1],\
+                (grid_x,grid_y),\
+                method='nearest')
+                
+                aligned_mask = np.isnan(aligned_grid).any(axis=1)
+                aligned_grid[aligned_mask] = aligned_grid_nearest[aligned_mask]
+            
+            self.ui.averaging_status_label.setText("Averaging entry %d with grid . . ."%i)
+            QtWidgets.QApplication.processEvents()
+            
+            avg_grid = (ref_grid + aligned_grid)/2
+            
+            #flatten the grids (if not using sparse grids)
+            avg_xy_flattened = np.hstack(\
+            (np.ravel(grid_x.T)[np.newaxis].T,\
+            np.ravel(grid_y.T)[np.newaxis].T))
+
+            #re-tile x & y to match average if gridx &y are sparse
+            # avg_xy_flattened = np.hstack((
+            # np.tile(grid_x,(grid_y.shape[1],1)),\
+            # np.repeat(grid_y,grid_x.shape[0])[np.newaxis].T))
+            
+            raw_avg = np.hstack(\
+            (avg_xy_flattened, \
+            np.ravel(avg_grid.T)[np.newaxis].T))
+        
+            #generate mask with in_poly
+            self.active_pnt[i] = in_poly(self.ro[i],raw_avg)
+
+            #plug potential nan values
+            plug = np.nanmin(raw_avg[:,2])
+            raw_avg[:,2] = np.nan_to_num(raw_avg[:,2], nan=plug)
+            
+            self.avg[i] = raw_avg
+
+        self.ui.averaging_status_label.setText("Rendering . . .")
+        QtWidgets.QApplication.processEvents()
+        #call draw_average
+        self.draw_average()
+        
+        self.ui.mirror_box.setEnabled(False)
+        self.ui.align_box.setEnabled(False)
+        self.ui.save_box.setEnabled(True)
+        
+        self.ui.averaging_status_label.setText("Ready")
+
+    def update_z_aspect(self):
+        '''
+        Updates z_aspect and redraws points displayed based on new z_aspect
+        '''
+        z_aspect = self.ui.z_aspect_sb.value()
+        #scale points, not outlines, so skipping every other entry in the actor list
+        for actor in (self.float_actor_list + self.ref_actor_list)[::2]:
+            actor.SetScale((1,1,z_aspect))
+            actor.Modified()
+
+        if hasattr(self,'avg_actor_list'):
+            for actor in self.avg_actor_list:
+                actor.SetScale((1,1,z_aspect))
+                actor.Modified()
+        
+        #now do axis_actor, can't scale in the same way as polydata
+        try:
+            self.ren.RemoveActor(self.axis_actor) #it will need to be replaced
+        except: pass
+        #local limits for z axis - don't scale x & y limits, scale the z axis according to z aspect and the current limits
+        nl=np.append(self.limits[0:4],([self.limits[-2]*z_aspect,self.limits[-1]*z_aspect]))
+        self.axis_actor = get_axis(self.ren, nl, z_aspect)
+        self.ren.AddActor(self.axis_actor)
         self.ui.vtkWidget.update()
-        self.ui.vtkWidget.setFocus()
 
-    def get_scale(self):
+    def clear_var_yz(self):
         '''
-        Returns array for the keypress function based on what radio button is selected.
+        following clear_var_* functions clear other inputs to ensure serial manual manipulation.
         '''
-        if self.ui.xsButton.isChecked():
-            s=np.array([self.Zaspect,1,1])
-            nl=np.append([self.limits[0]*self.Zaspect,self.limits[1]*self.Zaspect],self.limits[2:])
-            axs=np.array([1/self.Zaspect,1,1])
-            
-        elif self.ui.ysButton.isChecked():
-            s=np.array([1,self.Zaspect,1])
-            nl=np.append(self.limits[0:2],([self.limits[2]*self.Zaspect,self.limits[3]*self.Zaspect],self.limits[4:]))
-            axs=np.array([1,1/self.Zaspect,1])
+        self.ui.trans_y.setValue(0)
+        self.ui.rotate_z.setValue(0)
+        
+    def clear_var_xz(self):
+        self.ui.trans_x.setValue(0)
+        self.ui.rotate_z.setValue(0)
+        
+    def clear_var_xy(self):
+        self.ui.trans_x.setValue(0)
+        self.ui.trans_y.setValue(0)
+        
+        
+    def change_ref_opacity(self,value):
+        if hasattr(self,'ref_actor_list'):
+            for actor in self.ref_actor_list[::2]:
+                actor.GetProperty().SetOpacity(value/100)
+        self.ui.vtkWidget.update()
+    
+    def change_float_opacity(self,value):
+        if hasattr(self,'float_actor_list'):
+            for actor in self.float_actor_list[::2]:
+                actor.GetProperty().SetOpacity(value/100)
+        self.ui.vtkWidget.update()
+        
+    def change_avg_opacity(self,value):
+        if hasattr(self,'avg_actor_list'):
+            for actor in self.avg_actor_list:
+                actor.GetProperty().SetOpacity(value/100)
+        self.ui.vtkWidget.update()
+
+    def check_save_state(self, id):
+        '''
+        Checks to make sure that there are data objects pertaining to an averaged surface within the interactor against those that might be present in the specified file
+        '''
+        if not hasattr(self,'avg'):
+            info_msg('Saving the current step requires an averaged dataset.')
+            return False
+        
+        if self.file is None:
+            return False
+
+        with h5py.File(self.file, 'r') as f:
+            existing_keys = list(f.keys())
+            if not existing_keys or id not in existing_keys:
+                return True
+        
+        with h5py.File(self.file, 'r') as f:
+            #check the id's entry keys
+            g = f['%s'%id]
+            if 'aa' in list(g.keys()):
+                overwrite = warning_msg(self, \
+                'There is existing data in the specified file for the target field, overwrite?'
+                )
+                if not overwrite: #fail check
+                    return False
+                else:
+                    #overwrite
+                    return True
+            else:
+                #there isn't an entry in the id
+                return True
+
+    def write_output(self):
+        
+        passed = self.check_save_state('aa')
+        
+        if not passed:
+            self.ui.save_label.setText('Ready')
+            return
         else:
-            s=np.array([1,1,self.Zaspect])
-            nl=np.append(self.limits[0:4],([self.limits[-2]*self.Zaspect,self.limits[-1]*self.Zaspect]))
-            axs=np.array([1,1,1/self.Zaspect])
-        return s,nl,axs
+            self.ui.save_label.setText('Saving . . .')
+            QtWidgets.QApplication.processEvents()
+            
+            with h5py.File(self.file, 'r+') as f:
+                if 'aa' in list(f.keys()):
+                    del f['aa']
+                g = f.create_group('aa')
+                g.attrs['grid_size'] = self.gsize
+                g.create_dataset('transform', data = self.c_trans)
+                for i in range(len(self.avg)):
+                    gg = g.create_group(str(i))
+                    gg.create_dataset('points',data = self.avg[i][self.active_pnt[i]])
+                f.attrs['date_modified'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+                
+        self.ui.save_label.setText('Saved to %s'%(os.path.basename(self.file)))
+        
+        
+    def keypress(self,obj,event):
+        '''
+        VTK Interactor specific keypress binding
+        '''
+        key = obj.GetKeyCode()
+        if key == "z":
+            self.ui.z_aspect_sb.setValue(self.ui.z_aspect_sb.value()*2)
+        elif key == "x":
+            self.ui.z_aspect_sb.setValue(int(self.ui.z_aspect_sb.value()*0.5))
+        elif key == "c":
+            self.ui.z_aspect_sb.setValue(1)
+        elif key == "Up":
+            self.ren.GetActiveCamera().Roll(30)
+        elif key == "Down":
+            self.ren.GetActiveCamera().Roll(-30)
+        elif key == "1":
+            xyview(self.ren)
+        elif key == "2":
+            yzview(self.ren)
+        elif key == "3":
+            xzview(self.ren)
+        elif key == "a":
+            flip_visible(self.axis_actor)
+        if key == "l":
+            self.file = None
+            self.get_data()
+            
+        self.ui.vtkWidget.update()
 
-
-def apply_trans(P,T):
+def read_file(file):
     '''
-    Apply rotation/reflection and translation in homogeneous matrix T on a discrete basis to a Nx3 point cloud P
+    Reads output file generated by the editor from this module. Returns a list of avg and active entries ready for plotting, along with transform and grid size
     '''
+    avg = []
+    gsize = None
+    T = np.eye(4)
+    with h5py.File(file, 'r') as f:
+        try:
+            g = f['aa']
+            gsize = g.attrs['grid_size']
+            for k in g.keys():
+                if k.isdigit():
+                    local_avg = g['%s/points'%k][()]
+                    #insert should generate same result as append as keys are read sequentially
+                    avg.insert(int(k), local_avg)
+            if k == 'transform':
+                T = g['%s'%k][()]
+        except: pass
+    
+    return avg, gsize, T
 
-    return np.dot(P,T[0:3,0:3])+T[0:3,-1]
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv)>1:
-        aa_def(sys.argv[1])
+        launch(sys.argv[1])
     else:
-        aa_def()
+        launch()

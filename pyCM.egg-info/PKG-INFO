@@ -1,12 +1,11 @@
-Metadata-Version: 1.1
+Metadata-Version: 2.1
 Name: pyCM
-Version: 1.1.8.post1
+Version: 2.0.0
 Summary: Python contour method toolkit
 Home-page: https://github.com/majroy/pyCM
 Author: M J Roy
 Author-email: matthew.roy@manchester.ac.uk
 License: Creative Commons Attribution-Noncommercial-Share Alike license
-Description: https://github.com/majroy/pyCM
 Keywords: residual stress contour method VTK
 Platform: UNKNOWN
 Classifier: Development Status :: 3 - Alpha
@@ -17,3 +16,7 @@ Classifier: Operating System :: Microsoft :: Windows :: Windows 7
 Classifier: Programming Language :: Python :: 3.7
 Classifier: Intended Audience :: End Users/Desktop
 Classifier: Natural Language :: English
+License-File: LICENSE
+
+https://github.com/majroy/pyCM
+
