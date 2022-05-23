@@ -5,6 +5,7 @@ README.md
 setup.py
 pyCM/__init__.py
 pyCM/align_average.py
+pyCM/decimate.py
 pyCM/extrude_widget.py
 pyCM/fea_widget.py
 pyCM/fit_surface.py

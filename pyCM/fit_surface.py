@@ -2,7 +2,31 @@
 '''
 Uses VTK Python to allow for fitting an averaged dataset associated with the
  contour method. Full interaction requires a 3-button mouse and keyboard.
+<<<<<<< HEAD
 1.6 - Updated for overall version 2.
+=======
+-------------------------------------------------------------------------------
+Current mapping is as follows:
+LMB - rotate about point cloud centroid.
+MMB - pan
+RMB - zoom
+1 - view 1, default, looks down z axis onto xy plane
+2 - view 2, looks down x axis onto zy plane
+3 - view 3, looks down y axis onto zx plane
+z - increase z-aspect ratio
+x - decrease z-aspect ratio
+c - return to default z-aspect
+f - flip colors from white on dark to dark on white
+i - save output to .png in current working directory
+r - remove/reinstate compass/axes
+o - remove/reinstate outline
+-------------------------------------------------------------------------------
+ver 1.1 17-17-03
+1.1 - Initial release
+1.2 - Refactored for PyQt5 & Python 3.x
+1.3 - Refactored to handle self-restraint features
+1.4 - Fixed deprecated scipy/numpy 'list-like' issues when saving the spline
+1.5 - Fixed wrong index assigned to 'tck_c' when saving the spline
 '''
 
 __author__ = "M.J. Roy"
@@ -890,6 +914,7 @@ class interactor(QtWidgets.QWidget):
         self.ui.hide_fit_sb.setEnabled(True)
         self.ui.extract_box.setEnabled(True)
         self.ui.save_box.setEnabled(True)
+
 
     def extract_line(self):
         '''
