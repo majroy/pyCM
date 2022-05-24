@@ -18,8 +18,8 @@ import vtk
 import vtk.util.numpy_support as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from reg_preview import registration_viewer
-from pyCMcommon import *
+from pyCM.reg_preview import registration_viewer
+from pyCM.pyCMcommon import *
 
 
 def launch(*args, **kwargs):

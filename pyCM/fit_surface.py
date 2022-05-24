@@ -24,10 +24,10 @@ from PyQt5.QtCore import Qt
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib import rc
-from pyCMcommon import *
-from align_average import read_file as aa_read_file
-from registration import read_file as reg_read_file
-from decimate import decimate_ui
+from pyCM.pyCMcommon import *
+from pyCM.align_average import read_file as aa_read_file
+from pyCM.registration import read_file as reg_read_file
+from pyCM.decimate import decimate_ui
 
 def launch(*args, **kwargs):
     '''
