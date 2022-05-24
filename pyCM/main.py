@@ -15,7 +15,7 @@ __email__ = "matthew.roy@manchester.ac.uk"
 __status__ = "Experimental"
 __copyright__ = "(c) M. J. Roy, 2014--"
 
-import sys,os,ctypes, time
+import sys,os,ctypes,time
 from PyQt5 import QtCore, QtGui, QtWidgets
 import vtk
 from pkg_resources import Requirement, resource_filename
@@ -27,12 +27,32 @@ import fit_surface as fs
 import preprocess as pre
 import postprocess as post
 
+
+
+def main():
+
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
+    app = QtWidgets.QApplication(sys.argv)
+
+    splash = make_splash()
+    splash.show()
+
+    app_main_window = main_window(app)
+    app_main_window.center()
+    app_main_window.show()
+
+    splash.finish(app_main_window)
+    
+    sys.exit(app.exec_())
+
+
 class main_window(QtWidgets.QMainWindow):
     '''
     Inherits most attributes from QMainWindow
     '''
-    def __init__(self, parent=None):
-        super(main_window, self).__init__(parent)
+    def __init__(self, app):
+        super().__init__()
         self.setWindowTitle("pyCM v%s" %version('pyCM'))
         self.setWindowIcon(QtGui.QIcon(resource_filename("pyCM","meta/pyCM_icon.png")))
 
@@ -88,17 +108,6 @@ class main_window(QtWidgets.QMainWindow):
         center = QtWidgets.QDesktopWidget().availableGeometry().center()
         frame.moveCenter(center)
         self.move(frame.topLeft())
-    
-    def closeEvent(self,event):
-        '''
-        Finalize all VTK widgets to negate OpenGL messages/errors
-        '''
-        self.regui.ui.vtkWidget.close()
-        self.regui.ui.preview_widget.vtkWidget.close()
-        self.aaui.ui.vtkWidget.close()
-        self.fsui.ui.vtkWidget.close()
-        self.preui.ui.vtkWidget.close()
-        self.postui.ui.vtkWidget.close()
     
     def setup_reg(self):
         lhLayout = QtWidgets.QHBoxLayout(self.regtab)
@@ -156,19 +165,17 @@ class main_window(QtWidgets.QMainWindow):
         self.postui.file = self.file
         self.postui.get_data()
 
+    def closeEvent(self,event):
+        '''
+        Finalize all VTK widgets to negate OpenGL messages/errors
+        '''
+        self.regui.ui.vtkWidget.close()
+        self.regui.ui.preview_widget.vtkWidget.close()
+        self.aaui.ui.vtkWidget.close()
+        self.fsui.ui.vtkWidget.close()
+        self.preui.ui.vtkWidget.close()
+        self.postui.ui.vtkWidget.close()
+        super().closeEvent(event)
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(sys.argv)
-    app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
-    app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
-
-    splash = make_splash()
-    splash.show()
-
-    app_main_window = main_window()
-    app_main_window.center()
-    app_main_window.show()
-
-    splash.finish(app_main_window)
-    
-    sys.exit(app.exec_())
+    main()
