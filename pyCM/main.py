@@ -159,8 +159,8 @@ class main_window(QtWidgets.QMainWindow):
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
-    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
+    app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
+    app.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
 
     splash = make_splash()
     splash.show()
