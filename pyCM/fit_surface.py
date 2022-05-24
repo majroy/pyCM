@@ -2,31 +2,7 @@
 '''
 Uses VTK Python to allow for fitting an averaged dataset associated with the
  contour method. Full interaction requires a 3-button mouse and keyboard.
-<<<<<<< HEAD
 1.6 - Updated for overall version 2.
-=======
--------------------------------------------------------------------------------
-Current mapping is as follows:
-LMB - rotate about point cloud centroid.
-MMB - pan
-RMB - zoom
-1 - view 1, default, looks down z axis onto xy plane
-2 - view 2, looks down x axis onto zy plane
-3 - view 3, looks down y axis onto zx plane
-z - increase z-aspect ratio
-x - decrease z-aspect ratio
-c - return to default z-aspect
-f - flip colors from white on dark to dark on white
-i - save output to .png in current working directory
-r - remove/reinstate compass/axes
-o - remove/reinstate outline
--------------------------------------------------------------------------------
-ver 1.1 17-17-03
-1.1 - Initial release
-1.2 - Refactored for PyQt5 & Python 3.x
-1.3 - Refactored to handle self-restraint features
-1.4 - Fixed deprecated scipy/numpy 'list-like' issues when saving the spline
-1.5 - Fixed wrong index assigned to 'tck_c' when saving the spline
 '''
 
 __author__ = "M.J. Roy"
@@ -48,10 +24,10 @@ from PyQt5.QtCore import Qt
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib import rc
-from pyCM.pyCMcommon import *
-from pyCM.align_average import read_file as aa_read_file
-from pyCM.registration import read_file as reg_read_file
-from pyCM.decimate import decimate_ui
+from pyCMcommon import *
+from align_average import read_file as aa_read_file
+from registration import read_file as reg_read_file
+from decimate import decimate_ui
 
 def launch(*args, **kwargs):
     '''
@@ -915,7 +891,6 @@ class interactor(QtWidgets.QWidget):
         self.ui.extract_box.setEnabled(True)
         self.ui.save_box.setEnabled(True)
 
-
     def extract_line(self):
         '''
         Method to extract a line from both avg data and fit, update canvas and generate a line actor
@@ -1110,7 +1085,7 @@ def extract_contour(plane, polydata):
     
     extracted_pnts = v2n.vtk_to_numpy(cf.GetOutput().GetPoints().GetData())
     
-    limits = pd.GetBounds()
+    a_limits = pd.GetBounds()
     rad = np.maximum(a_limits[1]-a_limits[0],a_limits[3]-a_limits[2])*0.005
     
     tf = vtk.vtkTubeFilter()

@@ -24,5 +24,7 @@ pyCM.egg-info/dependency_links.txt
 pyCM.egg-info/requires.txt
 pyCM.egg-info/top_level.txt
 pyCM/meta/__init__.py
+pyCM/meta/extrude_def.svg
 pyCM/meta/pyCM_icon.png
 pyCM/meta/pyCM_logo.png
+pyCM/meta/pyCMconfig.yml

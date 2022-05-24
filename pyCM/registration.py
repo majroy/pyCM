@@ -18,8 +18,8 @@ import vtk
 import vtk.util.numpy_support as v2n
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from PyQt5 import QtCore, QtGui, QtWidgets
-from pyCM.reg_preview import registration_viewer
-from pyCM.pyCMcommon import *
+from reg_preview import registration_viewer
+from pyCMcommon import *
 
 
 def launch(*args, **kwargs):
@@ -680,6 +680,7 @@ class interactor(QtWidgets.QWidget):
         if self.ui.z_norm_active_points.isEnabled():
             self.ui.triangulated_indicator.setStyleSheet("background-color : gray; color : darkGray;")
             self.ui.z_norm_active_points.setEnabled(False)
+            del self.tri
         else:
             self.triangulate()
             self.ui.triangulated_indicator.setStyleSheet("background-color :rgb(77, 209, 97);")
@@ -1088,11 +1089,14 @@ class interactor(QtWidgets.QWidget):
         Removes the outline actor if it exists and changes the registered state
         '''
         self.registered = False
+        self.actuate_triangulate()
         self.ui.rotate_z_box.setEnabled(False)
         self.ui.outline_offset.setEnabled(False)
         if hasattr(self,'outline_actor'):
-                self.ren.RemoveActor(self.outline_actor)
-        del self.outline
+            self.ren.RemoveActor(self.outline_actor)
+        if hasattr(self,'outline'):
+            del self.outline
+        self.ui.vtkWidget.update()
 
     def choose_path(self):
         '''
@@ -1457,7 +1461,7 @@ def tri_normal_z(points,tri):
     z_norm = np.abs(n[:,-1])/mag
     
     return z_norm, np.mean(mag)
-    
+
 def alpha_shape(points, tri, alpha=1):
     """
     Compute the alpha shape (concave hull) of a set
@@ -1471,7 +1475,12 @@ def alpha_shape(points, tri, alpha=1):
     
     coords = points.copy()
     
-    areas, a, b, c = tri_area(coords,tri)
+    triangles = coords[tri.vertices]
+    a = ((triangles[:,0,0] - triangles[:,1,0]) ** 2 + (triangles[:,0,1] - triangles[:,1,1]) ** 2) ** 0.5
+    b = ((triangles[:,1,0] - triangles[:,2,0]) ** 2 + (triangles[:,1,1] - triangles[:,2,1]) ** 2) ** 0.5
+    c = ((triangles[:,2,0] - triangles[:,0,0]) ** 2 + (triangles[:,2,1] - triangles[:,0,1]) ** 2) ** 0.5
+    s = ( a + b + c ) / 2.0 #semiperimeter
+    areas = (s*(s-a)*(s-b)*(s-c)) ** 0.5 #Heron's formula
     triangles = coords[tri.vertices]
     
     #make sure the areas are valid

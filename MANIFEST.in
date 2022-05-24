@@ -1,3 +1,5 @@
 include pyCM/meta/pyCM_logo.png
 include pyCM/meta/pyCM_icon.png
+include pyCM/meta/extrude_def.svg
+include pyCM/meta/pyCMconfig.yml
 include README.MD
