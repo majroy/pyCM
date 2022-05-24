@@ -3,7 +3,7 @@ numpy
 scipy
 pyyaml>=5.0
 matplotlib
-PyQt5
+PyQt5>=5
 h5py
 sklearn
 shapely
