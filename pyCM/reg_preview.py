@@ -31,6 +31,8 @@ class registration_viewer(QtWidgets.QWidget):
         self.vtkWidget.GetRenderWindow().AddRenderer(self.preview1_ren)
         self.vtkWidget.GetRenderWindow().AddRenderer(self.preview2_ren)
         
+        self.picking = False
+        self.picked = {}
         
         self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
         style = vtk.vtkInteractorStyleTrackballCamera()
@@ -75,18 +77,20 @@ class registration_viewer(QtWidgets.QWidget):
         #get limits of ref points:
         limits = get_limits(np.vstack(self.ref_pnts+self.float_pnts))
         
-        ref_point_actor_list = [] 
-        float_point_actor_list = []
+        self.ref_point_actor_list = [] 
+        self.float_point_actor_list = []
         for e in range(len(self.ref_pnts)):
             point_actor, \
             _, \
             _, lut = \
             gen_point_cloud(self.ref_pnts[e], None, (limits[-2],limits[-1]))
             outline_actor, _ = gen_outline(self.ref_outlines[e])
+            outline_actor.SetPickable(0)
             cap_actor = gen_caption_actor('%s'%e, outline_actor)
-            ref_point_actor_list.append(point_actor)
-            ref_point_actor_list.append(outline_actor)
-            ref_point_actor_list.append(cap_actor)
+            cap_actor.SetPickable(0)
+            self.ref_point_actor_list.append(point_actor)
+            self.ref_point_actor_list.append(outline_actor)
+            self.ref_point_actor_list.append(cap_actor)
         
         for e in range(len(self.float_pnts)):
             point_actor, \
@@ -94,14 +98,16 @@ class registration_viewer(QtWidgets.QWidget):
             _, _ = \
             gen_point_cloud(self.float_pnts[e], None, (limits[-2],limits[-1]))
             outline_actor, _ = gen_outline(self.float_outlines[e])
+            outline_actor.SetPickable(0)
             cap_actor = gen_caption_actor('%s'%e, outline_actor)
-            float_point_actor_list.append(point_actor)
-            float_point_actor_list.append(outline_actor)
-            float_point_actor_list.append(cap_actor)
+            cap_actor.SetPickable(0)
+            self.float_point_actor_list.append(point_actor)
+            self.float_point_actor_list.append(outline_actor)
+            self.float_point_actor_list.append(cap_actor)
         
-        for actor in ref_point_actor_list:
+        for actor in self.ref_point_actor_list:
             self.preview1_ren.AddActor(actor)
-        for actor in float_point_actor_list:
+        for actor in self.float_point_actor_list:
             self.preview2_ren.AddActor(actor)
 
         ref_label_actor = gen_info_actor('Reference', self.preview1_ren)
@@ -141,11 +147,64 @@ class registration_viewer(QtWidgets.QWidget):
         
         self.vtkWidget.update()
 
+    def actuate_entry_pick(self):
+        
+        if self.picking:
+            self.iren.RemoveObservers('LeftButtonPressEvent')
+            self.iren.AddObserver('LeftButtonPressEvent',self.default_left_button)
+            self.picking = False
+            QtWidgets.QApplication.processEvents()
+            
+        else:
+            self.iren.AddObserver('LeftButtonPressEvent', self.picker_callback)
+            self.picking = True
+    
+    def picker_callback(self,obj,event):
+        
+        #reset opacity of all actors pending a new pick
+        for actor in self.ref_point_actor_list:
+            actor.GetProperty().SetOpacity(1)
+        for actor in self.float_point_actor_list:
+            actor.GetProperty().SetOpacity(1)
+        
+        self.picked = {}
+        float_picker=vtk.vtkPropPicker()
+        ref_picker = vtk.vtkPropPicker()
+        
+        click_pos=self.iren.GetEventPosition()
+        
+        ref_picker.Pick(click_pos[0],click_pos[1],0,self.preview1_ren)
+        float_picker.Pick(click_pos[0],click_pos[1],0,self.preview2_ren)
+        float_picked_actor = float_picker.GetActor()
+        ref_picked_actor = ref_picker.GetActor()
+        
+        if ref_picked_actor:
+           # picked = ref_picked_actor
+           picked = identify_actor(ref_picked_actor,self.ref_point_actor_list)
+           self.ref_point_actor_list[picked].GetProperty().SetOpacity(0.2)
+           self.picked = {'Ref': picked//3}
+           self.actuate_entry_pick()
+
+        if float_picked_actor:
+           # picked = float_picked_actor
+           picked = identify_actor(float_picked_actor,self.float_point_actor_list)
+           self.float_point_actor_list[picked].GetProperty().SetOpacity(0.2)
+           self.picked = {'Float': picked//3}
+           self.actuate_entry_pick()
+        
+        self.iren.RemoveObservers("EndPickEvent")
+        self.vtkWidget.update()
+
+    def default_left_button(self, obj, event):
+        #forward standard events according to the default style`
+        self.iren.GetInteractorStyle().OnLeftButtonDown()
 
     def keypress(self,obj,event):
         key = obj.GetKeyCode()
         if key == "1":
             xyview(self.preview1_ren)
+        elif key == "p":
+            self.actuate_entry_pick()
         self.vtkWidget.update()
 
     def closeEvent(self,event):

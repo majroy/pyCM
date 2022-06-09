@@ -566,6 +566,11 @@ class interactor(QtWidgets.QWidget):
             flip_visible(actor)
         for actor in self.corner_caption_actor_list:
             flip_visible(actor)
+        if hasattr(self,'picked_node_actor_list'):
+            for actor in self.picked_node_actor_list:
+                flip_visible(actor)
+            for actor in self.picked_node_caption_actor_list:
+                flip_visible(actor)
         self.ui.vtkWidget.update()
 
     def focus_outline_entry(self):
@@ -1389,11 +1394,13 @@ def get_surf_bc(mesh, outline, fit, dist, pos):
                 if node_index not in bc_nodes:
                     p = mesh.GetPoint(node_index)
                     bc_nodes.append(node_index)
-                    #assign values of z based on what side of the z axis the mesh is on
-                    if pos:
+                    #assign values of z based on what side of the z axis the mesh is on if fit isn't none
+                    if pos and fit is not None:
                         bc_z_val = bisplev(p[0],p[1],fit)
-                    else:
+                    elif not pos and fit is not None:
                         bc_z_val = -bisplev(p[0],p[1],fit)
+                    else:
+                        bc_z_val = p[2]
                     bc_val.append(bc_z_val)
                     bc_pnts.InsertNextPoint(np.append(p[:2],bc_z_val))
                     local_cell.GetPointIds().SetId(local_cell_ind,p_count)

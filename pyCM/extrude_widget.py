@@ -68,7 +68,12 @@ class run_gmsh(QThread):
             mesh = threshold.GetOutput()
             mesh.GetCellData().RemoveArray("Type")
             
-            clean_mesh = gen_filtered_ugrid(mesh)
+            try:
+                clean_mesh = gen_filtered_ugrid(mesh)
+            except Exception as e:
+                #if a bad mesh is obtained, then gen_filtered_ugrid will fail on connectivity reindexing
+                print('pyCM: filtering non-volumetric elements failed, convergence in meshing may have been compromised. Check logs and re-try.')
+                return
             
             writer = vtk.vtkUnstructuredGridWriter()
             writer.SetInputData(clean_mesh)
@@ -251,6 +256,15 @@ class extrude_widget(QtWidgets.QDialog):
         if cur_yaml:
             with open(fname, 'w') as yamlfile:
                 yaml.safe_dump(cur_yaml, yamlfile)
+
+    def keyPressEvent(self, event):
+        '''
+        Tie escape key to close event to force the return of a file on close
+        '''
+        if event.key() == QtCore.Qt.Key_Escape:
+            self.close()
+        else:
+            super(extrude_widget, self).keyPressEvent(event)
 
     def closeEvent(self, event):
         '''

@@ -417,6 +417,7 @@ class interactor(QtWidgets.QWidget):
         self.fit_polydata_list = []
         self.avg_surf_polydata_list = []
         self.bool_pnt = []
+        self.ui.entry_spec.clear()
         for i in range(len(self.avg)):
             #update average pnts to be only in outline
             self.avg[i][:,-1] = self.avg[i][:,-1] - np.mean(self.avg[i][:,-1])

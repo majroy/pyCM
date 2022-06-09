@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib import rc
 from pyCM.registration import read_file as reg_read_file
+from pyCM.preprocess import get_surf_bc
 from pyCM.pyCMcommon import *
 
 def launch(*args, **kwargs):
@@ -178,8 +179,6 @@ class post_main_window(object):
         self.export_line_button.setEnabled(False)
         self.export_line_button.setToolTip('Export line trace to file')
 
-
-
         #create figure canvas etc
         #initialize plot
         self.figure = plt.figure(figsize=(4,4))
@@ -214,12 +213,27 @@ class post_main_window(object):
         evlayout.addLayout(extract_layout)
         evlayout.addLayout(evbutton_layout)
         self.extract_box.setLayout(evlayout)
-
+        
+        #make export box
+        self.export_box = QtWidgets.QGroupBox('Export results')
+        export_layout=QtWidgets.QHBoxLayout()
+        self.export_box.setLayout(export_layout)
+        self.export_selected_button = QtWidgets.QPushButton('Export selected component')
+        self.export_label = QtWidgets.QLabel('Ready')
+        self.export_label.setWordWrap(True)
+        export_layout.addWidget(self.export_label)
+        verticalSpacer = QtWidgets.QSpacerItem(50, 20, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        export_layout.addItem(verticalSpacer)
+        export_layout.addWidget(self.export_selected_button)
+        
+        self.export_box.setEnabled(False)
+        
         lvlayout=QtWidgets.QVBoxLayout()
         lvlayout.addWidget(display_box)
         lvlayout.addWidget(contour_box)
         lvlayout.addWidget(self.extract_box)
-
+        lvlayout.addWidget(self.export_box)
+        
         lvlayout.addStretch(1)
         
         mainlayout.addWidget(self.vtkWidget)
@@ -259,6 +273,8 @@ class interactor(QtWidgets.QWidget):
         self.ui.extract_button.clicked.connect(self.extract)
         self.ui.export_line_button.clicked.connect(self.export_line)
 
+        self.ui.export_selected_button.clicked.connect(self.gen_report)
+
     def get_data(self):
         if self.file is None:
             self.file, self.active_dir = get_file("*.pyCM",self.active_dir)
@@ -290,6 +306,8 @@ class interactor(QtWidgets.QWidget):
         self.draw_mesh()
         
         self.ui.component_cb.currentIndexChanged.connect(self.draw_mesh)
+        
+        self.ui.export_box.setEnabled(True)
         
         self.ui.component_cb.setEnabled(True)
         self.ui.mesh_display.setEnabled(True)
@@ -512,7 +530,41 @@ class interactor(QtWidgets.QWidget):
         self.ui.vtkWidget.update()
 
     def gen_report(self):
-        pass
+        
+        
+        fileo, _ = get_save_file('*.csv')
+        if fileo is None:
+            return
+        self.ui.export_label.setText('Saving . . .')
+        QtWidgets.QApplication.processEvents()
+        #find the topmost surface and extract all of the stresses from this
+        pos_position = False
+        if np.sum(self.mesh_actor.GetBounds()[-2:])/2 > 0:
+            pos_position = True
+        dist = 0.1
+        xy_bounds = self.mesh_actor.GetBounds()[:4]
+        outline = np.array([
+        [xy_bounds[0],xy_bounds[2],0], 
+        [xy_bounds[1],xy_bounds[2],0],
+        [xy_bounds[1],xy_bounds[3],0],
+        [xy_bounds[0],xy_bounds[3],0]
+        ])
+        
+        surf_nodes = get_surf_bc(self.mesh, outline, None, 0.1, pos_position)[0]
+        pts = np.empty((len(surf_nodes),3))
+        for node_count in range(len(surf_nodes)):
+            pts[node_count] = self.mesh.GetPoint(surf_nodes[node_count])
+        
+        stress = np.reshape(\
+        v2n.vtk_to_numpy(self.mesh.GetPointData().GetArray(self.component))[surf_nodes],\
+        (-1,1))
+        
+        out = np.hstack((pts[:,:2],stress))
+        
+        np.savetxt(fileo, out, delimiter = ',',
+        header = "x, y, %s (MPa) from %s"%(self.component, self.file),
+        fmt='%.3f, %.3f, %.3f')
+        self.ui.export_label.setText('Saved to %s'%(os.path.basename(fileo)))
 
     def keypress(self,obj,event):
         '''

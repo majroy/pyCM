@@ -487,7 +487,7 @@ class interactor(QtWidgets.QWidget):
         '''
         entry_count = self.ui.entry_spec.count()
         if self.ui.entry_spec.currentText() == 'New entry':
-            self.ui.entry_spec.insertItem(entry_count-2,"Entry %d"%(entry_count-2))
+            self.insert_entries(entry_count + 1)
             self.ui.entry_spec.setCurrentIndex(entry_count-2)
         if self.ui.entry_spec.currentText() == 'Clear entries':
             self.ui.entry_spec.clear()
@@ -499,6 +499,17 @@ class interactor(QtWidgets.QWidget):
         else:
             self.ui.reorient_box.setEnabled(False)
             self.ui.cut_orientation_box.setEnabled(False)
+
+    def insert_entries(self,entry):
+        #inserts additional entries, up to and including the 'entry' value if the entry value exceeds the number of values in entry_spec
+        
+        entry_count = self.ui.entry_spec.count()
+        
+        req_entries = entry + 3 #0th, new entry, clear entries
+        if (req_entries - entry_count) > 0:
+            for new_entry in range(req_entries - entry_count):
+                self.ui.entry_spec.insertItem(entry_count+new_entry-2,"Entry %d"%(entry_count+new_entry-2))
+        
 
     def get_data(self):
         '''
@@ -625,7 +636,7 @@ class interactor(QtWidgets.QWidget):
             #get intersection of in and the z_norm_ind
             ind = np.intersect1d(ind,z_norm_ind)
         
-        if self.ui.outline_offset.isEnabled():
+        if hasattr(self,'outline'):
             offset_outline = offset_poly(self.outline,self.ui.outline_offset.value())
             in_poly_bool = in_poly(offset_outline,active_pnts)
             in_poly_ind = np.arange(0, len(active_pnts), 1, dtype=int)
@@ -1398,11 +1409,9 @@ class interactor(QtWidgets.QWidget):
     def update_preview(self, value):
         '''
         Reads the output file and (re)draws contents in the preview tab
+        If the prewiew tab has a selected dataset, call load_from_preview with it
         '''
 
-        #if the preview tab hasn't been selected . . .
-        if value != 1:
-            return
         if self.output_filename is None:
             return
         self.ui.preview_widget.ref_pnts, \
@@ -1412,6 +1421,68 @@ class interactor(QtWidgets.QWidget):
         self.ui.preview_widget.cut_attr = read_file(self.output_filename)
         
         self.ui.preview_widget.draw()
+
+        #check if something has been picked from the preview_widget, then 'picked' will have entries
+        if value == 0:
+            if self.ui.preview_widget.picked:
+                self.load_from_preview(self.ui.preview_widget.picked)
+                self.ui.preview_widget.picked = {}
+
+    def load_from_preview(self,sel):
+        
+        #check if there's anything currently being displayed
+        if hasattr(self,'outline_actor') or hasattr(self,'point_actor'):
+            clear_display = warning_msg(self, \
+                'Clear data currently loaded in the editor to load the selected dataset?'
+                )
+            if not clear_display:
+                return
+        
+        self.ren.RemoveAllViewProps()
+        
+        #check if sel is either 'Ref' or 'Float'
+        if list(sel.keys())[0] == 'Ref':
+            entry = sel['Ref']
+            ref_pnts, ref_outlines, _, _, \
+            cut_attr,ref_active_list, _, ref_trans, _ \
+            = read_file(self.output_filename, return_active = True)
+            self.c_trans = ref_trans
+            self.outline = ref_outlines[entry]
+            self.raw_pts = ref_pnts[entry]
+            active_pnt = ref_active_list[entry]
+
+            self.ui.save_reference.setChecked(True)
+        else:
+            entry = sel['Float']
+            _, _, float_pnts, float_outlines, \
+            cut_attr, _, float_active_list, _, float_trans \
+            = read_file(self.output_filename, return_active = True)
+            self.c_trans = float_trans
+            self.outline = float_outlines[entry]
+            self.raw_pts = float_pnts[entry]
+            active_pnt = float_active_list[entry]
+            
+            self.ui.save_floating.setChecked(True)
+            
+        self.bool_pnt = np.zeros(len(self.raw_pts), dtype=bool)
+        self.bool_pnt[active_pnt] = True
+        self.active_pnt = np.arange(0, len(self.bool_pnt), 1, dtype=int)
+        self.registered = True
+        self.apply_decimate()
+        
+        #manage entries
+        self.insert_entries(entry)
+        self.ui.entry_spec.setCurrentIndex(entry)
+        self.change_entries() #to enable/disable cut orientation
+        
+        #turn off reorientation & outline processing
+        self.ui.reorient_box.setEnabled(False)
+        self.ui.outliner_box.setEnabled(False)
+        
+        #turn on decimation & saving
+        self.ui.point_processing_box.setEnabled(True)
+        self.ui.save_box.setEnabled(True)
+        
 
 def get_svd_orientation(points):
     '''
@@ -1519,15 +1590,18 @@ def read_data(file):
         data = np.genfromtxt(file)
     return data
 
-def read_file(file):
+def read_file(file, return_active = False):
     '''
     Reads output file generated by the editor from this module. Returns a reference and floating list of outlines and active points.
+    Active set to true will return active points instead of applying them to pnts
     TO DO - turn into a dictionary for re-editing
     '''
     ref_pnts = []
     ref_outlines = []
     float_pnts = []
     float_outlines = []
+    ref_active_list = []
+    float_active_list = []
     fields = ['ref', 'float']
     cut_attr = dict.fromkeys(fields)
     for k in cut_attr.keys():
@@ -1535,29 +1609,42 @@ def read_file(file):
     with h5py.File(file, 'r') as f:
         try: 
             gr = f[fields[0]]
+            ref_trans = gr['transform'][()]
             for k in gr.keys():
                 if k.isdigit():
                     pnts = gr['%s/points'%k][()]
                     active = gr['%s/active'%k][()]
-                    ref_pnts.insert(int(k),pnts[active])
+                    if not return_active:
+                        ref_pnts.insert(int(k),pnts[active])
+                    else:
+                        ref_pnts.insert(int(k),pnts)
+                        ref_active_list.insert(int(k),active)
                     ref_outlines.insert(int(k), gr['%s/outline'%k][()])
 
         except: pass
         try: 
             gf = f[fields[1]]
+            float_trans = gf['transform'][()]
             for k in gf.keys():
                 if k.isdigit():
                     pnts = gf['%s/points'%k][()]
                     active = gf['%s/active'%k][()]
-                    float_pnts.insert(int(k),pnts[active])
+                    if not return_active:
+                        float_pnts.insert(int(k),pnts[active])
+                    else:
+                        float_pnts.insert(int(k),pnts)
+                        float_active_list.insert(int(k),active)
                     float_outlines.insert(int(k), gf['%s/outline'%k][()])
         except: pass
         try:
             for k in fields:
                 cut_attr[k].update(f[k].attrs)
         except: pass
-        
-    return ref_pnts, ref_outlines, float_pnts, float_outlines, cut_attr
+    
+    if not return_active:
+        return ref_pnts, ref_outlines, float_pnts, float_outlines, cut_attr
+    else: 
+        return ref_pnts, ref_outlines, float_pnts, float_outlines, cut_attr,ref_active_list, float_active_list, ref_trans, float_trans
 
 if __name__ == "__main__":
     if len(sys.argv)>1:
