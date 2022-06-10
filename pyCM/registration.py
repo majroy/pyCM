@@ -1602,6 +1602,8 @@ def read_file(file, return_active = False):
     float_outlines = []
     ref_active_list = []
     float_active_list = []
+    ref_trans = None
+    float_trans = None
     fields = ['ref', 'float']
     cut_attr = dict.fromkeys(fields)
     for k in cut_attr.keys():

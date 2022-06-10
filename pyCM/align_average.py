@@ -349,6 +349,10 @@ class interactor(QtWidgets.QWidget):
         self.fo, \
         self.cut_attr = reg_read_file(self.file)
         
+        #check that both ro and fo aren't empty:
+        if not self.ro or not self.fo:
+            return
+        
         #move outlines and data to the mean z value of point clouds
         rm = np.mean(np.vstack(self.rp)[:,-1])
         fm = np.mean(np.vstack(self.fp)[:,-1])

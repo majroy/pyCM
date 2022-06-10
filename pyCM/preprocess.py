@@ -568,9 +568,11 @@ class interactor(QtWidgets.QWidget):
             flip_visible(actor)
         if hasattr(self,'picked_node_actor_list'):
             for actor in self.picked_node_actor_list:
-                flip_visible(actor)
+                if actor is not None:
+                    flip_visible(actor)
             for actor in self.picked_node_caption_actor_list:
-                flip_visible(actor)
+                if actor is not None:
+                    flip_visible(actor)
         self.ui.vtkWidget.update()
 
     def focus_outline_entry(self):

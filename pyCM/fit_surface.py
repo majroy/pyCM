@@ -181,12 +181,14 @@ class sf_main_window(object):
         spline_space_label = QtWidgets.QLabel("Spacing")
         self.ksx = QtWidgets.QDoubleSpinBox()
         self.ksx.setPrefix("x = ")
+        self.ksx.setSuffix(' mm')
         self.ksx.setToolTip("Knot spacing in x direction")
         self.ksx.setValue(0)
         self.ksx.setMinimum(0.0000001)
         self.ksx.setMaximum(1000)
         self.ksy = QtWidgets.QDoubleSpinBox()
         self.ksy.setPrefix("y = ")
+        self.ksy.setSuffix(' mm')
         self.ksy.setToolTip("Knot spacing in y direction")
         self.ksy.setValue(0)
         self.ksy.setMinimum(0.0000001)
@@ -221,7 +223,6 @@ class sf_main_window(object):
         bv_layout.addWidget(self.fit_spline_button,2,2,1,1)
         bv_layout.addWidget(self.spline_status_label,3,0,1,3)
         
-        
         # line extraction from surface
         self.extract_box = QtWidgets.QGroupBox('Evaluate fit on plane') #layout assigned further on
         #main layout for buttons and canvas
@@ -236,10 +237,12 @@ class sf_main_window(object):
         start_label.setToolTip('Centre of the target plane')
         self.point1_x_coord = QtWidgets.QDoubleSpinBox()
         self.point1_x_coord.setPrefix('x = ')
+        self.point1_x_coord.setSuffix(' mm')
         self.point1_x_coord.setMinimum(-100000)
         self.point1_x_coord.setMaximum(100000)
         self.point1_y_coord = QtWidgets.QDoubleSpinBox()
         self.point1_y_coord.setPrefix('y = ')
+        self.point1_y_coord.setSuffix(' mm')
         self.point1_y_coord.setMinimum(-100000)
         self.point1_y_coord.setMaximum(100000)
 
@@ -248,10 +251,12 @@ class sf_main_window(object):
         end_label.setToolTip('Normal of the target plane')
         self.point2_x_coord = QtWidgets.QDoubleSpinBox()
         self.point2_x_coord.setPrefix('x = ')
+        self.point2_x_coord.setSuffix(' mm')
         self.point2_x_coord.setMinimum(-100000)
         self.point2_x_coord.setMaximum(100000)
         self.point2_y_coord = QtWidgets.QDoubleSpinBox()
         self.point2_y_coord.setPrefix('y = ')
+        self.point2_y_coord.setSuffix(' mm')
         self.point2_y_coord.setMinimum(-100000)
         self.point2_y_coord.setMaximum(100000)
         
@@ -406,8 +411,8 @@ class interactor(QtWidgets.QWidget):
                 self.rse.append(None)
         else:
             #populate ui entries from tck list of the first entry
-            self.ui.ksx.setValue(self.bv_tck_list[0][-1])
-            self.ui.ksy.setValue(self.bv_tck_list[0][-2])
+            self.ui.ksx.setValue(self.bv_tck_list[0][-2])
+            self.ui.ksy.setValue(self.bv_tck_list[0][-1])
         #get outlines
         _, self.outlines, _, _, _, = reg_read_file(self.file)
         
@@ -814,7 +819,6 @@ class interactor(QtWidgets.QWidget):
             QtWidgets.QApplication.processEvents()
         
             self.evaluate_spline(i)
-
         self.draw_splines()
         
 
@@ -861,7 +865,7 @@ class interactor(QtWidgets.QWidget):
                     _, avg_pd = gen_surface(self.avg[i],self.tri[i])
                 actor.SetPickable(0)
             else:
-                return
+                break
             self.fit_actor_list[i] = actor
             self.fit_polydata_list[i] = pd
             self.avg_surf_polydata_list[i] = avg_pd
@@ -1195,7 +1199,6 @@ def read_file(file):
                             read_tck.append(local_bv_tck[entry][()])
                         bv_tck[int(k)] = read_tck
         except: pass
-    
     return active, eval_points, tri, rse, bv_tck
 
 if __name__ == "__main__":
