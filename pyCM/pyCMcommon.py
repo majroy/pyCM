@@ -29,7 +29,7 @@ def make_splash():
     font.setWeight(QtGui.QFont.Bold)
     splash.setFont(font)
     
-    splash.showMessage(version('pyCM'),QtCore.Qt.AlignRight | QtCore.Qt.AlignBottom, QtCore.Qt.darkGray)
+    splash.showMessage('v%s'%(version('pyCM')),QtCore.Qt.AlignRight | QtCore.Qt.AlignBottom, QtCore.Qt.lightGray)
     return splash
 
 def make_logo(ren):

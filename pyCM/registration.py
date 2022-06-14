@@ -61,7 +61,7 @@ class reg_main_window(object):
             main_window.setCentralWidget(self.centralWidget)
         else:
             self.centralWidget = main_window
-            main_window.setWindowTitle("pyCM - point cloud editor v%s" %__version__)
+            main_window.setWindowTitle("pyCM - registration v%s" %__version__)
         
         self.tab_widget = QtWidgets.QTabWidget(self.centralWidget)
         self.editor_tab = QtWidgets.QWidget(self.tab_widget)

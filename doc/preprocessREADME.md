@@ -9,65 +9,114 @@ Gmsh: http://gmsh.info/
 
 Calculix: http://www.dhondt.de/
 
+This function allows for the generation of meshes directly from outlines, or can import meshes created elsewhere. The means for manipulating the mesh and applying boundary conditions for both CalculiX and Abaqus is provided, as well as a utility for running FEA from within the application.
+
 ## Initializing
 
-**Input and output descriptors**
+This function can be called independently by importing the preprocess module from pyCM and then calling launch:
 
-The input consists of a *.mat file which contains the following data structures:
+~~~
+>>>from pyCM import preprocess as pre
+>>>pre.launch()
+~~~
+
+Then, upon launching, the pyCM data file can be loaded via a GUI by pressing the `l` key if launched independently, or by specifying the file directly i.e. `pre.launch('full_path_to_file.pyCM')`. If using the pyCM [main](mainREADME.md) function, `Shift+l` will load any data from the active file. This results in a populated widget as shown in [Fig. 1](#fig1).
+
+<span>![<span></span>](images/pre_loaded.png)</span>  
+*<a name="fig1"></a> Figure 1: Preprocessing widget displaying a loaded pyCM file with data from the fit_surface step.*
+
+This pyCM file must contain the following at minimum:
 
 Input | Description
 ---  |---
-`ref` structure	| At minimum contains an `x_out` field, see [point_cloud](point_cloudREADME.md): Nx3 matrix of the points that comprise the outline.
-`spline_x` structure | Contains the following fields:<ul><li>`knots`: Nx2 cell arrays of knots in the x & y directions, respectively.</li><li>`dim`: dimension of the spline (required for MATLAB interoperability)</li><li>`form`: form of the spline - defaults to 'B-' (required for MATLAB interoperability)</li><li>`number`: Nx2 the number of knots in x and y, respectively (required for MATLAB interoperability)</li><li>`tck`: FITPACK generated spline information, a list that contains the knots, coefficients and order.</li><li>`coefs`: matrix of coefficients with dimensions of dimxNxM, according to the dimension, x and y directions (required for MATLAB interoperability)</li></ul> See [fit_surface](fit_surfaceREADME.md).
+`ref` structure	| At minimum contains an `outline` field, see [registration](registrationREADME.md): Nx3 matrix of the points that comprise the outline on a per entry basis.
+`fit` structure | See [fit_surface](fit_surfaceREADME.md).
 
-Depending on which analysis route is selected, there is a variety of files that will be generated. Pre-processing can be carried out either following solely an open source route, either employing Abaqus or Gmsh to generate a mesh and boundary conditions. The final linear elastic analysis can either be conducted via Calculix or Abaqus, and analysis files are generated for each of those. The following table outlines both optional and mandatory files that are generated.
+The user then has the decision as to use the built-in mesh generation tool via Gmsh, or import a mesh and manipulate it to align with the outline(s).
+
+## Outline modification
+Targetting a specific entry for an outline is acheieved with the drop-down menu. Optionally, entries can be captioned by selecting the `Caption entries` checkbox, similar to that employed in previous steps/functions.
+
+Corners can also be identified with annotations - note that these 'corners' are points on the outline which have the smallest straight-line (Euclidean) distance from the corners of the bounding box of each respective entry. This is achieved by activating the `Caption corners` checkbox (on by default).
+
+Next, the outlines can be re-spaced. This algorithm can either set the spacing between points or target a total number of them, depending on whether `Spacing` or `Quantity` radio buttons are selected when `Update` is pressed. The algorithm attempts to preserve the locations of corners (i.e. adding or removing points between each of the corners defined above. The result can then be exported as a *.dxf (Drawing eXchange Format) file, which in turn can be used by a second party meshing tool outside of pyCM.
+
+## Mesh
+The `Mesh` panel contains tools for generating and/or manipulating a mesh. There are two routes to follow:
+
+* If a single entry is available (i.e. there is only Entry 0), then the `Extrude` function can be used.
+* If a mesh is to be imported, then the `Import` function can be employed.
+
+### `Extrude` function
+The extrude function *operates solely on entry 0*, which means that any outline modification should take place prior to starting this step. Points on the outline will serve as seeds in the xy sense for an extruded mesh along the z direction with a geometric distribution of nodes along this direction. This is achieved with a dialog that launches when the `Extrude` button is pressed ([Fig. 2](#fig2)).
+
+<span>![<span></span>](images/pre_extrude_widget.png)</span>  
+*<a name="fig2"></a> Figure 2: Preprocessing extrude dialog.*
+
+Options for generating this mesh include the number of nodes along the z direction (Node count, N), the total length to extrude along (Extrusion length, L) and the minimum element length (Minimum element length, l). Depending on which radio buttons are selected, either linear quadrilateral elements are employed (`Quads`), or quadratic (second order) tetrahedra (`Tets`). The path to the Gmsh executable can be specified, as well as the working directory: note that this working directory is the same as that specified for the FEA step described below. These entries (`Path to Gmsh executable` and `Working directory` are persistent, meaning that unless pyCM is uninstalled, will load each time pyCM starts.
+
+Pressing the `Run` button will launch a GUI asking a the user what to call the *.geo file in the working directory, and then will run Gmsh on this file to generate a *.vtk file with the same prefix. Once complete, the resulting mesh will be read back into pyCM, filtered such that non volumetric elements are removed and then becomes free to be manipulated (if desired).
+
+### `Import` function
+Pressing the `Import` button will launch a GUI for the user to specify either a *.vtk file (preferable) or an *.inp file. In both cases, the mesh will need to be comprised of either 8 noded linear quadrilateral elements, or 10 noded second order tetrahedra. Any other element types will be filtered out. *This is the route to employ if there is more than one entry to be considered.*
+
+For importing meshes in an *.inp format, node numbering should be continuous, as should element numbering. There should also be at least one node set and one element set due to the interpreter recognising the associated keywords in the file. Note that these sets will not be preserved in the final *.inp file generated by pyCM. 
+The interpreter will generate a *.vtk file with the same prefix as the *.inp file specified in the same directory. The interpreter employed for this latter case can be tested on *.inp files prior to being employed within the pyCM analysis chain via:
+~~~
+from pyCM.pyCMcommon import convert_inp_to_vtk
+convert_inp_to_vtk('full_path_to_inp_input.inp','full_path_to_vtk_output.vtk')
+~~~
+
+**pYCM employs millimetres as the unit of length and meshes imported should employ this convention as well.*
+
+### Other functionality
+Once a mesh has either been extruded or successfully imported, it can be manipulated with the remainder of the tools in the the `Mesh` panel. This includes mirroring on the xy plane (`Mirror`), as well as the ability to specify a 2D transformation (entering values for x and y and a rotation about z and pressing `Apply`).
+
+For a more direct, three dimensional, rigid body transformation of the mesh to the outline, nodes which qualitatively align best with the 'corners' identified on the outlines of each entry. This is acheived by pressing the **n** key to activate node selection, and selecting the node which best corresponds to a corner identified with the `Caption corners` option turned on. With node selection active and a node picked, pressing either **a** to accept or **d** to discount ([Fig. 3](#fig3)).
+
+<span>![<span></span>](images/pre_node_select.png)</span>  
+*<a name="fig3"></a> Figure 3: Node selection process for alignment to outlines. Nodes 0 through 2 have been accepted as matching the respective corners on outlines, while node 4 has been selected but not accepted by pressing **a**. Pressing **d** at this point would revert the selection for 2.*
+
+Once all nodes have been selected (in the present example, 8, corresponding to 8 corners on two entries), then a 3D transformation can be calculated either with the `Corner SVD` or `VTK ICP`. Note these are the same algorithms employed in [align_average](align_averageREADME.md) with the important exeption for `Corner SVD`: in the present case it is a 3D transformation, whilst in the latter alignment case is implmented as 2D.
+
+It is recommended that once the transformation is implemented, that `Caption corners` in the `Display` panel is de-selected to allow for easier selection of rigid body boundary condition nodes.
+
+## Impose boundary conditions and material
+The same approach for selecting nodes for alignment purposes has been employed for specifying rigid body boundary conditions. Pressing **b** starts the selection process, with subsequent presses of **a** or **d** to accept or discount choices of nodes. The first node accepted will have both x and y degrees of freedom constrained, while the second choice will have the y direction degree of freedom constrained.
+
+Next, pressing `Impose surface BCs` will show a scalable preview of the displacement boundary conditions applied to the surface. Note that the orientation of the mesh along the z axis is inconsequential to the direction of the boundary conditions. For example if the mesh were to be imported and aligned such that all nodes reside on the positive z axis, then the boundary condition applied will be the fit surface. Whereas if all nodes reside on the negative z axis, then the fit surface will be inverted. [Fig. 4](#fig4) shows all boundary conditions applied to a multi-entry dataset.
+
+<span>![<span></span>](images/pre_node_select.png)</span>  
+*<a name="fig4"></a> Figure 4: A complete set of conditions imposed for an FEA to calculate stresses. Rigid boundary conditions are shown wiht red arrows, while the displacement boundary condition corresponding to the contour is shown in yellow.*
+
+Finally, the modulus of elasticity to employ can be entered in MPa, and Poisson's ratio can also be instituted.
+
+## Write current
+The `Write current` panel provides the ability to save relevant information pertaining to the FEA for the purposes of running at a later date, or to both save relevant data to the pyCM file and run the FEA analysis by selecting `Run FEA on save` (on by default) and pressing `Save`.
+
+This will present the FEA widget which allows the option of running the FEA either with Abaqus or with CalculiX in a working directory specified ([Fig. x](#figx)). A further option is presented such that the results are extracted from relevant files upon conclusion of the analysis, or not - with the `Extract results after run` option selected (on by default). Deselect this if the intention is to employ another postprocessor other than the one in pyCM.
+
+<span>![<span></span>](images/pre_bc.png)</span>  
+*<a name="figx"></a> Figure x: FEA widget showing entries/arguements for running with either CalculiX or Abaqus, as well as updating the FEA working directory.*
+
+Both the CalculiX executable and working directory can be browsed to by selecting the buttons with 3 dots. Due to vagaries of how Abaqus is installed on different systems, this may be `abaqus` or `abqxxxxhfy` with `xxxx` the release year of Abaqus installed and `y` the the hotfix number. The entry here is the command that is employed at the command line to start CAE, Viewer or any other Abaqus command/environment.
+
+Selecting `Run` with the `Abaqus` radio button selected will ask the user to name their input file via a GUI in the working directory specified. The exact command that will execute is:
+~~~
+abaqus job=myjob int ask_delete=OFF
+~~~
+where `abaqus` is the command entered in the `Abaqus executeable` line, `job` is the file prefix of the input file selected by the user, `int` is to run it interactively and `ask_delete` will overwrite any file instead of querying. The same concept is true for the CalculiX option. Output/updates of job progression will be written to the command line, and the dialog will inform the user when the job has finished.
+
+The data that is written to the pyCM file for this entire process is as follows:
 
 Output | Description
 ---  |---
-*.geo | Gmsh script file. If generated during outline processing, this will be a 2D outline of the component corresponding to an 'optimized' `x_out`. If written as part of the 3D mesh generation process, then this will be the script corresponding to generating the full mesh.
-*.dxf | Drawing eXchange Format file. Corresponds to an 'optimized' `x_out` which generates a uniform mesh. *Required for performing Abaqus-based preprocessing*.
-*.py | Abaqus Python script file containing Abaqus CAE commands required to build a mesh based off of the *.dxf file.
-*.inp | Intermediate input file containing *only the mesh* generated by the Abaqus Python *.py file.
-*.vtk| Legacy text-based Visualization ToolKit file containing the mesh generated either by Abaqus CAE (converted output) or Gmsh (native output)
-*.ccx.inp | Calculix input deck file which contains the mesh and boundary conditions.
-*.abq.inp | Abaqus input deck which contains the mesh and boundary conditions.
+*.inp | Either Abaqus or Calculix input deck file which contains the mesh, material properties and boundary conditions - also saved to the specified working directory. Only written if `Run FEA on save` is checked when `Save` is pressed.
+Boundary conditions | A `bc_prop` structure written to the subject pyCM file, with the modulus and poisson's ratio specified as attributes. On a per entry basis, this structure contains `bc_disp_val` which are the displacements in the z axis per node, an `outline` and `surface_nodes` - the index of nodes that are on the surface to have boundary conditions applied. At the top level of this group is `rigid_body_nodes`, whih is an index of which nods have rigid body boundary conditions applied, and a `transform` object - the homogeneous 4x4 transformation matrix that has been applied to the mesh from either being generated or imported.
+Mesh information | A `mesh` strucutre with fields/groups correspoinding to an unstructured grid with point data. This includes `points`: node locations, `cells`: element connectivity, `cell_types`: an array of VTK cell (elements) types, `cell_locations`: cell/element numbering. A final group `point_data` will be written if postprocessing data is included: entries for `S11`, `S22` and `S33` - stresses relieved by the cut in the x and y directions, as well as the full stress component acting in the z direction, respectively.
 
-The contents of these files, and paths to them are stored in the loaded *.mat results file, so that the *.mat contains a record of all input data associated with the analysis. Upon reloading the *.mat file, if the respective file is not found, it will be written from the *.mat file according to the path that is available so that it may be executed.
 
-Any additional files generated will be generated by the respective FEA tool employed, either Calculix or Abaqus. Post processing is carried out on output from these solvers. Specifically, .odb files with Abaqus Viewer and .frd files from Calculix's CGX post processor. Alternatively, stresses at integration points are written directly to .dat files for third-party contour plotting, irrespective of which solver is employed.
-
-The tool can be called from interactive Python, for example:
-~~~
->>>from pyCM import preprocess as pp
->>>pp.FEAtool()
-~~~
-which if it is run the first time, a GUI will ask for paths to various executables for FEA. This dialog can be accessed again at any time from the preprocess tool by pressing **e**. Settings are saved to the pyCM installation location. See [Fig. 1](#fig1).
-
-<span>![<span>Main Window</span>](images/preprocess1.png)</span>  
-*<a name="fig1"></a> Figure 1: FEA executable dialog*
-
-Alternatively, the input file and output directories can be specified directory. The output directory in this case is the location where the FEA will be conducted:
-~~~
->>>from pyCM import preprocess as pp
->>>pp.FEAtool('PathToMatFile.mat','PathToFEADirectory')
-~~~
-
-##  Interaction functionality
-On launching, the interactor will load the contents of the `x_out` matrix obtained from metrology. Depending on the quantity of points, this outline may have too dense (or too few) a number of points to generate an appropriate mesh. Therefore, a facility for 're-spacing' or a shape-preserving re-population of the outline is provided in the top left pane. Fields in the **Outline modification** pane are pre-populated based on information in the `spline_x` structure, which in turn is based on current best practice. The outline can be seeded on the basis of nodal spacing, or total number of nodes. Spacing/counts are amended such that an even number is obtained to avoid issues with meshing. Changes are imposed with the **Update** button. This modified outline *must* be written as a .dxf file if Abaqus CAE is to be employed.
-
-Once the outline has been generated, either a Gmsh script or Abaqus Python CAE script can be generated which extrudes the outline and partitions this extrusion with a geometric distribution. The algorithm for doing so will ensure that the first partition depth is essentially equal to the node spacing specified in the outline generation step. Either quadrilateral 8 noded brick elements or 4 noded tetrahedral elements are supported. This is accomplished by employing the **Generate mesh** pane, and pressing the **Execute** button. This will submit the script to either Gmsh or Abaqus depending on the radio button, and then update the interaction window to show the resulting mesh. 
-
-Next, imposing boundary conditions (BCs) and elastic properties is accomplished with the **Impose BCs & material** pane. Displacement boundary conditions on the cut face are imposed by pressing the **Impose spline fit button**. Rigid body BCs are selected by first clicking **Choose**, then clicking on the desired location for x & y and pressing **p**, which is followed by selecting another corner for either x or y. See [Fig. 2](#fig2).
-
-<span>![<span>Main Window</span>](images/preprocess4.png)</span>  
-*<a name="fig2"></a> Figure 2: Imposed boundary conditions*
-
-In the **Compose FEA** pane, either a Calculix or Abaqus input deck can be written *regardless of which route was employed to mesh*, and will be automatically processed if the **Run** radio button is selected. Both the Python command line and the interactor will update according to solution status. The results can then be assessed with post-processors available to each respective FEA package, for example CGX as shown in [Fig. 3](#fig3).
-
-<span>![<span>Main Window</span>](images/preprocess5.png)</span>  
-*<a name="fig3"></a> Figure 3: Calculix CGX post-processor*
-
-**Keyboard and mouse mapping**
+## Keyboard and mouse mapping
 
 Key | Description
 ---  |---
@@ -80,14 +129,9 @@ Right mouse button 	|Zoom/refresh window extents
 z | Increase z-aspect ratio of displacement BC
 x | Decrease z-aspect ratio of displacement BC
 c | Return to default z-aspect
-f | Flip colors from white on dark to dark on white
-i | Save output to .png in current working directory
-r | Remove/reinstate outline
-LMB+p | The p button with the *Left mouse button* allow for selecting rigid body boundary conditions. Click first and then press p to select.
-e | Allows the user to change their FEA executable location/path
-l | load/reload *.mat file to conduct/review/revise this analysis step
-
-Processing is intended to be procedural, working top to bottom with the pane on the right hand side of the GUI. Status and updates are provided by the italicised line on the bottom of the GUI pane, as well as periodic messages to the terminal/command line.
+n | Enters into node selection mode for aligning 'corners' of outlines to the mesh. Once active, the *a* button accepts the selection, *d* deselects. Pressing *n* again exits this selection mode.
+b | Enters into node selection mode for picking nodes to apply rigid body boundary conditions. Once active, the *a* button accepts the selection, *d* deselects. Pressing *n* again exits this selection mode.
+l | load/reload *.pyCM file to conduct/review/revise this analysis step
 
 ## Known issues
-If the FEA submission fails, check the directory that it was run from and try running it manually. On Windows, it's been observed that Calculix's Cygwin coupling can conflict with other Cygwin applications.
+If the FEA submission fails, check the directory that it was run from and try running it manually. On Windows, it's been observed that Calculix's Cygwin coupling can conflict with other Cygwin applications. Very large meshes will cause the 32 bit version of CalculiX to fail due to a lack of memory. Extraction of stresses from Abaqus analyses can take significantly longer than for CalculiX.

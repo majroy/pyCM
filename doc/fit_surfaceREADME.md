@@ -1,50 +1,62 @@
 # fit_surface
 
 ## Background
-Reads data from the align & average step and provides a GUI which is essentially a wrapper for [Scipy's FITPACK bivariate spline fitting function](https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.interpolate.bisplrep.html#scipy.interpolate.bisplrep). Writes to a results *.mat file containing the spline fit both from FITPACK as well as attempting to match [MATLAB's spline objects](https://uk.mathworks.com/matlabcentral/linkexchange/links/116-mathworks-spline-toolbox).
+This function reads data from the alignment and averaging step, providing a GUI which currently is only a wrapper for [Scipy's FITPACK bivariate spline fitting function](https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.interpolate.bisplrep.html#scipy.interpolate.bisplrep). It is feasible in the future to include more surface fitting tools, but at this stage only bivariate splines are supported.
 
 ## Initializing
 
-**Input and output descriptors**
+This function can be called independently by importing the fit_surface module from pyCM and then calling launch:
+
+~~~
+>>>from pyCM import fit_surface as fs
+>>>fs.launch()
+~~~
+
+Then, upon launching, the pyCM data file can be loaded via a GUI by pressing the `l` key if launched independently, or by specifying the file directly i.e. `fs.launch('full_path_to_file.pyCM')`. If using the pyCM [main](mainREADME.md) function, `Shift+l` will load any data from the active file. This results in a populated widget as shown in [Fig. 1](#fig1).
+
+<span>![<span></span>](images/fit_surface_loaded.png)</span>  
+*<a name="fig1"></a> Figure 1: Surface fitting widget showing a loaded pyCM file containing data from the averaging and alignment step.*
+
+This file must contain the following:
 
 Input | Description
 ---  |---
-Input file	| A *.mat file with a `ref` structure containing an `x_out` field, see [point_cloud](point_cloudREADME.md): Nx3 matrix of the points that comprise the outline, and a matrix `aa`, which is an Nx3 matrix of points comprising the aligned and averaged data -  see [align_average](align_averageREADME.md).
+Aligned and averaged points | A structure called `aa`, which contains the fields `pnts` - Nx3 matrix of points comprising the aligned and averaged data and `grid_size` as an attribute - the characteristic length of the grid that was used to average the data.
+
+## Display
+Controls over scaling of all entries is provided by `Scaling`, identical to both [registration](registrationREADME.md) and [align_average](align_averageREADME.md). Options for cropping the fitted surface to the outline is provided by the `Outline crop` checkbox (off by default). Captioning entries can be activated by the `Caption entries` checkbox (off by default), and outlines can be hidden by the `Hide outlines` (on by default) checkbox. Opacity controls for both the averaged surface and fitted surface along with the visibility of their legends is also provided.
+
+Since seperate fits can be applied to different entries in the overall dataset, a drop-down menu for focussing on which entry to be considered is provided. Activating this drop-down on an individual entry will hide the other entries and focus on the one specified. `Show all` reverts back and shows all entries.
+
+## Decimation
+The facility to decimate points in the averaged point cloud in order to deactivate them from being included in the fit is provided here. This operates on an identical principal to that employed in the registration step - see *Editor - Decimation* under [registration](registrationREADME.md).
+
+## Bivariate spline fitting
+In order to fit an entry, first select the entry to be focussed on by using the drop-down menu directly above the decimation panel. Then, the spline spacing and order can be specified, prior to attempting a fit with the `Fit` button. If all entries are to have the same fit parameters applied, then the `Fit all` checkbox can be actuated (off by default). Messages regarding the fit process are provided at the bottom of the panel.
+
+When the fit completes, then the display will be updated with the fitted surface, coloured according to the root square error between averaged data and the fit ([Fig. 2](#fig2)).
+
+<span>![<span></span>](images/fit_surface_fitted.png)</span>  
+*<a name="fig2"></a> Figure 2: Surface fitting widget showing a fitted surface.*
+
+## Evaluate fit on plane
+Beyond a contour map of the root square error, the fit can be evaluated on a plane. This plane is specified by the xy position of the centre, and the terminating point of the normal originating from x,y = 0. A plot is provided showing the averaged data, along with the fit as projected on this plane in an embedded plot with the `Update` button. See ([Fig. 3](#fig3)) for an example.
+
+<span>![<span></span>](images/fit_surface_fit_eval.png)</span>  
+*<a name="fig3"></a> Figure 3: Surface fitting widget showing the averaged point cloud coloured according to height, the fitted surface coloured according to the root mean square error, a white line showing the surface trace and the data from both the averaged point cloud as well as the fitted surface along this trace.*
+
+The data in the plot window can be exported to a *.csv file for further analysis with the `Export` button.
+
+## Write current
+When data has been fitted, then the `Write current` panel will be active. The save process is identical to that applied by [align_average](align_averageREADME.md). The following is what is added to the pyCM data file by this step.
+
 
 Output | Description
 ---  |---
-Spline data structure | A `spline_x` structure written to the *.mat results file which contains the following fields:<ul><li>`knots`: Nx2 cell arrays of knots in the x & y directions, respectively.</li><li>`dim`: dimension of the spline (required for MATLAB interoperability)</li><li>`form`: form of the spline - defaults to 'B-' (required for MATLAB interoperability)</li><li>`number`: Nx2 the number of knots in x and y, respectively (required for MATLAB interoperability)</li><li>`tck`: FITPACK generated spline information, a list that contains the knots, coefficients and order.</li><li>`coefs`: matrix of coefficients with dimensions of dimxNxM, according to the dimension, x and y directions (required for MATLAB interoperability)</li></ul>
-Averaged point cloud mask | 1xN array of int8 values called `aa_mask` consisting of 0 and 1 where 0 indicates a masked point. Conversion to a boolean array will provide an index of aligned and averaged point cloud that were masked (*e.g.* not used) for the fitted spline.
+Fit data structures | A `fit` structure containing the following fields on a per entry basis:<ul><li>`active`: An integer array of points indexing which points are actively being considered.</li><li>`bv_tck`: a list of spline parameters; the 5 entries corresponding to [tck](https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.bisplev.html), along with grid spacing in x and y, at index 5 and 6, respectively.</li><li>`eval_points`: points that have been considered as part of the fit</li></li><li>`rse`: calculated root square error between the spline and eval_points</li><li>`tri`: a 2D Delaunay triangulation of eval_points for the purposes of displaying a contour plot of the root square error</li></ul>
 
-The function can be called from interactive Python, for example:
-~~~
->>>from pyCM import fit_surface as fs
->>>fs.sf_def()
-~~~
-which will provide a GUI to locate the *.mat file with the necessary data according to the description above. Alternatively, the path to the target *.mat file can be specified directly:
-~~~
->>>from pyCM import fit_surface as fs
->>>fs.sf_def('PathToMatFile.mat')
-~~~
 
-##  Interaction functionality
-On launching, a custom interactor is generated ([Fig. 1](#fig1)) which permits the same types of manipulation as other pyCM tools in terms of view manipulation. The z, x and c keys only affect the view aspect in the z direction, however.
-
-<span>![<span>Main Window</span>](images/fit_surface_loaded.png)</span>  
-*<a name="fig1"></a> Figure 1: Loaded data with the reference outline and aligned and averaged data set shown, along with masked data also displayed.*
-
-If artefacts from averaging are present, these can be manually removed with the same interaction employed in [point_cloud](point_cloudREADME.md). This function should be used sparingly, but can be used to make minor changes on edges of samples which might contain wire entry/exit artefacts.
-
-For fitting, the user has access to the main arguments of the [scipy.interpolate.bisplrep](https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.interpolate.bisplrep.html#scipy.interpolate.bisplrep) function via input boxes. Pressing the **Update** button will both fit and display the result based on the selected parameters. The **Display resolution** pane permits the user to view the fit of the spline with a higher resolution, and ensure that the point cloud is effectively fitted in all areas. By default, the display resolution is set to half of the knot spacing in either x and y directions.
-
-For further examination of the fit in all locations of the point cloud, the spline/point cloud can be sectioned, by using the **Data sectioning** pane. An example of this is shown in [Fig. 2](#fig2). This can be done as many times as needed, the **Revert** button will undo all sectioning.
-
-<span>![<span>Main Window</span>](images/fit_surface_splinefit_cut.png)</span>  
-*<a name="fig3"></a> Figure 3: Sectioned spline compared to the point cloud.*
-
-Pressing the 'Write' button will update the *.mat file with the result of the spline. Another file or a revision of fitting can be conducted by pressing **l**
-
-**Keyboard and mouse mapping**
+## Keyboard and mouse mapping
 
 Key | Description
 ---  |---
@@ -57,11 +69,9 @@ Right mouse button 	|Zoom/refresh window extents
 z | increase z-aspect ratio
 x | decrease z-aspect ratio
 c | return to default z-aspect
-f | flip colors from white on dark to dark on white
-i | save output to spline_fit.png in current working directory
-r | remove/reinstate compass/axes
+a | remove/reinstate compass/axes
 o | remove/reinstate outline
-l | load/reload *.mat file
+l | load/reload *.pyCM file
 
 ## Known issues
 None at this time.

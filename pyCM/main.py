@@ -17,33 +17,25 @@ __copyright__ = "(c) M. J. Roy, 2014--"
 
 import sys,os,ctypes,time
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtCore import QTimer
 import vtk
 from pkg_resources import Requirement, resource_filename
 from importlib.metadata import version
 from pyCM.pyCMcommon import make_splash, get_file
-import pyCM.registration as reg
-import pyCM.align_average as aa
-import pyCM.fit_surface as fs
-import pyCM.preprocess as pre
-import pyCM.postprocess as post
 
-def main():
-
+if __name__ == '__main__':
     QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
     QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
     app = QtWidgets.QApplication(sys.argv)
 
     splash = make_splash()
     splash.show()
-
-    app_main_window = main_window(app)
-    app_main_window.center()
-    app_main_window.show()
-
-    splash.finish(app_main_window)
+    import pyCM.registration as reg
+    import pyCM.align_average as aa
+    import pyCM.fit_surface as fs
+    import pyCM.preprocess as pre
+    import pyCM.postprocess as post
     
-    sys.exit(app.exec_())
-
 
 class main_window(QtWidgets.QMainWindow):
     '''
@@ -69,7 +61,12 @@ class main_window(QtWidgets.QMainWindow):
         load_button.setShortcut('Ctrl+L')
         load_button.setStatusTip('Load pyCM data file')
         
+        load_current_button = QtWidgets.QAction('Load current step', self)
+        load_current_button.setShortcut('Shift+L')
+        load_current_button.setStatusTip('Load pyCM data file from current step')
+        
         file_menu.addAction(load_button)
+        file_menu.addAction(load_current_button)
         
         #create tabwidget
         self.tabWidget = QtWidgets.QTabWidget()
@@ -83,22 +80,25 @@ class main_window(QtWidgets.QMainWindow):
         self.fstab = QtWidgets.QWidget()
         self.tabWidget.addTab(self.fstab, "Surface fitting")
         self.pretab = QtWidgets.QWidget()
-        self.tabWidget.addTab(self.pretab, "Preprocessing")
+        self.tabWidget.addTab(self.pretab, "Pre-processing")
         self.posttab = QtWidgets.QWidget()
-        self.tabWidget.addTab(self.posttab, "Postprocessing")
+        self.tabWidget.addTab(self.posttab, "Post-processing")
         self.setCentralWidget(self.tabWidget)
 
         #add a status bar
         self.statusbar = QtWidgets.QStatusBar(self)
-        # self.statusbar.setObjectName("statusbar")
         self.setStatusBar(self.statusbar)
 
         #connect functions
         load_button.triggered.connect(self.populate)
-
+        load_current_button.triggered.connect(self.load_current)
+        self.tabWidget.currentChanged[int].connect(self.on_tab_change)
+        
+        
         self.tabWidget.setCurrentIndex(0)
         self.initialize_all()
         self.file = None #active datafile
+        self.current_tab = 0 #from launch
         self.active_dir = os.getcwd()
     
     def center(self):
@@ -163,6 +163,43 @@ class main_window(QtWidgets.QMainWindow):
         self.postui.file = self.file
         self.postui.get_data()
 
+    def load_current(self):
+        '''
+        loads the self.file for the currently selected tab
+        '''
+        if self.file is None:
+            return
+            
+        if self.current_tab == 0:
+            self.regui.output_filename = self.file
+            self.regui.ui.tab_widget.setCurrentIndex(1)
+        elif self.current_tab == 1:
+            self.aaui.file = self.file
+            self.aaui.get_data()
+        elif self.current_tab == 2:
+            self.fsui.file = self.file
+            self.fsui.get_data()
+        elif self.current_tab == 3:
+            self.preui.file = self.file
+            self.preui.get_data()
+        elif self.current_tab == 4:
+            self.postui.file = self.file
+            self.postui.get_data()
+        
+    def on_tab_change(self, tab_number):
+        '''
+        Performs operations according to tab changes
+        - sets current tab
+        - sets the window title when moving off of registration
+        '''
+        self.current_tab = tab_number #for load current
+        
+        #changing to tab > 0, update the filename based on reg's filename
+        if tab_number > 0:
+            if self.regui.output_filename is not None:
+                self.file = self.regui.output_filename
+                self.setWindowTitle("%s  -  pyCM v%s" %(self.file,version('pyCM')))
+
     def closeEvent(self,event):
         '''
         Finalize all VTK widgets to negate OpenGL messages/errors
@@ -176,4 +213,11 @@ class main_window(QtWidgets.QMainWindow):
         super().closeEvent(event)
 
 if __name__ == "__main__":
-    main()
+    app_main_window = main_window(app)
+    app_main_window.center()
+    app_main_window.show()
+    
+    QTimer.singleShot(1000, splash.close)
+    # splash.finish(app_main_window)
+    
+    sys.exit(app.exec_())
