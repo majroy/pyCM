@@ -24,16 +24,16 @@ To get a high level overview of the approach taken to contour method analysis ta
 ["pyCM: An open-source computational framework for residual stress analysis employing the Contour Method" by Roy et al. (2020).](https://www.sciencedirect.com/science/article/pii/S2352711019303668)
 
 # Latest version
-Beta release 2.0.0 is the latest version of pyCM. is *not* backwards compatible with previous versions. It offers substantial improvements over version 1.1.8, as well as rolling up many updates aimed at supporting the most recent packages. This release is an improvement over 1.1.8 in the following ways:
+Beta release 2.0.0 is the latest version of pyCM. is *not* backwards compatible with previous versions. It offers substantial improvements over the last 1.1.8post3 version, as well as rolling up many updates aimed at supporting the most recent packages that it depends on. This release is an improvement over 1.1.8 in the following ways:
 * The use of an HDF5 formatted storage file for speed and more transparent storage format
-* The introduction of 'entries', meaning different domains can be processed independently. This means that it now supports items like pipes, which have two independent surfaces per cut face.
-* Registration step includes more filters for decimation and height prviews
+* The introduction of 'entries', meaning different domains can be processed independently. This means that it now supports items like axial cuts on pipes, which have two independent surfaces per cut face.
+* Registration step includes more filters for decimation and height previews
 * Alignment and averaging has been improved, along with the ability to fill missing data with nearest neighbours.
 * Surface fitting now shows a map of error between fitted surfaces and averaged data. A direct, exportable 2D comparison between fit and data on a plane has been implemented
 * Finite element preprocessing allows the import and alignment of meshes.
 * Post processing allows for an export of both line and all stresses at nodes. Both linear quadrilateral and second order tetrahedral meshes are supported.
 
-Alpha release 1.1.8post3 is a legacy version which contains a complete toolchain for rectangular specimens with no self-restraint. Note that the post-processor is still in a beta form for testing purposes on *quadrilateral meshes only*; if tetrahedral meshes are employed, then the native FEA code's post processor should be employed (GraphiX or Abaqus Viewer).
+Alpha release 1.1.8post3 is a legacy version which contains a complete toolchain for rectangular specimens with no self-restraint. Note that the post-processor included only operates on *quadrilateral meshes only*; if tetrahedral meshes are employed, then the native FEA code's post processor should be employed (GraphiX or Abaqus Viewer).
 
 **It has been confirmed that equivalent results are obtained with both CalculiX and Abaqus, CalculiX is significantly faster performing for smaller analyses**.
 
