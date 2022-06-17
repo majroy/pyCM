@@ -551,7 +551,7 @@ class interactor(QtWidgets.QWidget):
             self.ui.outline_offset.setEnabled(True)
             self.ui.reorient_box.setEnabled(False)
         if ls == 2:
-            self.registered = False
+            self.reset_outline()
             self.ui.outliner_box.setEnabled(True)
         if ls > 0:
             if self.ui.entry_spec.currentIndex() == 0:
@@ -620,15 +620,19 @@ class interactor(QtWidgets.QWidget):
         
         # ind will return points that remain active
         if self.ui.decimate_by_number.isChecked():
-            ind = reduce_pnts(active_pnts,\
-            self.ui.num_active_points.value(),\
-            self.ui.z_active_points.value()\
-            ,0)
+            try:
+                ind = reduce_pnts(active_pnts,\
+                self.ui.num_active_points.value(),\
+                self.ui.z_active_points.value()\
+                ,0)
+            except: pass
         if self.ui.decimate_by_percent.isChecked():
-            ind = reduce_pnts(active_pnts,\
-            self.ui.percent_active_points.value(),\
-            self.ui.z_active_points.value(),\
-            1)
+            try:
+                ind = reduce_pnts(active_pnts,\
+                self.ui.percent_active_points.value(),\
+                self.ui.z_active_points.value(),\
+                1)
+            except: pass
         
         #if the Z norm cutoff is active
         if self.ui.z_norm_active_points.isEnabled():
@@ -637,10 +641,11 @@ class interactor(QtWidgets.QWidget):
             ind = np.intersect1d(ind,z_norm_ind)
         
         if hasattr(self,'outline'):
-            offset_outline = offset_poly(self.outline,self.ui.outline_offset.value())
-            in_poly_bool = in_poly(offset_outline,active_pnts)
-            in_poly_ind = np.arange(0, len(active_pnts), 1, dtype=int)
-            ind = np.intersect1d(ind,in_poly_ind[in_poly_bool])
+            if self.outline is not None:
+                offset_outline = offset_poly(self.outline,self.ui.outline_offset.value())
+                in_poly_bool = in_poly(offset_outline,active_pnts)
+                in_poly_ind = np.arange(0, len(active_pnts), 1, dtype=int)
+                ind = np.intersect1d(ind,in_poly_ind[in_poly_bool])
         
         #update ui based on what is returned by reduce_pnts
         self.ui.num_active_points.setValue(len(ind))
@@ -960,18 +965,20 @@ class interactor(QtWidgets.QWidget):
         '''
         Translate points to mean of z value of all points
         '''
-        a = np.vstack((self.raw_pts[self.active_pnt,:],self.outline))
-        #update transformation matrix to move back with local matrix
-        self.trans[2,-1] = - np.mean(a[:,2])
-        self.apply_transformation()
+        if hasattr(self,'outline'):
+            a = np.vstack((self.raw_pts[self.active_pnt,:],self.outline))
+            #update transformation matrix to move back with local matrix
+            self.trans[2,-1] = - np.mean(a[:,2])
+            self.apply_transformation()
 
     def trans_centroid(self):
         '''
         Translates active points to centroid of point cloud and outline
         '''
-        a = np.vstack((self.raw_pts[self.active_pnt,:],self.outline))
-        self.trans[0:3,-1] = - np.mean(a, axis=0)
-        self.apply_transformation()
+        if hasattr(self,'outline'):
+            a = np.vstack((self.raw_pts[self.active_pnt,:],self.outline))
+            self.trans[0:3,-1] = - np.mean(a, axis=0)
+            self.apply_transformation()
 
     def svd(self):
         '''
@@ -1018,6 +1025,8 @@ class interactor(QtWidgets.QWidget):
         '''
         Tries to find corners of the outline, and aligns longest side to x axis
         '''
+        if not hasattr(self,'outline'):
+            return
         #reorder outline and get corner index
         corner_ind, self.outline = get_corner_ind(self.outline)
 
@@ -1090,6 +1099,8 @@ class interactor(QtWidgets.QWidget):
         '''
         Accepts the outline by calling redraw and changing the registered state
         '''
+        if not hasattr(self,'outline'):
+            return
         self.registered = True
         self.ui.rotate_z_box.setEnabled(True)
         self.ui.outline_offset.setEnabled(True)
@@ -1099,14 +1110,17 @@ class interactor(QtWidgets.QWidget):
         '''
         Removes the outline actor if it exists and changes the registered state
         '''
+        if not hasattr(self,'outline'):
+            return
+        else:
+            del self.outline
         self.registered = False
         self.actuate_triangulate()
         self.ui.rotate_z_box.setEnabled(False)
         self.ui.outline_offset.setEnabled(False)
         if hasattr(self,'outline_actor'):
             self.ren.RemoveActor(self.outline_actor)
-        if hasattr(self,'outline'):
-            del self.outline
+            
         self.ui.vtkWidget.update()
 
     def choose_path(self):
@@ -1475,13 +1489,11 @@ class interactor(QtWidgets.QWidget):
         self.ui.entry_spec.setCurrentIndex(entry)
         self.change_entries() #to enable/disable cut orientation
         
-        #turn off reorientation & outline processing
-        self.ui.reorient_box.setEnabled(False)
-        self.ui.outliner_box.setEnabled(False)
-        
-        #turn on decimation & saving
+        #turn on decimation, reorientation, outline processing & saving
         self.ui.point_processing_box.setEnabled(True)
         self.ui.save_box.setEnabled(True)
+        self.ui.reorient_box.setEnabled(True)
+        self.ui.outliner_box.setEnabled(True)
         
 
 def get_svd_orientation(points):

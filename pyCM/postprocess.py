@@ -298,6 +298,7 @@ class interactor(QtWidgets.QWidget):
             components.append(self.mesh.GetPointData().GetArrayName(index))
         if not components: #then its a pre-processed mesh that hasn't been run with results
             return
+        self.ui.component_cb.clear()
         self.ui.component_cb.addItems(components)
         #find the index of S33
         self.ui.component_cb.setCurrentIndex(components.index("S33"))

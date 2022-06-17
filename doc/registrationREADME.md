@@ -131,10 +131,7 @@ Output | Description
 Output file	| A .pyCM file will be written to the specified output directory. At minimum, it will contain two data structures needed for subsequent processing, `ref` and `float`, having optional attributes relating to cutting orientation, and the following groups on a per-entry basis:<ul><li>`points`: Nx3 array of the coordinate values.</li><li>`active`: An integer array of points indexing which points are actively being considered.</li><li>`outline`: Nx3 matrix of the points that comprise the outline</li></ul> Finally, for each the `float` and `ref` data groups, a `transform` entry is also included, which captures the transformation matrix applied to each group.
 
 ## Preview
-The `Preview` tab ([Fig. 1](#fig3)) is meant to show the result of data saved via the `Editor` tab. That is, show what each entry looks like for both the reference and floating datasets.From this tab, one may select an entry for further editing - pressing `p` will allow an entry to be selected, and upon switching back to the `Editor`, that dataset will be available for:
-
-* Decimating or resetting decimation of points (if points were originally preserved)
-* Resetting/instituting cutting orientations
+The `Preview` tab ([Fig. 1](#fig3)) is meant to show the result of data saved via the `Editor` tab. That is, show what each entry looks like for both the reference and floating datasets. Note that the reference surface requires being saved first. If an error has been made regarding which side of the cut should be taken to be the reference, then it can be saved in the floating slot. Once the *actual* reference surface is processed, it can be saved to the reference slot, overwriting the existant. From this tab, one may select an entry for further editing - pressing `p` will allow an entry to be selected, and upon switching back to the `Editor`, that dataset should be available for editing all aspects on the basis of entry.
 
 After edits are made, then the respective entry can be saved to the datafile.
 

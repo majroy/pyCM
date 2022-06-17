@@ -99,7 +99,7 @@ This will present the FEA widget which allows the option of running the FEA eith
 <span>![<span></span>](images/pre_bc.png)</span>  
 *<a name="figx"></a> Figure x: FEA widget showing entries/arguements for running with either CalculiX or Abaqus, as well as updating the FEA working directory.*
 
-Both the CalculiX executable and working directory can be browsed to by selecting the buttons with 3 dots. Due to vagaries of how Abaqus is installed on different systems, this may be `abaqus` or `abqxxxxhfy` with `xxxx` the release year of Abaqus installed and `y` the the hotfix number. The entry here is the command that is employed at the command line to start CAE, Viewer or any other Abaqus command/environment.
+Both the CalculiX executable and working directory can be browsed to by selecting the buttons with 3 dots. Due to vagaries of how Abaqus is installed on different systems, this may be `abaqus` or `abqxxxxhfy` with `xxxx` the release year of Abaqus installed and `y` the the hotfix number. The entry here is the command that is employed at the command line to start CAE, Viewer or any other Abaqus command/environment. Regarding obtaining a compiled version of CalculiX for Windows, the `ccxXXX.exe` (`XXX` is the version number) necessary can be obtained from the *CalculiXforWin* project. CalculiX version 2.11 have been found to work.
 
 Selecting `Run` with the `Abaqus` radio button selected will ask the user to name their input file via a GUI in the working directory specified. The exact command that will execute is:
 ~~~

@@ -15,7 +15,7 @@ The function is called from a Python script or in interactive mode, starting by 
 
 Then, upon launching, the pyCM data file can be loaded via a GUI by pressing the `l` key if launched independently, or by specifying the file directly i.e. `aa.launch('full_path_to_file.pyCM')`. If using the pyCM [main](mainREADME.md) function, `Shift+l` will load any data from the active file. This results in a populated widget as shown in [Fig. 1](#fig1).
 
-<span>![<span></span>](images/avg_loaded.png)</span>  
+<span>![<span></span>](images/Avg_loaded.png)</span>  
 *<a name="fig1"></a> Figure 1: Alignment and averaging widget showing a loaded pyCM file containing data from the registration step.*
 
 This pyCM file must contain the following input:
@@ -46,7 +46,7 @@ Either by directly specifying a grid size in millmetres, or allowing pyCM to aut
 
 Once averaged, the resulting data will be colored according to height, as shown in [Fig. 2](#fig2). Note that the opacity of the reference and floating point datasets are automatically set to 0 (invisible) when this happens, but can be changed to view each dataset individually with the `Display` controls. 
 
-<span>![<span></span>](images/avg_averaged.png)</span>  
+<span>![<span></span>](images/Avg_averaged.png)</span>  
 *<a name="fig1"></a> Figure 2: Alignment and averaging widget showing an averaged dataset. The legend represents the variation in z value of the averaged surface.*
 
 Note that `Alignment` tools are inaccessible until `Reset` is pressed within the `Averaging` panel to prevent inadvertant modifications to the alignment with an averaged dataset present.
