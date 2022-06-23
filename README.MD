@@ -57,6 +57,13 @@ These instructions cover the steps needed to install all dependencies and then a
 * [preprocess](doc/preprocessREADME.md) - meshing/boundary condition building tool. Also allows finite element analyses to run with either CalculiX or Abaqus.
 * [postprocess](doc/postprocessREADME.md) - View and export results.
 
+# Sample datasets
+The example data folder in this repository contains some example raw data files. Where possible these will be added to as time goes on.
+
+Title/decription|Source
+---  |---
+ENPOWER edge-welded beam | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3373916.svg)](https://doi.org/10.5281/zenodo.3373916)
+
 # Contributions and extensions
 This project is intended to best serve the overall residual stress community, so feel free to adjust as needed and add functionality. Please contact me directly by email prior to submitting pull requests so that we can discuss overall structure further.
 
