@@ -162,7 +162,8 @@ z 	|Increase z-aspect ratio by a factor of 2
 x 	|Decrease z-aspect ratio by a factor of 0.5
 c 	|Return to default z-aspect ratio; x,y:z=1:1
 a 	|Remove/reinstate compass/axes
-**Editor**
+
+**Preview**
 Key | Description
 ---  |---
 Left mouse button (LMB)	|Rotate about the center of view

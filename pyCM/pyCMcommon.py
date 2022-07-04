@@ -487,9 +487,16 @@ def respace_equally(X,input):
 
 def get_corner_ind(X):
     '''
-    Returns the index of corner points of 3D point array X
-    Performs a check and re-orders such that the returned index is ccw, with the first point occuring in the bottom left corner of the outline.
+    Returns the index of corner points and reordered outline of 3D point array X
+    Performs a check and re-orders such that the returned outline is cw, with the first point occurring in the bottom left corner of the outline.
     '''
+
+    #make sure outline is cw, if not, reverse it
+    d = 0
+    for j in range(len(X)-1):
+        d += (X[j+1,0] - X[j,0]) * (X[j+1,1] + X[j,1])
+    if d < 0: #if ccw; d=2*area
+        X = X[::-1,:]
 
     #calculate limits
     limits = get_limits(X, 0.01)

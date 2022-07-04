@@ -86,7 +86,7 @@ The same approach for selecting nodes for alignment purposes has been employed f
 
 Next, pressing `Impose surface BCs` will show a scalable preview of the displacement boundary conditions applied to the surface. Note that the orientation of the mesh along the z axis is inconsequential to the direction of the boundary conditions. For example if the mesh were to be imported and aligned such that all nodes reside on the positive z axis, then the boundary condition applied will be the fit surface. Whereas if all nodes reside on the negative z axis, then the fit surface will be inverted. [Fig. 4](#fig4) shows all boundary conditions applied to a multi-entry dataset.
 
-<span>![<span></span>](images/pre_node_select.png)</span>  
+<span>![<span></span>](images/pre_bc.png)</span>  
 *<a name="fig4"></a> Figure 4: A complete set of conditions imposed for an FEA to calculate stresses. Rigid boundary conditions are shown wiht red arrows, while the displacement boundary condition corresponding to the contour is shown in yellow.*
 
 Finally, the modulus of elasticity to employ can be entered in MPa, and Poisson's ratio can also be instituted.
@@ -94,10 +94,10 @@ Finally, the modulus of elasticity to employ can be entered in MPa, and Poisson'
 ## Write current
 The `Write current` panel provides the ability to save relevant information pertaining to the FEA for the purposes of running at a later date, or to both save relevant data to the pyCM file and run the FEA analysis by selecting `Run FEA on save` (on by default) and pressing `Save`.
 
-This will present the FEA widget which allows the option of running the FEA either with Abaqus or with CalculiX in a working directory specified ([Fig. x](#figx)). A further option is presented such that the results are extracted from relevant files upon conclusion of the analysis, or not - with the `Extract results after run` option selected (on by default). Deselect this if the intention is to employ another postprocessor other than the one in pyCM.
+This will present the FEA widget which allows the option of running the FEA either with Abaqus or with CalculiX in a working directory specified ([Fig. 5](#fig5)). A further option is presented such that the results are extracted from relevant files upon conclusion of the analysis, or not - with the `Extract results after run` option selected (on by default). Deselect this if the intention is to employ another postprocessor other than the one in pyCM.
 
-<span>![<span></span>](images/pre_bc.png)</span>  
-*<a name="figx"></a> Figure x: FEA widget showing entries/arguements for running with either CalculiX or Abaqus, as well as updating the FEA working directory.*
+<span>![<span></span>](images/pre_fea_widget.png)</span>  
+*<a name="fig5"></a> Figure 5: FEA widget showing entries/arguments for running with either CalculiX or Abaqus, as well as updating the FEA working directory.*
 
 Both the CalculiX executable and working directory can be browsed to by selecting the buttons with 3 dots. Due to vagaries of how Abaqus is installed on different systems, this may be `abaqus` or `abqxxxxhfy` with `xxxx` the release year of Abaqus installed and `y` the the hotfix number. The entry here is the command that is employed at the command line to start CAE, Viewer or any other Abaqus command/environment. Regarding obtaining a compiled version of CalculiX for Windows, the `ccxXXX.exe` (`XXX` is the version number) necessary can be obtained from the *CalculiXforWin* project. CalculiX version 2.11 have been found to work.
 
