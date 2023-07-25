@@ -828,7 +828,7 @@ class interactor(QtWidgets.QWidget):
         QtWidgets.QApplication.processEvents()
         pts = self.avg[ind]
         tri = Delaunay(pts[:,:2])
-        self.tri[ind] = tri.vertices
+        self.tri[ind] = tri.simplices
         tck = self.bv_tck_list[ind]
         znew = np.empty(len(pts))
         for i in range(len(pts)):

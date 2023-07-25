@@ -5,6 +5,6 @@ pyyaml>=5.0
 matplotlib
 PyQt5>=5
 h5py
-sklearn
+scikit-learn
 shapely
 pyclipper
