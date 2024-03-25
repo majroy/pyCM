@@ -670,7 +670,7 @@ class interactor(QtWidgets.QWidget):
             '''
             Returns an array of normalized z components of each triangle in a 2D triangulation, tri - an index of points
             '''
-            triangles = points[tri.simplices]
+            triangles = points[tri.vertices]
             V = triangles[:,2,:] - triangles[:,0,:]
             U = triangles[:,1,:] - triangles[:,0,:]
             n = np.cross(U,V)
@@ -686,7 +686,7 @@ class interactor(QtWidgets.QWidget):
         cutoff = self.ui.z_norm_active_points.value()
         norm_cutoff_ind = normals > cutoff
         #find the unique indices that are in the triangle index to keep:
-        ind = np.unique(self.tri.simplices[norm_cutoff_ind,:].copy().flatten())
+        ind = np.unique(self.tri.vertices[norm_cutoff_ind,:].copy().flatten())
         return ind
         
     def actuate_triangulate(self):
@@ -1535,7 +1535,7 @@ def tri_normal_z(points,tri):
     '''
     Returns an array of normalized z components of each triangle in a 2D triangulation, tri - an index of points
     '''
-    triangles = points[tri.simplices]
+    triangles = points[tri.vertices]
     V = triangles[:,2,:] - triangles[:,0,:]
     U = triangles[:,1,:] - triangles[:,0,:]
     n = np.cross(U,V)
