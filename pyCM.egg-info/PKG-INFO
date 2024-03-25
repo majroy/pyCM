@@ -16,5 +16,15 @@ Classifier: Programming Language :: Python :: 3.7
 Classifier: Intended Audience :: End Users/Desktop
 Classifier: Natural Language :: English
 License-File: LICENSE
+Requires-Dist: vtk>=6.0
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: pyyaml>=5.0
+Requires-Dist: matplotlib
+Requires-Dist: PyQt5>=5
+Requires-Dist: h5py
+Requires-Dist: scikit-learn
+Requires-Dist: shapely
+Requires-Dist: pyclipper
 
 https://github.com/majroy/pyCM

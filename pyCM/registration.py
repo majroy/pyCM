@@ -670,7 +670,7 @@ class interactor(QtWidgets.QWidget):
             '''
             Returns an array of normalized z components of each triangle in a 2D triangulation, tri - an index of points
             '''
-            triangles = points[tri.vertices]
+            triangles = points[tri.simplices]
             V = triangles[:,2,:] - triangles[:,0,:]
             U = triangles[:,1,:] - triangles[:,0,:]
             n = np.cross(U,V)
@@ -686,7 +686,7 @@ class interactor(QtWidgets.QWidget):
         cutoff = self.ui.z_norm_active_points.value()
         norm_cutoff_ind = normals > cutoff
         #find the unique indices that are in the triangle index to keep:
-        ind = np.unique(self.tri.vertices[norm_cutoff_ind,:].copy().flatten())
+        ind = np.unique(self.tri.simplices[norm_cutoff_ind,:].copy().flatten())
         return ind
         
     def actuate_triangulate(self):
@@ -1531,20 +1531,6 @@ def get_svd_orientation(points):
     #return the inverted rotation for pre-multiplication
     return np.linalg.inv(R)
 
-def tri_normal_z(points,tri):
-    '''
-    Returns an array of normalized z components of each triangle in a 2D triangulation, tri - an index of points
-    '''
-    triangles = points[tri.vertices]
-    V = triangles[:,2,:] - triangles[:,0,:]
-    U = triangles[:,1,:] - triangles[:,0,:]
-    n = np.cross(U,V)
-    
-    mag = np.sqrt((n ** 2).sum(-1)) #inner1d can make faster
-    z_norm = np.abs(n[:,-1])/mag
-    
-    return z_norm, np.mean(mag)
-
 def alpha_shape(points, tri, alpha=1):
     """
     Compute the alpha shape (concave hull) of a set
@@ -1558,13 +1544,13 @@ def alpha_shape(points, tri, alpha=1):
     
     coords = points.copy()
     
-    triangles = coords[tri.vertices]
+    triangles = coords[tri.simplices]
     a = ((triangles[:,0,0] - triangles[:,1,0]) ** 2 + (triangles[:,0,1] - triangles[:,1,1]) ** 2) ** 0.5
     b = ((triangles[:,1,0] - triangles[:,2,0]) ** 2 + (triangles[:,1,1] - triangles[:,2,1]) ** 2) ** 0.5
     c = ((triangles[:,2,0] - triangles[:,0,0]) ** 2 + (triangles[:,2,1] - triangles[:,0,1]) ** 2) ** 0.5
     s = ( a + b + c ) / 2.0 #semiperimeter
     areas = (s*(s-a)*(s-b)*(s-c)) ** 0.5 #Heron's formula
-    triangles = coords[tri.vertices]
+    triangles = coords[tri.simplices]
     
     #make sure the areas are valid
     valid = np.isreal(areas) & ~np.isnan(areas) & ~np.isinf(areas)
